@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<!-- From https://github.com/BlackrockDigital/startbootstrap-2-col-portfolio -->
+<html lang="en">
+
+  <head>
+
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+    <meta name="description" content="">
+    <meta name="author" content="">
+
+    <title>Flambe Console</title>
+
+    <!-- Bootstrap core CSS -->
+	<link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.1.3/css/bootstrap.min.css" integrity="sha384-MCw98/SFnGE8fJT3GXwEOngsV7Zt27NXFoaoApmYm81iuXoPkFOJwJ8ERdknLPMO" crossorigin="anonymous">
+    <link href="https://gitcdn.github.io/bootstrap-toggle/2.2.2/css/bootstrap-toggle.min.css" rel="stylesheet">
+
+    <style>
+
+        body {
+          background-color: black;
+          background-image: radial-gradient(
+            rgba(0, 150, 0, 0.75), black 120%
+          );
+          height: 100vh;
+          margin: 0;
+          overflow-y: scroll;
+          padding: 4rem;
+          font: 1.3rem Inconsolata, monospace;
+          text-shadow: 0 0 5px #C8C8C8;
+          body::after {
+            content: "";
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            background: repeating-linear-gradient(
+              0deg,
+              rgba(black, 0.15),
+              rgba(black, 0.15) 1px,
+              transparent 1px,
+              transparent 2px
+            );
+            pointer-events: none;
+          }
+        }
+        ::selection {
+          background: #0080FF;
+          text-shadow: none;
+        }
+        pre {
+          word-wrap: break-word;
+          margin: 0;
+          color: #e8e8e8 !important;
+		  overflow-x: auto;
+		  white-space: pre-wrap;
+        }
+
+    </style>
+
+  </head>
+
+  <body>
+        <pre id="output"></pre>
+
+    <!-- Bootstrap core JavaScript -->
+	<script src="https://code.jquery.com/jquery-3.3.1.slim.min.js" integrity="sha384-q8i/X+965DzO0rT7abK41JStQIAqVgRVzpbzo5smXKp4YfRvH+8abtTE1Pi6jizo" crossorigin="anonymous"></script>
+	<script src="https://cdnjs.cloudflare.com/ajax/libs/popper.js/1.14.3/umd/popper.min.js" integrity="sha384-ZMP7rVo3mIykV+2+9J3UJ46jBk0WLaUAdn689aCwoqbBJiSnjAK/l8WvCWPIPm49" crossorigin="anonymous"></script>
+	<script src="https://stackpath.bootstrapcdn.com/bootstrap/4.1.3/js/bootstrap.min.js" integrity="sha384-ChfqqxuZUCnJSK3+MXmPNIyE6ZbWh2IMqE241rYiqJxyMiZ6OW/JmZQ5stwEULTy" crossorigin="anonymous"></script>
+    <script src="https://gitcdn.github.io/bootstrap-toggle/2.2.2/js/bootstrap-toggle.min.js"></script>
+    <script>
+        var output = document.getElementById('output');
+
+        var xhr = new XMLHttpRequest();
+        xhr.open('GET', '{{ url_for('stream') }}');
+        xhr.send();
+
+        setInterval(function() {
+            output.textContent = xhr.responseText;
+        }, 100);
+    </script>
+
+
+  </body>
+
+</html>

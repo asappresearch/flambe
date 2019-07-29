@@ -1,0 +1,148 @@
+p {
+   font-family: Barlow,Helvetica Neue,sans-serif;
+}
+
+a {
+   color: #ed228b;
+}
+
+h1, h2, h3 {
+   font-family: Barlow,Helvetica Neue,sans-serif;
+}
+
+.wy-side-nav-search, .wy-nav-top {
+   background: #fff;
+   background-color: #f5f5f5;
+}
+
+.wy-nav-side {
+   background: #fff;
+   background-color: #f5f5f5;
+}
+
+.wy-menu-vertical a {
+   color: #556;
+}
+
+.wy-menu-vertical a:hover {
+   color: #ee3373;
+   background-color: inherit;
+}
+
+.wy-menu-vertical p.caption {
+   color: #111;
+   font-size: 11pt;
+}
+
+.wy-side-nav-search>a img.logo {
+   padding: 24px;
+}
+
+.wy-nav-content {
+   background: #fff;
+}
+
+
+
+.wy-nav-content {
+   border-left-color: #ddd;
+   border-left-style: solid;
+   border-left-width: 1px;
+   border-right-color: #ddd;
+   border-right-style: solid;
+   border-right-width: 1px;
+}
+
+.wy-nav-content-wrap {
+   background: #eee;
+}
+
+.version {
+   color: gray;
+}
+
+wy-side-nav-search>div.version {
+   color: gray;
+}
+
+.caption {
+   color: #111;
+}
+
+i.fa-bars {
+   color: #000;
+}
+
+
+pre {
+   background: #FFFBFD;
+   border-color: #ed228b;
+   border-radius: 5px;
+}
+
+.pre {
+   color: #ed228b;
+}
+
+pre span {
+   font-family: Roboto mono,Helvetica Neue,sans-serif;
+   font-size: 12px;
+}
+
+.highlight {
+   background: #fff;
+}
+
+/* .wy-menu-vertical a {
+   font-size: 12pt;
+} */
+
+.rst-content .important .admonition-title {
+    background: #71b79f;
+}
+
+.rst-content .important {
+    background: #f1fdf9;
+    
+}
+
+.rst-content .seealso .admonition-title {
+    background: #85aed6;
+}
+
+.rst-content .seealso {
+    background: #f1f5fd;
+}
+
+
+.rst-content .tip .admonition-title {
+    background: #8bd2ea;
+}
+
+.rst-content .tip {
+    background: #eefbf8;
+}
+
+.rst-content .attention .admonition-title {
+    background: #f5bb89;
+}
+
+.rst-content .attention {
+    background: #fff6e7;
+}
+
+.rst-content .hint .admonition-title {
+    background: #a1b992;
+}
+
+.rst-content .hint {
+    background: #f4ffea;
+}
+
+.rst-content .warning .admonition-title {
+    background: #ff8c8c;
+}
+
+.rst-content .warning {
+    background: #ffefef;
+}

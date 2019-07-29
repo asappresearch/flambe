@@ -1,0 +1,45 @@
+!Experiment
+
+name: sst-text-classification-lstm
+
+save_path: flambe_text_classification
+
+schedulesr:
+  b1: !tune.HyperBandScheduler
+    reward_attr: dev_metric
+
+redcue:
+  b1: 1
+
+pipeline:
+  b0: !TCProcessor
+    dataset: !SSTDataset
+  b1: !Trainer
+    train_data: !link b0.train
+    dev_data: !link b0.dev
+    train_sampler: !BaseSampler
+      batch_size: 32
+    dev_sampler: !BaseSampler
+      batch_size: 512
+    model: !TextClassifier
+      embedding: !EmbeddingEncoder
+        input_size: !link b0.vocab_size
+        embedding_size: 300
+      encoder: !RNNEncoder
+        input_size: 300
+        rnn_type: lstm
+        n_layers: !g [2, 3, 4]
+        hidden_size: 256
+        pooling: last
+      decoder: !SoftmaxDecoder
+        input_size: !link b1.model.encoder.rnn.hidden_size
+        output_size: !link b0.num_labels
+    optimizer: !torch.Adam
+      params: !link b1.model.trainable_params
+    max_steps: 2
+    iter_per_step: 2
+  b2: !Evaluator
+    eval_data: !link b0.dev
+    model: !link b1.model
+    eval_sampler: !BaseSampler
+      batch_size: 512

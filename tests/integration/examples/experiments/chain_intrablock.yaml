@@ -1,0 +1,72 @@
+!Experiment
+
+name: basic-example
+save_path: .
+
+pipeline:
+  encoder: !PooledRNNEncoder
+    input_size: 300
+    rnn_type: lstm
+    n_layers: 2
+    hidden_size: 256
+  dataset: !SSTDataset
+    transform:
+      text: !TextField
+      label: !LabelField
+  model: !TextClassifier
+    embedder: !Embedder
+      embedding: !torch.Embedding
+        num_embeddings: !@ dataset.text.vocab_size
+        embedding_dim: 300
+      encoder: !@ encoder
+    output_layer: !SoftmaxLayer
+      input_size: !@ model.embedder.encoder.rnn.hidden_size
+      output_size: !@ dataset.label.vocab_size
+  b1: !Trainer
+    dataset: !@ dataset
+    train_sampler: !BaseSampler
+    val_sampler: !BaseSampler
+    model: !@ model
+    loss_fn: !torch.NLLLoss
+    metric_fn: !Accuracy
+    optimizer: !torch.Adam
+      params: !@ b1.model.trainable_params
+    max_steps: 2
+    iter_per_step: 2
+  b2: !Trainer
+    dataset: !@ b1.dataset
+    train_sampler: !BaseSampler
+    val_sampler: !BaseSampler
+    model: !TextClassifier
+      embedder: !Embedder
+        embedding: !torch.Embedding
+          num_embeddings: !@ b1.model.embedder.embedding.num_embeddings
+          embedding_dim: 300
+        encoder: !PooledRNNEncoder
+          input_size: !g
+            - !@ b2.model.embedder.embedding.embedding_dim
+            - !@ b1.model.embedder.embedding.embedding_dim
+          rnn_type: lstm
+          n_layers: !g [2, 3]
+          hidden_size: !@ b2.model.embedder.encoder.input_size
+      output_layer: !SoftmaxLayer
+        input_size: !@ b2.model.embedder.encoder.rnn.hidden_size
+        output_size: !@ dataset.label.vocab_size
+    loss_fn: !torch.NLLLoss
+    metric_fn: !Accuracy
+    optimizer: !torch.Adam
+      params: !@ b2.model.trainable_params
+    max_steps: 2
+    iter_per_step: 2
+  b3: !Evaluator
+    dataset: !@ b2.dataset
+    model: !@ b2.model
+    metric_fn: !Accuracy
+    eval_sampler: !BaseSampler
+      batch_size: 512
+
+schedulers: # Define how to schedule variants based on a metric
+  b2: !tune.HyperBandScheduler
+    reward_attr: dev_metric # This should be an attribute on the Trainer class
+reduce: # Only use the best variant in subsequent blocks
+  b2: 1

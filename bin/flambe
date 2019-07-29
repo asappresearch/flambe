@@ -1,0 +1,2 @@
+#!/bin/bash
+python3 -Wignore -u -m flambe.runner.run "$@"

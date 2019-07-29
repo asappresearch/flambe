@@ -1,0 +1,5 @@
+include requirements.txt
+include requirements-gpu.txt
+include tests/requirements.txt
+include flambe/experiment/webapp/templates/*
+include flambe/experiment/webapp/static/*

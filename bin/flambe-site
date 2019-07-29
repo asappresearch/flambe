@@ -1,0 +1,2 @@
+#!/bin/sh
+python3 -m flambe.runner.report_site_run "$@"
