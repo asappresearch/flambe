@@ -5,8 +5,7 @@ jobs:
         - image: circleci/python:3.6
       steps:
         - checkout
-        - run: sudo pip install --user tox
-        - run: tox -- -k "not test_examples_experiment" -v 
+        - run: pip install --user tox && tox -- -k "not test_examples_experiment" -v 
 workflows:
   version: 2
   build:
