@@ -9,27 +9,27 @@ pipeline:
       text: !TextField
       label: !LabelField
 
-  # # stage 1 - train the text classifier
-  # 1_train: !Trainer
-  #   dataset: !@ 0_dataset  # link back to the existing dataset
-  #   train_sampler: !BaseSampler  # define a way of sampling dataset
-  #   val_sampler: !BaseSampler
-  #   model: !TextClassifier
-  #     embedder: !Embedder
-  #       embedding: !torch.Embedding  # automatically use pytorch classes
-  #         num_embeddings: !@ 1_train.dataset.text.vocab_size
-  #         embedding_dim: 300
-  #       encoder: !PooledRNNEncoder
-  #         input_size: 300
-  #         rnn_type: lstm
-  #         n_layers: !g [2, 3, 4]  # Grid search over hyperparameters!
-  #         hidden_size: 256
-  #     output_layer: !SoftmaxLayer
-  #       input_size: !@ 1_train.model.embedder.encoder.rnn.hidden_size
-  #       output_size: !@ 1_train.label.vocab_size
-  #   loss_fn: !torch.NLLLoss  # Use existing PyTorch negative log likelihood
-  #   metric_fn: !Accuracy  # Used for validation set evaluation
-  #   optimizer: !torch.Adam
-  #     params: !@ 1_train.model.trainable_params  # Link to model's parameters
-  #   max_steps: 20  # Each step runs `iter_per_step` iterations
-  #   iter_per_step: 50  # Eval and checkpoint every 50 iterations
+  # stage 1 - train the text classifier
+  1_train: !Trainer
+    dataset: !@ 0_dataset  # link back to the existing dataset
+    train_sampler: !BaseSampler  # define a way of sampling dataset
+    val_sampler: !BaseSampler
+    model: !TextClassifier
+      embedder: !Embedder
+        embedding: !torch.Embedding  # automatically use pytorch classes
+          num_embeddings: !@ 1_train.dataset.text.vocab_size
+          embedding_dim: 300
+        encoder: !PooledRNNEncoder
+          input_size: 300
+          rnn_type: lstm
+          n_layers: !g [2, 3, 4]  # Grid search over hyperparameters!
+          hidden_size: 256
+      output_layer: !SoftmaxLayer
+        input_size: !@ 1_train.model.embedder.encoder.rnn.hidden_size
+        output_size: !@ 1_train.label.vocab_size
+    loss_fn: !torch.NLLLoss  # Use existing PyTorch negative log likelihood
+    metric_fn: !Accuracy  # Used for validation set evaluation
+    optimizer: !torch.Adam
+      params: !@ 1_train.model.trainable_params  # Link to model's parameters
+    max_steps: 20  # Each step runs `iter_per_step` iterations
+    iter_per_step: 50  # Eval and checkpoint every 50 iterations
