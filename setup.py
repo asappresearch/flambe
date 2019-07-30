@@ -44,6 +44,7 @@ setup(
 
     description=DESCRIPTION,
     long_description=readme(),
+    long_description_content_type="text/x-rst",
 
     # Author information
     author=AUTHOR,
