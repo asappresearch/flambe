@@ -18,6 +18,8 @@ users to:
 
     !Experiment
 
+    name: sst-text-classification
+
     pipeline:
 
       # stage 0 - Load the Stanford Sentiment Treebank dataset and run preprocessing
@@ -29,12 +31,16 @@ users to:
       # Stage 1 - Define a model
       model: !TextClassifier
           embedder: !Embedder
-            embedding: !Embeddings
+            embedding: !torch.Embedding  # automatically use pytorch classes
               num_embeddings: !@ dataset.text.vocab_size
               embedding_dim: 300
+            embedding_dropout: 0.3
             encoder: !PooledRNNEncoder
               input_size: 300
-              n_layers: !g [2, 3, 4]  # Grid search over hyperparameters!
+              n_layers: !g [2, 3, 4]
+              hidden_size: 128
+              rnn_type: sru
+              dropout: 0.3
           output_layer: !SoftmaxLayer
               input_size: !@ model.embedder.encoder.rnn.hidden_size
               output_size: !@ dataset.label.vocab_size
@@ -44,27 +50,25 @@ users to:
         dataset: !@ dataset
         model: !@ model
         train_sampler: !BaseSampler
-           batch_size: 64
-        model: !TextClassifier
+        val_sampler: !BaseSampler
         loss_fn: !torch.NLLLoss
         metric_fn: !Accuracy
         optimizer: !torch.Adam
           params: !@ train.model.trainable_params
+        max_steps: 10
+        iter_per_step: 100
 
       # Stage 3 - Eval on the test set
       eval: !Evaluator
         dataset: !@ dataset
         model: !@ train.model
         metric_fn: !Accuracy
+        eval_sampler: !BaseSampler
 
     # Define how to schedule variants
     schedulers:
       train: !tune.HyperBandScheduler
 
-    # Reduce to the best N variants
-    reduce:
-      train: 1
-        ...
 
 The experiment can be executed by running:
 
@@ -72,7 +76,7 @@ The experiment can be executed by running:
 
     flambe experiment.yaml
 
-By defining a ``Cluster``:
+By defining a cluster:
 
 .. code-block:: yaml
 
@@ -95,10 +99,12 @@ Then the same experiment can be run remotely:
 
     flambe experiment.yaml --cluster cluster.yaml
 
-You can track the progress of your experiment using the Report Site and Tensorboard:
+Progress can be monitored via the Report Site (with full integration with Tensorboard):
 
-GIF HERE
-
+.. image:: image/report-site/partial.png
+    :width: 100%
+    :name: report-site
+    :align: center
 
 **Getting Started**
 
@@ -133,7 +139,7 @@ running with Flambé in just a few minutes!
 
 
 .. toctree::
-   :maxdepth: 2
+   :titlesonly:
    :hidden:
    :caption: Tutorials
 
@@ -142,25 +148,25 @@ running with Flambé in just a few minutes!
    tutorials/multistage
 
 .. toctree::
-   :maxdepth: 2
+   :titlesonly:
    :hidden:
    :caption: Package Reference
 
-   source/flambe.cluster
-   source/flambe.compile
-   source/flambe.dataset
-   source/flambe.experiment
-   source/flambe.export
-   source/flambe.field
-   source/flambe.learn
-   source/flambe.logging
-   source/flambe.metric
-   source/flambe.model
-   source/flambe.nlp
-   source/flambe.nn
-   source/flambe.runnable
-   source/flambe.runner
-   source/flambe.sampler
-   source/flambe.tokenizer
-   source/flambe.vision
-
+   autoapi/flambe/dataset/index
+   autoapi/flambe/cluster/index
+   autoapi/flambe/compile/index
+   autoapi/flambe/dataset/index
+   autoapi/flambe/experiment/index
+   autoapi/flambe/export/index
+   autoapi/flambe/field/index
+   autoapi/flambe/learn/index
+   autoapi/flambe/logging/index
+   autoapi/flambe/metric/index
+   autoapi/flambe/model/index
+   autoapi/flambe/nlp/index
+   autoapi/flambe/nn/index
+   autoapi/flambe/runnable/index
+   autoapi/flambe/runner/index
+   autoapi/flambe/sampler/index
+   autoapi/flambe/tokenizer/index
+   autoapi/flambe/vision/index
