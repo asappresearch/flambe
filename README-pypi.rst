@@ -1,8 +1,6 @@
 Flambé
 ------
 
-------------
-
 |
 
 .. image:: https://circleci.com/gh/Open-ASAPP/flambe.svg?style=svg
