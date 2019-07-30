@@ -10,8 +10,8 @@ class SSTDataset(TabularDataset):
     URL = "https://raw.githubusercontent.com/harvardnlp/sent-conv-torch/master/data/"
 
     def __init__(self,
-                 binary: bool = False,
-                 phrases: bool = False,
+                 binary: bool = True,
+                 phrases: bool = True,
                  cache: bool = True,
                  transform: Dict[str, Union[Field, Dict]] = None) -> None:
         """Initialize the SSTDataset builtin.
