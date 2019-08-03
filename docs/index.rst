@@ -10,6 +10,7 @@ users to:
 * Run experiments remotely over many workers, including full AWS integration.
 * Easily share experiment configurations, results and model weights with others.
 
+Visit the github repo: https://github.com/Open-ASAPP/flambe
 
 **A simple Text Classification experiment**
 
@@ -75,6 +76,12 @@ The experiment can be executed by running:
 .. code:: bash
 
     flambe experiment.yaml
+
+.. tip::
+    All objects in the ``pipeline`` are subclasses of :class:`~flambe.compile.Component`, which
+    are automatically registered to be used with YAML. Custom :class:`~flambe.compile.Component`
+    implementations must implement :meth:`~flambe.compile.Compile.run` to add custom
+    behavior when being executed.
 
 By defining a cluster:
 
@@ -146,6 +153,8 @@ running with Flambé in just a few minutes!
    tutorials/script
    tutorials/custom
    tutorials/multistage
+   tutorials/ssh_cluster
+   tutorials/aws_cluster
 
 .. toctree::
    :titlesonly:

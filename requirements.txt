@@ -23,3 +23,4 @@ pillow>=6.1.0
 ipdb>=0.12
 awscli>=1.16.202
 pytorch-transformers>=1.0.0
+ninja>=1.9.0

@@ -1,12 +1,5 @@
-.. raw:: html
-
-    <p align="center">
-       <img src="imgs/Flambe_Logo_CMYK_FullColor.png" width="60%" align="middle">
-    </p>
-
-|
-
-------------
+Flambé
+------
 
 |
 
@@ -60,8 +53,8 @@ Define an ``Experiment``:
     pipeline:
 
       # stage 0 - Load the Stanford Sentiment Treebank dataset and run preprocessing
-      dataset: !SSTDataset # this is a simple Python object, and the arguments to build it
-        transform: # these arguments are passed to the init method
+      dataset: !SSTDataset
+        transform:
           text: !TextField
           label: !LabelField
 
@@ -69,17 +62,17 @@ Define an ``Experiment``:
       model: !TextClassifier
           embedder: !Embedder
             embedding: !torch.Embedding  # automatically use pytorch classes
-              num_embeddings: !@ dataset.text.vocab_size # link to other components, and attributes
+              num_embeddings: !@ dataset.text.vocab_size
               embedding_dim: 300
             embedding_dropout: 0.3
             encoder: !PooledRNNEncoder
               input_size: 300
-              n_layers: !g [2, 3, 4] # grid search over any parameters
+              n_layers: !g [2, 3, 4]
               hidden_size: 128
               rnn_type: sru
               dropout: 0.3
           output_layer: !SoftmaxLayer
-              input_size: !@ model.embedder.encoder.rnn.hidden_size # also use inner-links
+              input_size: !@ model.embedder.encoder.rnn.hidden_size
               output_size: !@ dataset.label.vocab_size
 
       # Stage 2 - Train the model on the dataset
@@ -92,7 +85,7 @@ Define an ``Experiment``:
         metric_fn: !Accuracy
         optimizer: !torch.Adam
           params: !@ train.model.trainable_params
-        max_steps: 100
+        max_steps: 10
         iter_per_step: 100
 
       # Stage 3 - Eval on the test set
@@ -118,14 +111,7 @@ Now just execute:
 
 Note that defining objects like model and dataset ahead of time is optional; it's useful if you want to reference the same model architecture multiple times later in the pipeline.
 
-Progress can be monitored via the Report Site (with full integration with Tensorboard):
-
-.. raw:: html
-
-    <p align="center">
-       <kbd><img src="docs/image/report-site/partial.png" width="120%" align="middle" border="5"></kbd>
-    </p>
-
+Progress can be monitored via the Report Site (with full integration with Tensorboard).
 
 Features
 --------

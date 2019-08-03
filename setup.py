@@ -17,7 +17,7 @@ DESCRIPTION = "Pytorch based library for robust prototyping, standardized  \
 
 
 def readme():
-    with open('README.rst', encoding='utf-8') as f:
+    with open('README-pypi.rst', encoding='utf-8') as f:
         return f.read()
 
 
@@ -44,6 +44,7 @@ setup(
 
     description=DESCRIPTION,
     long_description=readme(),
+    long_description_content_type="text/x-rst; charset=UTF-8",
 
     # Author information
     author=AUTHOR,
