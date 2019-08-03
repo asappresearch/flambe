@@ -23,6 +23,7 @@ class ProgressState:
         # 1 -> RUNNING
         # 2 -> SUCCESS
         # 3 -> FAILURE
+        # 4 -> MASKED
         self.block_state = {}
         for b in dependency_dag.keys():
             self.block_state[b] = 0

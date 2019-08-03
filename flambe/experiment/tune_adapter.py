@@ -5,6 +5,7 @@ from six import string_types
 from typing import Dict, Optional
 from copy import deepcopy
 from collections import OrderedDict
+import shutil
 
 import ray
 
@@ -164,5 +165,8 @@ class TuneAdapter(ray.tune.Trainable):
 
     def _stop(self):
         """Subclasses should override this for any cleanup on stop."""
+        if not self.run_flag:
+            shutil.rmtree(self.logdir)
+
         if hasattr(self, 'block') and self.block is not None:
             del self.block
