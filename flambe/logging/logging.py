@@ -156,7 +156,7 @@ class TrialLogging:
         for handler in logger.handlers:
             handler.addFilter(self.context_filter)
         logger.addFilter(self.context_filter)
-        logger._log_dir = self.log_dir
+        logger._log_dir = self.log_dir  # type: ignore
 
         self.logger = logger
         return logger

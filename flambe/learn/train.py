@@ -270,7 +270,7 @@ class Trainer(Component):
         Returns
         ------
         bool
-            Whether the component should continue running. 
+            Whether the component should continue running.
 
         """
         if self._step < self.max_steps:
