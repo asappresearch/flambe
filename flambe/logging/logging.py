@@ -156,6 +156,8 @@ class TrialLogging:
         for handler in logger.handlers:
             handler.addFilter(self.context_filter)
         logger.addFilter(self.context_filter)
+        logger._log_dir = self.log_dir
+
         self.logger = logger
         return logger
 
@@ -168,6 +170,7 @@ class TrialLogging:
             self.logger.removeHandler(handler)
         self.logger.setLevel(self.old_root_log_level)
         logging.setLogRecordFactory(self.old_factory)
+        delattr(self.logger, '_log_dir')
 
 
 class ContextInjection:
