@@ -8,7 +8,7 @@ import logging
 
 from typing import Generator, Dict, Tuple, List, TypeVar, Type, Any, Optional
 
-from flambe.cluster import instance, utils
+from flambe.cluster import instance, const
 from flambe.cluster.cluster import Cluster, FactoryInsT
 from flambe.cluster import errors
 from flambe.logging import coloredlogs as cl
@@ -152,7 +152,8 @@ class AWSCluster(Cluster):
         This method is called by the contructor.
 
         """
-        self.ec2 = boto3.resource('ec2')
+        self.ec2_resource = boto3.resource('ec2')
+        self.ec2_cli = boto3.client('ec2')
         self.cloudwatch = boto3.client('cloudwatch')
 
     def load_all_instances(self) -> None:
@@ -285,7 +286,7 @@ class AWSCluster(Cluster):
             A tuple with the instance and the name of the EC2 instance.
 
         """
-        boto_instances = self.ec2.instances.filter(
+        boto_instances = self.ec2_resource.instances.filter(
             Filters=[{'Name': 'instance-state-name', 'Values': ['running']}])
 
         for ins in boto_instances:
@@ -376,7 +377,7 @@ class AWSCluster(Cluster):
 
         """
         if not self.orchestrator_ami:
-            ami = utils._find_default_ami(_type="orchestrator")
+            ami = self._find_default_ami(_type="orchestrator")
             if ami is None:
                 raise errors.ClusterError("Could not find matching AMI for the orchestrator.")
         else:
@@ -406,7 +407,7 @@ class AWSCluster(Cluster):
 
         """
         if not self.factory_ami:
-            ami = utils._find_default_ami(_type="factory")
+            ami = self._find_default_ami(_type="factory")
             if ami is None:
                 raise errors.ClusterError("Could not find matching AMI for the factory.")
         else:
@@ -488,7 +489,7 @@ class AWSCluster(Cluster):
         # For a list of supported instance types go to:
         # https://aws.amazon.com/ec2/purchasing-options/dedicated-instances/
 
-        boto_instances = self.ec2.create_instances(
+        boto_instances = self.ec2_resource.create_instances(
             ImageId=instance_ami,
             InstanceType=instance_type,
             KeyName=self.key_name,
@@ -523,7 +524,7 @@ class AWSCluster(Cluster):
         """Terminates all instances.
 
         """
-        boto_instances = self.ec2.instances.filter(
+        boto_instances = self.ec2_resource.instances.filter(
             Filters=[{
                 'Name': 'instance-id',
                 'Values': self.created_instances_ids
@@ -601,7 +602,7 @@ class AWSCluster(Cluster):
             The id if found else None
 
         """
-        boto_instances = self.ec2.instances.all()
+        boto_instances = self.ec2_resource.instances.all()
 
         for ins in boto_instances:
             if ins.public_dns_name == public_host or ins.public_ip_address == public_host:
@@ -772,3 +773,70 @@ class AWSCluster(Cluster):
             logger.debug(f"Created alarm for id {instance_id}")
         except botocore.exceptions.ParamValidationError:
             raise errors.ClusterError(f"Could not setup cloudwatch for {instance_id}")
+
+    def _get_images(self) -> Dict:
+        """Get the official AWS public AMIs created by Flambe.
+
+        ATTENTION: why not just search the tags? We need to make sure
+        the AMIs we pick were created by the Flambe team. Because of
+        tags values not being unique, anyone can create a public AMI
+        with 'Creator: flambe@asapp.com' as a tag.
+        If we pick that AMI, then we could potentially be Creating
+        instances with unknown AMIs, causing potential security issues.
+        By filtering by our acount id (which can be public), then we can
+        make sure that all AMIs that are being scanned were created
+        by Flambe team.
+
+        Returns
+        -------
+        Dict:
+            The boto3 API response
+
+        """
+        return self.ec2_cli.describe_images(Owners=[const.AWS_FLAMBE_ACCOUNT])
+
+    def _get_ami(self, _type: str, version: str) -> Optional[str]:
+        """Given a type and a version, get the correct Flambe AMI.
+
+
+        IMPORTANT: we keep the version logic in case we add versioned
+        AMIs in the future.
+
+        Parameters
+        ----------
+        _type: str
+            It can be either 'factory' or 'orchestrator'.
+            Note that the type is lowercase in the AMI tag.
+        version: str
+            For example, "0.2.1" or "2.0".
+
+        Returns
+        -------
+        The ImageId if it's found. None if not.
+
+        """
+        images = self._get_images()
+        for i in images['Images']:
+            # Name is for example 'flambe-orchestrator 0.0.0'
+            if i['Name'] == f"flambe-{_type.lower()}-ami {version}":
+                return i['ImageId']
+
+        return None
+
+    def _find_default_ami(self, _type: str) -> Optional[str]:
+        """Returns an AMI with version 0.0.0, which is the default.
+        This means that doesn't contain flambe itself but it has
+        some heavy dependencies already installed (like pytorch).
+
+        Parameters
+        ----------
+        _type: str
+            Wether is "orchestrator" or "factory"
+
+        Returns
+        -------
+        Optional[str]
+            The ImageId or None if not found.
+
+        """
+        return self._get_ami(_type, '0.0.0')
