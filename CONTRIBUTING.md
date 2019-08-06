@@ -4,9 +4,9 @@ We aim to foster a healthy, inclusive, organized and efficient community around 
 
 ### Filing an issue (Bug or Enhancement)
 
-Please create an issue on [GitHub] (http://github.com/../flambe).
+Please create an issue on [GitHub](https://github.com/Open-ASAPP/flambe/issues).
 
-Please follow the templates shown when you click on “Create Issue.”
+Please follow the templates shown when you click on “New Issue.”
 
 ### Fixing a bug (PR, etc.)
 
@@ -16,4 +16,4 @@ If your bug fix does not follow our style and contribution guidelines, you will 
 
 ### GitFlow and the Release Cycle
 
-Please read about  [GitFlow](https://www.atlassian.com/git/tutorials/comparing-workflows/gitflow-workflow) to understand how Flambé handles git and GitHub policies. We aim to release patches at least once a week, but currently follow no other regular cycles or sprint schedules.
+Please read about [GitFlow](https://www.atlassian.com/git/tutorials/comparing-workflows/gitflow-workflow) to understand how Flambé handles git and GitHub policies. We aim to release patches at least once a week, but currently follow no other regular cycles or sprint schedules.

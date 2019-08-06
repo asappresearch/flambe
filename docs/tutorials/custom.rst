@@ -3,7 +3,7 @@ Using Custom Code in Flambé
 ===========================
 
 While Flambé offers a large number of `Component` objects to use in experiments,
-researchers will tipically need to use their own code, or modify one of our current
+researchers will typically need to use their own code, or modify one of our current
 component object.
 
 Flambé offers a simply mechanism to inject custom code in configs. Specifically,
@@ -35,14 +35,14 @@ The reason behind using pip installables is for you to indicate external library
 in your setup.py under ``install_requires``.
 
 Once that is done, all you need to do is make sure that you inherit from one of our base classes
-such as ``flambe.nn.Module`` or ``flambe.nn.Dataset``. Alternativly you can also inherit from
+such as ``flambe.nn.Module`` or ``flambe.nn.Dataset``. Alternatively you can also inherit from
 the ``flambe.Component`` object directly.
 
 A Component must implement a ``run`` method which returns a boolean indicating whether execution
 should continue or not (useful for multi-step components such as a ``Trainer``).
 
 .. attention:: Make sure that all your components are surfaced at the top level __init__, as This
-is how Flambé will register them for config usage.
+                is how Flambé will register them for config usage.
 
 You have now built your first extension! You can now use it freely in any configuration,
 whether that'd be for an ``Experiment``, a ``Cluster`` or any other ``Runnable``:
@@ -59,5 +59,5 @@ whether that'd be for an ``Experiment``, a ``Cluster`` or any other ``Runnable``
         dataset: !my_project.MyDataset # We use the name of your custom module as prefix
 
 .. tip:: The path to the package may be a local path, a github URL, or the name of package one
-          pipy. The latter allows you to specify a specific version of your extenion. For github,
+          pipy. The latter allows you to specify a specific version of your extension. For github,
           we also support links to specific commit or branches.
