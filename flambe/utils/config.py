@@ -1,5 +1,6 @@
 import os
 import re
+from typing import Dict
 
 import jinja2
 
@@ -7,8 +8,17 @@ import jinja2
 def generate_config_from_template(template_path: str,
                                   config_path: str,
                                   remove_comments: bool = False,
-                                  **template_kwargs):
+                                  **template_kwargs: Dict[str, str]):
     """
+    Parameters
+    ----------
+    template_path: str
+        The path to the config template
+    config_path: str
+        The path to which the rendered config should be written
+    remove_comments: bool
+        If `True`, removes comments from the rendered config before writing it to disk
+
     Example config:
 
     ```yaml
