@@ -112,6 +112,6 @@ Flambé will require your extension to be installed. You can do so manually by r
 ``pip install my_package`` 
 
 or Flambé can install all the extensions specified in your
-configuration automatically while executing your config whe using the ``-i`` flag:
+configuration automatically while executing your config when using the ``-i`` flag:
 
 ``flambe -i config.yaml``
