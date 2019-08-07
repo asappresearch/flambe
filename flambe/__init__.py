@@ -28,7 +28,7 @@ main_logging.disable(main_logging.WARNING)
 from flambe.compile import Component, Schema, save, load
 from flambe.compile import save_state_to_file, load_state_from_file
 from flambe.logging import log
-from flambe import compile, dataset, experiment, field, learn, nlp, vision, export
+from flambe import compile, dataset, experiment, field, learn, nlp, vision, export, model
 from flambe import cluster, metric, nn, runner, sampler, runnable, tokenizer
 from flambe.version import VERSION as __version__
 from flambe.logo import ASCII_LOGO
