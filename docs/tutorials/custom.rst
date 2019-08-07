@@ -2,7 +2,7 @@
 Using Custom Code in Flambé 
 ===========================
 
-While Flambé offers a large number of `Component` objects to use in experiments,
+While Flambé offers a large number of :class:`~flambe.compile.Component` objects to use in experiments,
 researchers will typically need to use their own code, or modify one of our current
 component object.
 
@@ -10,15 +10,15 @@ component object.
 Writing your custom code
 ------------------------
 
-Flambé configurations support any python object that inherits from ``flambe.Component``.
-You can decide to inherit from one of our base classes such as ``flambe.nn.Module`` or ``flambe.dataset.Dataset``,
-or you can inherit from ``flambe.Component`` directly.
+Flambé configurations support any python object that inherits from :class:`~flambe.compile.Component`.
+You can decide to inherit from one of our base classes such as :class:`~flambe.nn.Module` or :class:`~flambe.dataset.Dataset`,
+or you can inherit from :class:`~flambe.compile.Component` directly.
 
-A ``Component`` must simply implement a ``run`` method which returns a boolean indicating whether execution
-should continue or not (useful for multi-step components such as a ``Trainer``).
+A :class:`~flambe.compile.Component` must simply implement a :meth:`~flambe.compile.Component.run`  method which returns a boolean indicating whether execution
+should continue or not (useful for multi-step components such as a :class:`~flambe.learn.Trainer`).
 
 Additionally, if you would like to run hyperparameter search on your custom
-component, you must implement the ``metric`` method which returns the current best metric.
+component, you must implement the :meth:`~flambe.compile.Component.metric` method which returns the current best metric.
 
 
 Setting up your extension
@@ -61,7 +61,7 @@ python packages, you can follow these 3 simple steps:
         name = 'my_package', # the name of your package
         version = '1.0.0', # the version of your extension (optional)
         packages = find_packages(),
-        install_requires = ['numpy >= 1.11.1', 'matplotlib >= 1.5.1'], # Idicate dependencies here
+        install_requires = ['numpy >= 1.11.1', 'matplotlib >= 1.5.1'], # Dependencies here
     )
 
 After you add the setup file to your package, your final folder structure should look like
@@ -82,7 +82,8 @@ Using your extension
 --------------------
 
 You have built your first extension! You can now use it freely in any configuration,
-whether that'd be for an ``Experiment``, a ``Cluster`` or any other ``Runnable``.
+whether that'd be for an :class:`~flambe.experiment.Experiment`,
+a :class:`~flambe.cluster.Cluster` or any other :class:`~flambe.runnable.Runnable`.
 
 To do so, simply add them at the top of your extension, mapping the name of the
 module your built (``my_module`` in the example) to the location of the package
@@ -111,6 +112,6 @@ Flambé will require your extension to be installed. You can do so manually by r
 ``pip install my_package`` 
 
 or Flambé can install all the extensions specified in your
-configuration automatically if the ``-i`` flag is used:
+configuration automatically while executing your config whe using the ``-i`` flag:
 
 ``flambe -i config.yaml``
