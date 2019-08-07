@@ -4,7 +4,10 @@ import re
 import jinja2
 
 
-def generate_config_from_template(template_path, config_path, remove_comments=False, **template_kwargs):
+def generate_config_from_template(template_path: str,
+                                  config_path: str,
+                                  remove_comments: bool = False,
+                                  **template_kwargs):
     dirname = os.path.dirname(template_path)
     basename = os.path.basename(template_path)
     loader = jinja2.FileSystemLoader(searchpath=dirname)
