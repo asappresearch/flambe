@@ -76,6 +76,14 @@ def main(args: argparse.Namespace) -> None:
                                                                 destiny, all_hosts=True)
 
                     new_secrets = cluster.send_secrets(whitelist=["GITHUB", "PIP"])
+
+                    # Installing the extensions is crutial as flambe
+                    # will execute without '-i' flag and therefore
+                    # will assume that the extensions are installed
+                    # in the orchestrator.
+                    cluster.install_extensions_in_orchestrator(new_extensions)
+                    logger.info(cl.GR("Extensions installed in Orchestrator"))
+
                     runnable.setup_inject_env(cluster=cluster,
                                               extensions=new_extensions,
                                               force=args.force)
