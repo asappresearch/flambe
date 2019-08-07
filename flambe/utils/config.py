@@ -8,6 +8,31 @@ def generate_config_from_template(template_path: str,
                                   config_path: str,
                                   remove_comments: bool = False,
                                   **template_kwargs):
+    """
+    Example config:
+
+    ```yaml
+    !Experiment
+
+    foo: {{ bar }}
+        baz: {{ skittles }}
+    ```
+
+    If saved as config.yaml.template, then invoking:
+
+    ```python
+    generate_config_from_template('config.yaml.template', 'config.yaml', bar='pickles', skittles='yum')
+    ```
+
+    the following config will be written to 'config.yaml':
+
+    ```yaml
+    !Experiment
+
+    foo: pickles
+        baz: yum
+    ```
+    """
     dirname = os.path.dirname(template_path)
     basename = os.path.basename(template_path)
     loader = jinja2.FileSystemLoader(searchpath=dirname)
