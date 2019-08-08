@@ -101,6 +101,8 @@ class TextField(Field):
         for token in self.specials:
             self.vocab[token] = index = index + 1
 
+        self.register_attrs('vocab')
+
     @property
     def vocab_size(self) -> int:
         """Get the vocabulary length.
