@@ -23,7 +23,7 @@ import logging
 import uuid
 
 from configparser import ConfigParser
-from typing import Optional, Type, Generator, TypeVar, List
+from typing import Optional, Type, Generator, TypeVar, List, Dict
 from types import TracebackType
 
 import flambe
@@ -546,6 +546,49 @@ class Instance(object):
         cmd = self._run_script(fname, "install_docker")
         if not cmd.success:
             raise errors.RemoteCommandError(f"Could not install docker. {cmd.msg}")
+
+    def install_extensions(self, extensions: Dict[str, str]) -> None:
+        """Install local + pypi extensions.
+
+        Parameters
+        ----------
+        extension: Dict[str, str]
+            The extensions, as a dict from module_name to location
+
+        Raises
+        ------
+        errors.RemoteCommandError
+            If could not install an extension
+
+        """
+        cmd = ['python3', '-m', 'pip', 'install', '-U', '--user']
+        for ext, resource in extensions.items():
+            curr_cmd = cmd[:]
+
+            if 'PIP' in self.config:
+                host = self.config['PIP'].get('HOST', None)
+                if host:
+                    curr_cmd.extend(["--trusted-host", host])
+
+                host_url = self.config['PIP'].get('HOST_URL', None)
+                if host_url:
+                    curr_cmd.extend(["--extra-index-url", host_url])
+
+            if os.path.exists(resource):
+                # Package is local
+                if os.sep not in resource:
+                    resource = f"./{resource}"
+            else:
+                # Package follows pypi notation: "torch>=0.4.1,<1.1"
+                resource = f"{resource}"
+
+            curr_cmd.append(resource)
+
+            ret = self._run_cmd(" ".join(curr_cmd))
+            if not ret.success:
+                raise errors.RemoteCommandError(
+                    f"Could not install package {resource} in {self.host}"
+                )
 
     def install_flambe(self) -> None:
         """Pip install Flambe.
@@ -1133,7 +1176,7 @@ class OrchestratorInstance(Instance):
         force_params = "--force" if force else ""
         cmd = (
             f"tmux new-session -d -s 'flambe' " +
-            f"'bash -lc \"flambe {config_file} -i --secrets {secrets_file} " +
+            f"'bash -lc \"flambe {config_file} --secrets {secrets_file} " +
             f"{force_params} &> output.log\"'"
         )
 
