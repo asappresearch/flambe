@@ -85,5 +85,9 @@ class ParsingRunnableError(RunnableFileError):
     pass
 
 
+class TagError(RunnableFileError):
+    pass
+
+
 class MissingSecretsError(Exception):
     pass
