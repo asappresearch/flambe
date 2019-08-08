@@ -8,6 +8,7 @@ import jinja2
 def generate_config_from_template(template_path: str,
                                   config_path: str,
                                   remove_comments: bool = False,
+                                  autoescape: bool = True,
                                   **template_kwargs: Dict[str, str]):
     """
     Parameters
@@ -18,6 +19,10 @@ def generate_config_from_template(template_path: str,
         The path to which the rendered config should be written
     remove_comments: bool
         If `True`, removes comments from the rendered config before writing it to disk
+    autoescape: bool
+        Passed to the `autoescape` param of `jinja2.Environment`
+    template_kwargs:
+        Keyword arguments to pass to your template, e.g. `path='config.yaml', foo='bar'`
 
     Example config:
 
@@ -46,7 +51,7 @@ def generate_config_from_template(template_path: str,
     dirname = os.path.dirname(template_path)
     basename = os.path.basename(template_path)
     loader = jinja2.FileSystemLoader(searchpath=dirname)
-    env = jinja2.Environment(loader=loader)
+    env = jinja2.Environment(loader=loader, autoescape=autoescape)
     template = env.get_template(basename)
     with open(config_path, 'w') as f:
         for line in template.render(**template_kwargs).split('\n'):
