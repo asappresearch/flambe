@@ -1,4 +1,4 @@
-from typing import Dict
+from typing import Dict, Any
 
 from flambe import Component
 
@@ -12,19 +12,21 @@ class Exporter(Component):
 
     """
 
-    def __init__(self, **kwargs: Dict[str, Component]) -> None:
+    def __init__(self, **kwargs: Dict[str, Any]) -> None:
         """Initialize the Exporter.
 
         Parameters
         ----------
-        kwargs: Dict[str, Component]
-            Mapping from name to Component object
+        kwargs: Dict[str, Any]
+            Mapping from name to any object to export
 
         """
         self.objects = kwargs
 
         for name, obj in kwargs.items():
             setattr(self, name, obj)
+            if not isinstance(obj, Component):
+                self.register_attrs(name)
 
     def run(self) -> bool:
         """Run the exporter.
@@ -35,4 +37,5 @@ class Exporter(Component):
             False, as this is a single step Component.
 
         """
-        return False
+        _continue = False
+        return _continue
