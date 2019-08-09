@@ -75,6 +75,8 @@ class BoWField(Field):
         if scale_factor and not normalize:
             raise ValueError(f"Cannot specify scale_factor without normalizing")
 
+        self.register_attrs('vocab', 'full_vocab')
+
     @property
     def vocab_size(self) -> int:
         """Get the vocabulary length.
