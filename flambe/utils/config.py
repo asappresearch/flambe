@@ -17,9 +17,11 @@ def generate_config_from_template(template_path: str,
     config_path: str
         The path to which the rendered config should be written
     remove_comments: bool
-        If `True`, removes comments from the rendered config before writing it to disk
+        If `True`, removes comments from the rendered config before
+        writing it to disk
     template_kwargs:
-        Keyword arguments to pass to your template, e.g. `path='config.yaml', foo='bar'`
+        Keyword arguments to pass to your template, e.g.
+        `path='config.yaml', foo='bar'`
 
     Example config:
 
@@ -33,7 +35,8 @@ def generate_config_from_template(template_path: str,
     If saved as config.yaml.template, then invoking:
 
     ```python
-    generate_config_from_template('config.yaml.template', 'config.yaml', bar='pickles', skittles='yum')
+    generate_config_from_template('config.yaml.template',
+        'config.yaml', bar='pickles', skittles='yum')
     ```
 
     the following config will be written to 'config.yaml':
