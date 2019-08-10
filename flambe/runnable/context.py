@@ -81,6 +81,7 @@ class SafeExecutionContext:
                    download_ext: bool = True,
                    install_ext: bool = False,
                    import_ext: bool = True,
+                   check_tags: bool = True,
                    **kwargs) -> Tuple[Runnable, Dict[str, str]]:
         """Preprocess the runnable file.
 
@@ -103,6 +104,8 @@ class SafeExecutionContext:
         install_ext: bool
             Whether to import the extensions or not.
             Defaults to True.
+        check_tags: bool
+            Whether that all tags are valid. Defaults to True.
 
         Returns
         -------
