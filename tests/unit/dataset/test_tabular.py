@@ -21,7 +21,8 @@ def train_dataset_no_header():
 @pytest.fixture
 def train_dataset_reversed():
     """Dummy dataset from file"""
-    return TabularDataset.from_path('tests/data/dummy_tabular/train.csv', sep=',', columns=['label', 'text'])
+    return TabularDataset.from_path('tests/data/dummy_tabular/train.csv', sep=',',
+                                    columns=['label', 'text'])
 
 
 @pytest.fixture
@@ -40,8 +41,7 @@ def dir_dataset():
 def test_valid_dataset():
     """Test trivial dataset build process"""
     train = (("Lorem ipsum dolor sit amet", 3, 4.5),
-            ("Sed ut perspiciatis unde", 5, 5.5)
-           )
+             ("Sed ut perspiciatis unde", 5, 5.5))
     val = (("ipsum quia dolor sit", 10, 3.5),)
     test = (("Ut enim ad minima veniam", 100, 35),)
 
@@ -67,27 +67,26 @@ def test_valid_dataset():
 def test_invalid_dataset():
     """Test dataset is invalid as it has different columns"""
     train = (("Lorem ipsum dolor sit amet", 3, 4.5),
-            ("Sed ut perspiciatis unde", 5.5)
-           )
+             ("Sed ut perspiciatis unde", 5.5))
     with pytest.raises(ValueError):
-        t = TabularDataset(train)
+        TabularDataset(train)
 
 
 def test_invalid_dataset2():
-    """Test dataset is invalid as different splits contain different columns"""
+    """Test dataset is invalid as different splits contain different
+    columns
+    """
     train = (("Lorem ipsum dolor sit amet", 3, 4.5),
-            ("Sed ut perspiciatis unde", 4, 5.5)
-           )
+             ("Sed ut perspiciatis unde", 4, 5.5))
     val = (("ipsum quia dolor sit", 3.5),)
     with pytest.raises(ValueError):
-        t = TabularDataset(train, val)
+        TabularDataset(train, val)
 
 
 def test_incomplete_dataset():
     """Test dataset missing either val or test"""
     train = (("Lorem ipsum dolor sit amet", 3, 4.5),
-            ("Sed ut perspiciatis unde", 4, 5.5)
-           )
+             ("Sed ut perspiciatis unde", 4, 5.5))
     t = TabularDataset(train)
 
     assert len(t.val) == 0
@@ -106,8 +105,7 @@ def test_cache_dataset():
             ("Lorem ipsum dolor sit amet", 3, 4.5),
             ("Sed ut perspiciatis unde", 5, 5.5),
             ("Lorem ipsum dolor sit amet", 3, 4.5),
-            ("Sed ut perspiciatis unde", 5, 5.5)
-           )
+            ("Sed ut perspiciatis unde", 5, 5.5))
 
     t = TabularDataset(train, cache=True)
 
@@ -128,18 +126,16 @@ def test_column_attr2(train_dataset_no_header):
 def test_named_columns():
     """Test dataset is invalid as it has different columns"""
     train = (("Lorem ipsum dolor sit amet", 3),
-            ("Sed ut perspiciatis unde", 5.5)
-           )
-    t = TabularDataset(train, named_columns=['col1', 'col2'])
+             ("Sed ut perspiciatis unde", 5.5))
+    TabularDataset(train, named_columns=['col1', 'col2'])
 
 
 def test_invalid_columns():
     """Test dataset is invalid as it has different columns"""
     train = (("Lorem ipsum dolor sit amet", 3),
-            ("Sed ut perspiciatis unde", 5.5)
-           )
+             ("Sed ut perspiciatis unde", 5.5))
     with pytest.raises(ValueError):
-        t = TabularDataset(train, named_columns=['some_random_col'])
+        TabularDataset(train, named_columns=['some_random_col'])
 
 
 def test_dataset_from_file(train_dataset):
@@ -211,8 +207,7 @@ def test_dataset_deltitem(train_dataset):
 def test_dataset_transform():
     train = (
             ("Lorem ipsum dolor sit amet", "POSITIVE"),
-            ("Sed ut perspiciatis unde", "NEGATIVE"),
-           )
+            ("Sed ut perspiciatis unde", "NEGATIVE"))
 
     transform = {
         "text": TextField(),
@@ -231,8 +226,7 @@ def test_dataset_transform():
 def test_dataset_transform_2():
     train = (
             ("Lorem ipsum dolor sit amet", "POSITIVE"),
-            ("Sed ut perspiciatis unde", "NEGATIVE"),
-           )
+            ("Sed ut perspiciatis unde", "NEGATIVE"))
 
     transform = {
         "text": {
@@ -255,8 +249,7 @@ def test_dataset_transform_2():
 def test_dataset_transform_3():
     train = (
             ("Lorem ipsum dolor sit amet", "POSITIVE"),
-            ("Sed ut perspiciatis unde", "NEGATIVE"),
-           )
+            ("Sed ut perspiciatis unde", "NEGATIVE"))
 
     transform = {
         "text": {
@@ -269,14 +262,13 @@ def test_dataset_transform_3():
     }
 
     with pytest.raises(ValueError):
-        t = TabularDataset(train, transform=transform)
+        TabularDataset(train, transform=transform)
 
 
 def test_dataset_transform_4():
     train = (
             ("Lorem ipsum dolor sit amet", "POSITIVE"),
-            ("Sed ut perspiciatis unde", "NEGATIVE"),
-           )
+            ("Sed ut perspiciatis unde", "NEGATIVE"))
 
     transform = {
         "t1": {
@@ -297,29 +289,27 @@ def test_dataset_transform_4():
 def test_dataset_transform_5():
     train = (
             ("Lorem ipsum dolor sit amet", "POSITIVE"),
-            ("Sed ut perspiciatis unde", "NEGATIVE"),
-           )
+            ("Sed ut perspiciatis unde", "NEGATIVE"))
 
     transform = {
-        "text": {
+        "t1": {
             "field": TextField(),
             "columns": 0
         },
-        "text": {
+        "t2": {
             "field": TextField(),
             "columns": 0
         }
     }
 
     t = TabularDataset(train, transform=transform)
-    assert t.train.cols() == 1
+    assert t.train.cols() == 2
 
 
 def test_dataset_transform_6():
     train = (
             ("Lorem ipsum dolor sit amet", "POSITIVE"),
-            ("Sed ut perspiciatis unde", "NEGATIVE"),
-           )
+            ("Sed ut perspiciatis unde", "NEGATIVE"))
 
     class DummyField(Field):
         def setup(self, *data: np.ndarray) -> None:
@@ -342,8 +332,7 @@ def test_dataset_transform_6():
 def test_dataset_transform_7():
     train = (
             ("Lorem ipsum dolor sit amet", "POSITIVE"),
-            ("Sed ut perspiciatis unde", "NEGATIVE"),
-           )
+            ("Sed ut perspiciatis unde", "NEGATIVE"))
 
     class DummyField(Field):
         def setup(self, *data: np.ndarray) -> None:
@@ -374,8 +363,7 @@ def test_dataset_transform_7():
 def test_dataset_transform_8():
     train = (
             ("Lorem ipsum dolor sit amet", "POSITIVE"),
-            ("Sed ut perspiciatis unde", "NEGATIVE"),
-           )
+            ("Sed ut perspiciatis unde", "NEGATIVE"))
 
     transform = {
         "tx": {
@@ -392,8 +380,7 @@ def test_dataset_transform_8():
 def test_dataset_transform_with_named_cols():
     train = (
             ("Lorem ipsum dolor sit amet", "POSITIVE"),
-            ("Sed ut perspiciatis unde", "NEGATIVE"),
-           )
+            ("Sed ut perspiciatis unde", "NEGATIVE"))
 
     transform = {
         "tx": {
@@ -409,8 +396,7 @@ def test_dataset_transform_with_named_cols():
 def test_dataset_transform_with_invalid_named_cols():
     train = (
             ("Lorem ipsum dolor sit amet", "POSITIVE"),
-            ("Sed ut perspiciatis unde", "NEGATIVE"),
-           )
+            ("Sed ut perspiciatis unde", "NEGATIVE"))
 
     transform = {
         "tx": {
@@ -420,14 +406,13 @@ def test_dataset_transform_with_invalid_named_cols():
     }
 
     with pytest.raises(ValueError):
-        t = TabularDataset(train, transform=transform, named_columns=['text', 'label'])
+        TabularDataset(train, transform=transform, named_columns=['text', 'label'])
 
 
 def test_dataset_transform_with_mixed_cols():
     train = (
             ("Lorem ipsum dolor sit amet", "POSITIVE"),
-            ("Sed ut perspiciatis unde", "NEGATIVE"),
-           )
+            ("Sed ut perspiciatis unde", "NEGATIVE"))
 
     transform = {
         "label": {
@@ -448,8 +433,7 @@ def test_dataset_transform_with_mixed_cols():
 def test_dataset_transform_mixed_multiple_named_cols():
     train = (
             ("Lorem ipsum dolor sit amet", "POSITIVE"),
-            ("Sed ut perspiciatis unde", "NEGATIVE"),
-           )
+            ("Sed ut perspiciatis unde", "NEGATIVE"))
 
     class DummyField(Field):
         def setup(self, *data: np.ndarray) -> None:
