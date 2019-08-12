@@ -21,7 +21,8 @@ def train_dataset_no_header():
 @pytest.fixture
 def train_dataset_reversed():
     """Dummy dataset from file"""
-    return TabularDataset.from_path('tests/data/dummy_tabular/train.csv', sep=',', columns=['label', 'text'])
+    return TabularDataset.from_path('tests/data/dummy_tabular/train.csv', sep=',',
+                                    columns=['label', 'text'])
 
 
 @pytest.fixture
@@ -37,11 +38,50 @@ def dir_dataset():
     return TabularDataset.from_path('tests/data/dummy_tabular', sep=',')
 
 
+@pytest.fixture
+def autogen_val_test_dataset():
+    """Dummy dataset from file with auto-generated val and test"""
+    return TabularDataset.autogen_val_test('tests/data/dummy_tabular/train.csv',
+                                           seed=42,
+                                           sep=',')
+
+
+@pytest.fixture
+def autogen_val_test_dataset_dir():
+    """Dummy dataset from directory with auto-generated val and test"""
+    return TabularDataset.autogen_val_test('tests/data/dummy_tabular',
+                                           seed=42,
+                                           sep=',')
+
+
+@pytest.fixture
+def autogen_val_test_dataset_ratios():
+    """Dummy dataset from file with auto-generated val and test with
+    different ratios
+    """
+    return TabularDataset.autogen_val_test('tests/data/dummy_tabular/train.csv',
+                                           seed=42,
+                                           sep=',',
+                                           test_ratio=0.5,
+                                           val_ratio=0.5)
+
+
+@pytest.fixture
+def autogen_val_test_dataset_dir_ratios():
+    """Dummy dataset from directory with auto-generated val and test with
+    different ratios
+    """
+    return TabularDataset.autogen_val_test('tests/data/dummy_tabular',
+                                           seed=42,
+                                           sep=',',
+                                           test_ratio=0.5,
+                                           val_ratio=0.5)
+
+
 def test_valid_dataset():
     """Test trivial dataset build process"""
     train = (("Lorem ipsum dolor sit amet", 3, 4.5),
-            ("Sed ut perspiciatis unde", 5, 5.5)
-           )
+             ("Sed ut perspiciatis unde", 5, 5.5))
     val = (("ipsum quia dolor sit", 10, 3.5),)
     test = (("Ut enim ad minima veniam", 100, 35),)
 
@@ -67,27 +107,26 @@ def test_valid_dataset():
 def test_invalid_dataset():
     """Test dataset is invalid as it has different columns"""
     train = (("Lorem ipsum dolor sit amet", 3, 4.5),
-            ("Sed ut perspiciatis unde", 5.5)
-           )
+             ("Sed ut perspiciatis unde", 5.5))
     with pytest.raises(ValueError):
-        t = TabularDataset(train)
+        TabularDataset(train)
 
 
 def test_invalid_dataset2():
-    """Test dataset is invalid as different splits contain different columns"""
+    """Test dataset is invalid as different splits contain different
+    columns
+    """
     train = (("Lorem ipsum dolor sit amet", 3, 4.5),
-            ("Sed ut perspiciatis unde", 4, 5.5)
-           )
+             ("Sed ut perspiciatis unde", 4, 5.5))
     val = (("ipsum quia dolor sit", 3.5),)
     with pytest.raises(ValueError):
-        t = TabularDataset(train, val)
+        TabularDataset(train, val)
 
 
 def test_incomplete_dataset():
     """Test dataset missing either val or test"""
     train = (("Lorem ipsum dolor sit amet", 3, 4.5),
-            ("Sed ut perspiciatis unde", 4, 5.5)
-           )
+             ("Sed ut perspiciatis unde", 4, 5.5))
     t = TabularDataset(train)
 
     assert len(t.val) == 0
@@ -106,8 +145,7 @@ def test_cache_dataset():
             ("Lorem ipsum dolor sit amet", 3, 4.5),
             ("Sed ut perspiciatis unde", 5, 5.5),
             ("Lorem ipsum dolor sit amet", 3, 4.5),
-            ("Sed ut perspiciatis unde", 5, 5.5)
-           )
+            ("Sed ut perspiciatis unde", 5, 5.5))
 
     t = TabularDataset(train, cache=True)
 
@@ -128,18 +166,16 @@ def test_column_attr2(train_dataset_no_header):
 def test_named_columns():
     """Test dataset is invalid as it has different columns"""
     train = (("Lorem ipsum dolor sit amet", 3),
-            ("Sed ut perspiciatis unde", 5.5)
-           )
-    t = TabularDataset(train, named_columns=['col1', 'col2'])
+             ("Sed ut perspiciatis unde", 5.5))
+    TabularDataset(train, named_columns=['col1', 'col2'])
 
 
 def test_invalid_columns():
     """Test dataset is invalid as it has different columns"""
     train = (("Lorem ipsum dolor sit amet", 3),
-            ("Sed ut perspiciatis unde", 5.5)
-           )
+             ("Sed ut perspiciatis unde", 5.5))
     with pytest.raises(ValueError):
-        t = TabularDataset(train, named_columns=['some_random_col'])
+        TabularDataset(train, named_columns=['some_random_col'])
 
 
 def test_dataset_from_file(train_dataset):
@@ -182,6 +218,82 @@ def test_dataset_from_dir(dir_dataset):
     assert dir_dataset[100][1] == '8'
 
 
+def test_dataset_autogen_val_test(autogen_val_test_dataset):
+    """Test autogenerating val and test sets from a file"""
+    train_dummy = "eget, venenatis a, magna. Lorem ipsum dolor sit amet, consectetuer"
+    val_dummy = "leo. Vivamus nibh dolor, nonummy ac, feugiat non, lobortis quis,"
+    test_dummy = "turpis egestas. Aliquam fringilla cursus purus. Nullam scelerisque neque sed"
+
+    assert autogen_val_test_dataset.train[0][0] == train_dummy
+    assert autogen_val_test_dataset.train[0][1] == '8'
+    assert len(autogen_val_test_dataset.train) == 64
+
+    assert autogen_val_test_dataset.val[0][0] == val_dummy
+    assert autogen_val_test_dataset.val[0][1] == '1'
+    assert len(autogen_val_test_dataset.val) == 16
+
+    assert autogen_val_test_dataset.test[0][0] == test_dummy
+    assert autogen_val_test_dataset.test[0][1] == '6'
+    assert len(autogen_val_test_dataset.test) == 20
+
+
+def test_dataset_autogen_val_test_ratios(autogen_val_test_dataset_ratios):
+    """Test autogenerating val and test sets from a file"""
+    train_dummy = "leo. Vivamus nibh dolor, nonummy ac, feugiat non, lobortis quis,"
+    val_dummy = "ac turpis egestas. Aliquam fringilla cursus purus. Nullam scelerisque neque"
+    test_dummy = "turpis egestas. Aliquam fringilla cursus purus. Nullam scelerisque neque sed"
+
+    assert autogen_val_test_dataset_ratios.train[0][0] == train_dummy
+    assert autogen_val_test_dataset_ratios.train[0][1] == '1'
+    assert len(autogen_val_test_dataset_ratios.train) == 25
+
+    assert autogen_val_test_dataset_ratios.val[0][0] == val_dummy
+    assert autogen_val_test_dataset_ratios.val[0][1] == '6'
+    assert len(autogen_val_test_dataset_ratios.val) == 25
+
+    assert autogen_val_test_dataset_ratios.test[0][0] == test_dummy
+    assert autogen_val_test_dataset_ratios.test[0][1] == '6'
+    assert len(autogen_val_test_dataset_ratios.test) == 50
+
+
+def test_dataset_autogen_dir_val_test(autogen_val_test_dataset_dir):
+    """Test autogenerating val and test sets from a file"""
+    train_dummy = "elementum, lorem ut aliquam iaculis, lacus pede sagittis augue, eu"
+    val_dummy = "iaculis nec, eleifend non, dapibus rutrum, justo. Praesent luctus. Curabitur"
+    test_dummy = "amet ornare lectus justo eu arcu. Morbi sit amet massa."
+
+    assert autogen_val_test_dataset_dir.train[0][0] == train_dummy
+    assert autogen_val_test_dataset_dir.train[0][1] == '2'
+    assert len(autogen_val_test_dataset_dir.train) == 128
+
+    assert autogen_val_test_dataset_dir.val[0][0] == val_dummy
+    assert autogen_val_test_dataset_dir.val[0][1] == '8'
+    assert len(autogen_val_test_dataset_dir.val) == 32
+
+    assert autogen_val_test_dataset_dir.test[0][0] == test_dummy
+    assert autogen_val_test_dataset_dir.test[0][1] == '9'
+    assert len(autogen_val_test_dataset_dir.test) == 40
+
+
+def test_dataset_autogen_dir_val_test_ratios(autogen_val_test_dataset_dir_ratios):
+    """Test autogenerating val and test sets from a file"""
+    train_dummy = "augue scelerisque mollis. Phasellus libero mauris, aliquam eu, accumsan sed,"
+    val_dummy = "lacinia orci, consectetuer euismod est arcu ac orci. Ut semper"
+    test_dummy = "amet ornare lectus justo eu arcu. Morbi sit amet massa."
+
+    assert autogen_val_test_dataset_dir_ratios.train[0][0] == train_dummy
+    assert autogen_val_test_dataset_dir_ratios.train[0][1] == '5'
+    assert len(autogen_val_test_dataset_dir_ratios.train) == 50
+
+    assert autogen_val_test_dataset_dir_ratios.val[0][0] == val_dummy
+    assert autogen_val_test_dataset_dir_ratios.val[0][1] == '6'
+    assert len(autogen_val_test_dataset_dir_ratios.val) == 50
+
+    assert autogen_val_test_dataset_dir_ratios.test[0][0] == test_dummy
+    assert autogen_val_test_dataset_dir_ratios.test[0][1] == '9'
+    assert len(autogen_val_test_dataset_dir_ratios.test) == 100
+
+
 def test_dataset_length(train_dataset, full_dataset):
     """Test dataset length."""
     assert len(train_dataset) == 100
@@ -211,8 +323,7 @@ def test_dataset_deltitem(train_dataset):
 def test_dataset_transform():
     train = (
             ("Lorem ipsum dolor sit amet", "POSITIVE"),
-            ("Sed ut perspiciatis unde", "NEGATIVE"),
-           )
+            ("Sed ut perspiciatis unde", "NEGATIVE"))
 
     transform = {
         "text": TextField(),
@@ -231,8 +342,7 @@ def test_dataset_transform():
 def test_dataset_transform_2():
     train = (
             ("Lorem ipsum dolor sit amet", "POSITIVE"),
-            ("Sed ut perspiciatis unde", "NEGATIVE"),
-           )
+            ("Sed ut perspiciatis unde", "NEGATIVE"))
 
     transform = {
         "text": {
@@ -255,8 +365,7 @@ def test_dataset_transform_2():
 def test_dataset_transform_3():
     train = (
             ("Lorem ipsum dolor sit amet", "POSITIVE"),
-            ("Sed ut perspiciatis unde", "NEGATIVE"),
-           )
+            ("Sed ut perspiciatis unde", "NEGATIVE"))
 
     transform = {
         "text": {
@@ -269,14 +378,13 @@ def test_dataset_transform_3():
     }
 
     with pytest.raises(ValueError):
-        t = TabularDataset(train, transform=transform)
+        TabularDataset(train, transform=transform)
 
 
 def test_dataset_transform_4():
     train = (
             ("Lorem ipsum dolor sit amet", "POSITIVE"),
-            ("Sed ut perspiciatis unde", "NEGATIVE"),
-           )
+            ("Sed ut perspiciatis unde", "NEGATIVE"))
 
     transform = {
         "t1": {
@@ -297,29 +405,27 @@ def test_dataset_transform_4():
 def test_dataset_transform_5():
     train = (
             ("Lorem ipsum dolor sit amet", "POSITIVE"),
-            ("Sed ut perspiciatis unde", "NEGATIVE"),
-           )
+            ("Sed ut perspiciatis unde", "NEGATIVE"))
 
     transform = {
-        "text": {
+        "t1": {
             "field": TextField(),
             "columns": 0
         },
-        "text": {
+        "t2": {
             "field": TextField(),
             "columns": 0
         }
     }
 
     t = TabularDataset(train, transform=transform)
-    assert t.train.cols() == 1
+    assert t.train.cols() == 2
 
 
 def test_dataset_transform_6():
     train = (
             ("Lorem ipsum dolor sit amet", "POSITIVE"),
-            ("Sed ut perspiciatis unde", "NEGATIVE"),
-           )
+            ("Sed ut perspiciatis unde", "NEGATIVE"))
 
     class DummyField(Field):
         def setup(self, *data: np.ndarray) -> None:
@@ -342,8 +448,7 @@ def test_dataset_transform_6():
 def test_dataset_transform_7():
     train = (
             ("Lorem ipsum dolor sit amet", "POSITIVE"),
-            ("Sed ut perspiciatis unde", "NEGATIVE"),
-           )
+            ("Sed ut perspiciatis unde", "NEGATIVE"))
 
     class DummyField(Field):
         def setup(self, *data: np.ndarray) -> None:
@@ -374,8 +479,7 @@ def test_dataset_transform_7():
 def test_dataset_transform_8():
     train = (
             ("Lorem ipsum dolor sit amet", "POSITIVE"),
-            ("Sed ut perspiciatis unde", "NEGATIVE"),
-           )
+            ("Sed ut perspiciatis unde", "NEGATIVE"))
 
     transform = {
         "tx": {
@@ -392,8 +496,7 @@ def test_dataset_transform_8():
 def test_dataset_transform_with_named_cols():
     train = (
             ("Lorem ipsum dolor sit amet", "POSITIVE"),
-            ("Sed ut perspiciatis unde", "NEGATIVE"),
-           )
+            ("Sed ut perspiciatis unde", "NEGATIVE"))
 
     transform = {
         "tx": {
@@ -409,8 +512,7 @@ def test_dataset_transform_with_named_cols():
 def test_dataset_transform_with_invalid_named_cols():
     train = (
             ("Lorem ipsum dolor sit amet", "POSITIVE"),
-            ("Sed ut perspiciatis unde", "NEGATIVE"),
-           )
+            ("Sed ut perspiciatis unde", "NEGATIVE"))
 
     transform = {
         "tx": {
@@ -420,14 +522,13 @@ def test_dataset_transform_with_invalid_named_cols():
     }
 
     with pytest.raises(ValueError):
-        t = TabularDataset(train, transform=transform, named_columns=['text', 'label'])
+        TabularDataset(train, transform=transform, named_columns=['text', 'label'])
 
 
 def test_dataset_transform_with_mixed_cols():
     train = (
             ("Lorem ipsum dolor sit amet", "POSITIVE"),
-            ("Sed ut perspiciatis unde", "NEGATIVE"),
-           )
+            ("Sed ut perspiciatis unde", "NEGATIVE"))
 
     transform = {
         "label": {
@@ -448,8 +549,7 @@ def test_dataset_transform_with_mixed_cols():
 def test_dataset_transform_mixed_multiple_named_cols():
     train = (
             ("Lorem ipsum dolor sit amet", "POSITIVE"),
-            ("Sed ut perspiciatis unde", "NEGATIVE"),
-           )
+            ("Sed ut perspiciatis unde", "NEGATIVE"))
 
     class DummyField(Field):
         def setup(self, *data: np.ndarray) -> None:
