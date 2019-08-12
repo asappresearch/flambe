@@ -38,6 +38,46 @@ def dir_dataset():
     return TabularDataset.from_path('tests/data/dummy_tabular', sep=',')
 
 
+@pytest.fixture
+def autogen_val_test_dataset():
+    """Dummy dataset from file with auto-generated val and test"""
+    return TabularDataset.autogen_val_test('tests/data/dummy_tabular/train.csv',
+                                           seed=42,
+                                           sep=',')
+
+
+@pytest.fixture
+def autogen_val_test_dataset_dir():
+    """Dummy dataset from directory with auto-generated val and test"""
+    return TabularDataset.autogen_val_test('tests/data/dummy_tabular',
+                                           seed=42,
+                                           sep=',')
+
+
+@pytest.fixture
+def autogen_val_test_dataset_ratios():
+    """Dummy dataset from file with auto-generated val and test with
+    different ratios
+    """
+    return TabularDataset.autogen_val_test('tests/data/dummy_tabular/train.csv',
+                                           seed=42,
+                                           sep=',',
+                                           test_ratio=0.5,
+                                           val_ratio=0.5)
+
+
+@pytest.fixture
+def autogen_val_test_dataset_dir_ratios():
+    """Dummy dataset from directory with auto-generated val and test with
+    different ratios
+    """
+    return TabularDataset.autogen_val_test('tests/data/dummy_tabular',
+                                           seed=42,
+                                           sep=',',
+                                           test_ratio=0.5,
+                                           val_ratio=0.5)
+
+
 def test_valid_dataset():
     """Test trivial dataset build process"""
     train = (("Lorem ipsum dolor sit amet", 3, 4.5),
@@ -176,6 +216,82 @@ def test_dataset_from_dir(dir_dataset):
     dummy = "malesuada. Integer id magna et ipsum cursus vestibulum. Mauris magna."
     assert dir_dataset[100][0] == dummy
     assert dir_dataset[100][1] == '8'
+
+
+def test_dataset_autogen_val_test(autogen_val_test_dataset):
+    """Test autogenerating val and test sets from a file"""
+    train_dummy = "eget, venenatis a, magna. Lorem ipsum dolor sit amet, consectetuer"
+    val_dummy = "leo. Vivamus nibh dolor, nonummy ac, feugiat non, lobortis quis,"
+    test_dummy = "turpis egestas. Aliquam fringilla cursus purus. Nullam scelerisque neque sed"
+
+    assert autogen_val_test_dataset.train[0][0] == train_dummy
+    assert autogen_val_test_dataset.train[0][1] == '8'
+    assert len(autogen_val_test_dataset.train) == 64
+
+    assert autogen_val_test_dataset.val[0][0] == val_dummy
+    assert autogen_val_test_dataset.val[0][1] == '1'
+    assert len(autogen_val_test_dataset.val) == 16
+
+    assert autogen_val_test_dataset.test[0][0] == test_dummy
+    assert autogen_val_test_dataset.test[0][1] == '6'
+    assert len(autogen_val_test_dataset.test) == 20
+
+
+def test_dataset_autogen_val_test_ratios(autogen_val_test_dataset_ratios):
+    """Test autogenerating val and test sets from a file"""
+    train_dummy = "leo. Vivamus nibh dolor, nonummy ac, feugiat non, lobortis quis,"
+    val_dummy = "ac turpis egestas. Aliquam fringilla cursus purus. Nullam scelerisque neque"
+    test_dummy = "turpis egestas. Aliquam fringilla cursus purus. Nullam scelerisque neque sed"
+
+    assert autogen_val_test_dataset_ratios.train[0][0] == train_dummy
+    assert autogen_val_test_dataset_ratios.train[0][1] == '1'
+    assert len(autogen_val_test_dataset_ratios.train) == 25
+
+    assert autogen_val_test_dataset_ratios.val[0][0] == val_dummy
+    assert autogen_val_test_dataset_ratios.val[0][1] == '6'
+    assert len(autogen_val_test_dataset_ratios.val) == 25
+
+    assert autogen_val_test_dataset_ratios.test[0][0] == test_dummy
+    assert autogen_val_test_dataset_ratios.test[0][1] == '6'
+    assert len(autogen_val_test_dataset_ratios.test) == 50
+
+
+def test_dataset_autogen_dir_val_test(autogen_val_test_dataset_dir):
+    """Test autogenerating val and test sets from a file"""
+    train_dummy = "elementum, lorem ut aliquam iaculis, lacus pede sagittis augue, eu"
+    val_dummy = "iaculis nec, eleifend non, dapibus rutrum, justo. Praesent luctus. Curabitur"
+    test_dummy = "amet ornare lectus justo eu arcu. Morbi sit amet massa."
+
+    assert autogen_val_test_dataset_dir.train[0][0] == train_dummy
+    assert autogen_val_test_dataset_dir.train[0][1] == '2'
+    assert len(autogen_val_test_dataset_dir.train) == 128
+
+    assert autogen_val_test_dataset_dir.val[0][0] == val_dummy
+    assert autogen_val_test_dataset_dir.val[0][1] == '8'
+    assert len(autogen_val_test_dataset_dir.val) == 32
+
+    assert autogen_val_test_dataset_dir.test[0][0] == test_dummy
+    assert autogen_val_test_dataset_dir.test[0][1] == '9'
+    assert len(autogen_val_test_dataset_dir.test) == 40
+
+
+def test_dataset_autogen_dir_val_test_ratios(autogen_val_test_dataset_dir_ratios):
+    """Test autogenerating val and test sets from a file"""
+    train_dummy = "augue scelerisque mollis. Phasellus libero mauris, aliquam eu, accumsan sed,"
+    val_dummy = "lacinia orci, consectetuer euismod est arcu ac orci. Ut semper"
+    test_dummy = "amet ornare lectus justo eu arcu. Morbi sit amet massa."
+
+    assert autogen_val_test_dataset_dir_ratios.train[0][0] == train_dummy
+    assert autogen_val_test_dataset_dir_ratios.train[0][1] == '5'
+    assert len(autogen_val_test_dataset_dir_ratios.train) == 50
+
+    assert autogen_val_test_dataset_dir_ratios.val[0][0] == val_dummy
+    assert autogen_val_test_dataset_dir_ratios.val[0][1] == '6'
+    assert len(autogen_val_test_dataset_dir_ratios.val) == 50
+
+    assert autogen_val_test_dataset_dir_ratios.test[0][0] == test_dummy
+    assert autogen_val_test_dataset_dir_ratios.test[0][1] == '9'
+    assert len(autogen_val_test_dataset_dir_ratios.test) == 100
 
 
 def test_dataset_length(train_dataset, full_dataset):
