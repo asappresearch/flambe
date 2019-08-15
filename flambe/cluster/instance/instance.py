@@ -733,7 +733,7 @@ class Instance(object):
         bool
 
         """
-        cmd = "ps -e | grep -P ^flambe$"  # -w flag for exact string match
+        cmd = "ps axco command | grep -P ^flambe$"
         ret = self._run_cmd(cmd)
         return ret.success
 
@@ -1042,7 +1042,7 @@ class OrchestratorInstance(Instance):
         # Sometimes tmux command returns failure (because of some
         # timeout) but website is running.
         # Adding this extra check in that case.
-        if res.success and self.is_report_site_running():
+        if res.success or self.is_report_site_running():
             logger.info(cl.BL(f"Report site at http://{self.host}:{port}"))
         else:
             raise errors.RemoteCommandError(f"Report site failed to run. {res.msg}")
@@ -1068,7 +1068,7 @@ class OrchestratorInstance(Instance):
         bool
 
         """
-        cmd = "ps -e | grep flambe-site"
+        cmd = "ps axco command | grep -P ^flambe-site$"
         ret = self._run_cmd(cmd)
         return ret.success
 
@@ -1182,7 +1182,10 @@ class OrchestratorInstance(Instance):
 
         ret = self._run_cmd(cmd)
 
-        if ret.success:
+        # Sometimes tmux command returns failure (because of some
+        # timeout) but flambe is running.
+        # Adding this extra check in that case.
+        if ret.success or self.is_flambe_running():
             logger.info(cl.GR("Running flambe in Orchestrator"))
         else:
             raise errors.RemoteCommandError(f"Not able to run flambe. {ret.msg}")
