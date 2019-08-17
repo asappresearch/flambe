@@ -8,15 +8,16 @@ from typing import Dict, Any, Optional, Tuple, Union
 import torch
 import torch.nn as nn
 from torch import Tensor
+import numpy as np
 
 from flambe.compile import registrable_factory
 from flambe.nn import Module
-from flambe.field import TextField
+from flambe.field import Field
 
 import pytorch_transformers as pt
 
 
-class OpenAIGPTTextField(TextField, pt.OpenAIGPTTokenizer):
+class OpenAIGPTTextField(Field, pt.OpenAIGPTTokenizer):
     """Perform WordPiece tokenization.
 
     Inspired by: https://github.com/huggingface/pytorch-pretrained-BERT/
@@ -47,12 +48,35 @@ class OpenAIGPTTextField(TextField, pt.OpenAIGPTTokenizer):
     @registrable_factory
     @classmethod
     def from_alias(cls,
-                   path: str = 'openai-gpt',
+                   alias: str = 'openai-gpt',
                    cache_dir: Optional[str] = None) -> 'OpenAIGPTTextField':
         """Initialize from a pretrained tokenizer.
         """
-        field = super().from_pretrained(path, cache_dir=cache_dir)
+        field = super().from_pretrained(alias, cache_dir=cache_dir)
         return field
+
+    @property
+    def vocab_size(self) -> int:
+        """Get the vocabulary length.
+
+        Returns
+        -------
+        int
+            The length of the vocabulary
+
+        """
+        return len(self._vocab)
+
+    def setup(self, *data: np.ndarray) -> None:
+        """Build the vocabulary and sets embeddings.
+
+        Parameters
+        ----------
+        data : Iterable[str]
+            List of input strings.
+
+        """
+        pass
 
     def process(self, example: str) -> torch.Tensor:  # type: ignore
         """Process an example, and create a Tensor.
@@ -112,7 +136,7 @@ class OpenAIGPTEmbeddings(Module, pt.modeling_openai.OpenAIGPTPreTrainedModel):
             initializing all weight matrices.
 
         """
-        Module.__init__(self)
+        super().__init__()
 
         if isinstance(input_size_or_config, int):
             tmp_config: Dict[str, Any] = {}
@@ -139,19 +163,19 @@ class OpenAIGPTEmbeddings(Module, pt.modeling_openai.OpenAIGPTPreTrainedModel):
     @registrable_factory
     @classmethod
     def from_alias(cls,
-                   path: str = 'openai-gpt',
+                   alias: str = 'openai-gpt',
                    cache_dir: Optional[str] = None) -> 'OpenAIGPTEmbeddings':
         """Initialize from a pretrained model.
 
         Parameters
         ----------
-        path: str
+        alias: str
             Path to a pretrained model, or one of the following string
             aliases currently available:
             . `openai-gpt`
 
         """
-        return super().from_pretrained(path, cache_dir=cache_dir)
+        return super().from_pretrained(alias, cache_dir=cache_dir)
 
     def set_num_special_tokens(self, num_special_tokens):
         " Update input embeddings with new embedding matrice if needed "
@@ -247,7 +271,7 @@ class OpenAIGPTEncoder(Module, pt.modeling_openai.OpenAIGPTPreTrainedModel):
             initializing all weight matrices.
 
         """
-        Module.__init__(self)
+        super().__init__()
 
         if isinstance(input_size_or_config, int):
             tmp_config: Dict[str, Any] = {}
@@ -273,19 +297,19 @@ class OpenAIGPTEncoder(Module, pt.modeling_openai.OpenAIGPTPreTrainedModel):
     @registrable_factory
     @classmethod
     def from_alias(cls,
-                   path: str = 'openai-gpt',
+                   alias: str = 'openai-gpt',
                    cache_dir: Optional[str] = None) -> 'OpenAIGPTEncoder':
         """Initialize from a pretrained model.
 
         Parameters
         ----------
-        path: str
+        alias: str
             Path to a pretrained model, or one of the following string
             aliases currently available:
             . `openai-gpt`
 
         """
-        return super().from_pretrained(path, cache_dir=cache_dir)
+        return super().from_pretrained(alias, cache_dir=cache_dir)
 
     def forward(self,
                 data: Tensor,

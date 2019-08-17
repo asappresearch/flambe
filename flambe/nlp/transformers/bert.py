@@ -6,15 +6,17 @@ from typing import Tuple, Dict, Any, Optional, Union
 
 import torch
 from torch import Tensor
+import numpy as np
 
+from flambe import Component
 from flambe.compile import registrable_factory
-from flambe.field import TextField
+from flambe.field import Field
 from flambe.nn import Module
 
 import pytorch_transformers as pt
 
 
-class BERTTextField(TextField, pt.BertTokenizer):
+class BERTTextField(Field, pt.BertTokenizer):
     """Perform WordPiece tokenization.
 
     Inspired by: https://github.com/huggingface/pytorch-pretrained-BERT/
@@ -83,6 +85,29 @@ class BERTTextField(TextField, pt.BertTokenizer):
         field.max_len_truncate = max_len_truncate
 
         return field
+
+    @property
+    def vocab_size(self) -> int:
+        """Get the vocabulary length.
+
+        Returns
+        -------
+        int
+            The length of the vocabulary
+
+        """
+        return len(self._vocab)
+
+    def setup(self, *data: np.ndarray) -> None:
+        """Build the vocabulary and sets embeddings.
+
+        Parameters
+        ----------
+        data : Iterable[str]
+            List of input strings.
+
+        """
+        pass
 
     def process(self, example: str) -> torch.Tensor:  # type: ignore
         """Process an example, and create a Tensor.
@@ -157,8 +182,6 @@ class BERTEmbeddings(Module, pt.modeling_bert.BertPreTrainedModel):
             The vocabulary size of the `token_type_ids`
 
         """
-        Module.__init__(self)
-
         if isinstance(input_size_or_config, int):
             tmp_config: Dict[str, Any] = {}
             tmp_config['vocab_size'] = input_size_or_config
@@ -170,11 +193,13 @@ class BERTEmbeddings(Module, pt.modeling_bert.BertPreTrainedModel):
         else:
             config = input_size_or_config
 
-        self.config = config
-        self.pad_index = pad_index
-        self.embeddings = pt.modeling.BertEmbeddings(config)
+        Module.__init__(self)
+        pt.modeling_bert.BertPreTrainedModel.__init__(self, config=config)
 
-        self.apply(self.init_bert_weights)
+        self.pad_index = pad_index
+        self.embeddings = pt.modeling_bert.BertEmbeddings(config)
+
+        self.apply(self.init_weights)
         if embedding_freeze:
             for param in self.parameters():
                 param.requires_grad = False
@@ -182,13 +207,13 @@ class BERTEmbeddings(Module, pt.modeling_bert.BertPreTrainedModel):
     @registrable_factory
     @classmethod
     def from_alias(cls,
-                   path: str = 'bert-base-cased',
+                   alias: str = 'bert-base-cased',
                    cache_dir: Optional[str] = None, **kwargs) -> 'BERTEmbeddings':
         """Initialize from a pretrained model.
 
         Parameters
         ----------
-        path: str
+        alias: str
             Path to a pretrained model, or one of the following string
             aliases currently available:
             . `bert-base-uncased`
@@ -200,7 +225,7 @@ class BERTEmbeddings(Module, pt.modeling_bert.BertPreTrainedModel):
             . `bert-base-chinese`
 
         """
-        return super().from_pretrained(path, cache_dir=cache_dir, **kwargs)
+        return cls.from_pretrained(alias, cache_dir=cache_dir, **kwargs)
 
     def forward(self, data: Tensor) -> Tuple[Tensor, Optional[Tensor]]:
         """Performs a forward pass through the network.
@@ -226,7 +251,7 @@ class BERTEmbeddings(Module, pt.modeling_bert.BertPreTrainedModel):
         return embedded, mask
 
 
-class BERTEncoder(Module, pt.modeling_bert.BertPreTrainedModel):
+class BERTEncoder(Component, pt.modeling_bert.BertPreTrainedModel):
     """Integrate the pytorch_pretrained_bert BERT encoder model.
 
     This module can be used as any normal encoder, or it can be
@@ -255,7 +280,7 @@ class BERTEncoder(Module, pt.modeling_bert.BertPreTrainedModel):
                  max_position_embeddings: int = 512,
                  type_vocab_size: int = 2,
                  initializer_range: float = 0.02,
-                 pool_last: bool = False, **kwargs) -> None:
+                 pool: bool = False, **kwargs) -> None:
         """Initialize the BertEncoder.
 
         Parameters
@@ -290,10 +315,10 @@ class BERTEncoder(Module, pt.modeling_bert.BertPreTrainedModel):
         initializer_range: float, optional
             The sttdev of the truncated_normal_initializer for
             initializing all weight matrices.
+        pool: bool, ooptional
+            If given, returns a single vector for the sequence
 
         """
-        Module.__init__(self)
-
         if isinstance(input_size_or_config, int):
             tmp_config: Dict[str, Any] = {}
             tmp_config['vocab_size_or_config_json_file'] = input_size_or_config
@@ -311,25 +336,24 @@ class BERTEncoder(Module, pt.modeling_bert.BertPreTrainedModel):
         else:
             config = input_size_or_config
 
-        self.config = config
+        pt.modeling_bert.BertPreTrainedModel.__init__(self, config)
         self.encoder = pt.modeling_bert.BertEncoder(config)
         self.pooler = pt.modeling_bert.BertPooler(config)
+        self.pool = pool
 
-        self.pool_last = pool_last
-
-        self.apply(self.init_bert_weights)
+        self.apply(self.init_weights)
 
     @registrable_factory
     @classmethod
     def from_alias(cls,
-                   path: str = 'bert-base-cased',
+                   alias: str = 'bert-base-cased',
                    cache_dir: Optional[str] = None,
-                   pool_last: bool = False, **kwargs) -> 'BERTEncoder':
+                   pool: bool = False, **kwargs) -> 'BERTEncoder':
         """Initialize from a pretrained model.
 
         Parameters
         ----------
-        path: str
+        alias: str
             Path to a pretrained model, or one of the following string
             aliases currently available:
             . `bert-base-uncased`
@@ -341,8 +365,8 @@ class BERTEncoder(Module, pt.modeling_bert.BertPreTrainedModel):
             . `bert-base-chinese`
 
         """
-        model = super().from_pretrained(path, cache_dir=cache_dir, **kwargs)
-        model.pool_last = pool_last
+        model = cls.from_pretrained(alias, cache_dir=cache_dir, **kwargs)
+        model.pool = pool
 
         return model
 
@@ -388,5 +412,5 @@ class BERTEncoder(Module, pt.modeling_bert.BertPreTrainedModel):
         sequence_output = encoded_layers[-1]
         pooled_output = self.pooler(sequence_output)
 
-        out = pooled_output if self.pool_last else sequence_output
+        out = pooled_output if self.pool else sequence_output
         return out
