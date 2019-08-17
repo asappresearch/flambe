@@ -7,6 +7,7 @@ from flambe.dataset import Dataset
 from flambe.nn import Module
 from flambe.sampler import Sampler
 from flambe.logging import log
+from flambe.logging import get_trial_dir
 
 
 class Predictor(Component):
@@ -52,6 +53,7 @@ class Predictor(Component):
 
         data = getattr(dataset, eval_data)
         self._eval_iterator = self.eval_sampler.sample(data)
+        self.save_dir = get_trial_dir() 
 
     def run(self, block_name: str = None) -> bool:
         """Run the evaluation.
@@ -72,7 +74,9 @@ class Predictor(Component):
                 preds.append(pred.cpu())
 
             preds = torch.cat(preds, dim=0)  # type: ignore
-            log('Predictions', preds, global_step=0)
+
+        with open(os.path.join(self.save_dir, 'predictions.pt')) as f:
+            torch.save(preds, f)  # type: ignore
 
         continue_ = False  # Single step so don't continue
         return continue_
