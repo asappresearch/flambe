@@ -184,7 +184,7 @@ def collate_fn(data: List[Tuple[torch.Tensor, ...]],
                 padded_tensors = pad_sequence(tensors,
                                               batch_first=batch_first,
                                               padding_value=pad)
-                batch.append(padded_tensors)
+                batch.append(padded_tensors.to(tensors))
 
     return tuple(batch)
 
