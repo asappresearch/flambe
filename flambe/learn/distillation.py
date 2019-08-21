@@ -38,6 +38,8 @@ class DistillationTrainer(Trainer):
                  iter_per_step: Optional[int] = None,
                  batches_per_iter: int = 1,
                  lower_is_better: bool = False,
+                 max_grad_norm: Optional[float] = None,
+                 max_grad_abs_val: Optional[float] = None,
                  extra_validation_metrics: Optional[List[Metric]] = None,
                  teacher_columns: Optional[Tuple[int, ...]] = None,
                  student_columns: Optional[Tuple[int, ...]] = None,
@@ -81,6 +83,11 @@ class DistillationTrainer(Trainer):
         lower_is_better : bool, optional
             If true, the lowest dev metric is considered best,
             otherwise the highest. Defaults to False.
+        max_grad_norm : float, optional
+            Maximum Euclidean norm of gradient after clipping.
+        max_grad_abs_val: float, optional
+            Maximum absolute value of all gradient vector components
+            after clipping.
         extra_validation_metrics: Optional[List[Metric]]
             A list with extra metrics to show in each step
             but which don't guide the training procedures
@@ -109,6 +116,8 @@ class DistillationTrainer(Trainer):
                          iter_per_step,
                          batches_per_iter,
                          lower_is_better,
+                         max_grad_norm,
+                         max_grad_abs_val,
                          extra_validation_metrics)
 
         self.student_model = self.model
