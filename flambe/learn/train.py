@@ -5,6 +5,7 @@ from typing import Dict, List, Optional, Any, Tuple, Iterator
 import torch
 from torch.optim.optimizer import Optimizer
 from torch.optim.lr_scheduler import _LRScheduler, ReduceLROnPlateau
+from torch.nn.utils.clip_grad import clip_grad_norm_, clip_grad_value_
 
 from flambe.dataset import Dataset
 from flambe.compile import Schema, State, Component
@@ -41,6 +42,8 @@ class Trainer(Component):
                  iter_per_step: Optional[int] = None,
                  batches_per_iter: int = 1,
                  lower_is_better: bool = False,
+                 max_grad_norm: Optional[float] = None,
+                 max_grad_abs_val: Optional[float] = None,
                  extra_validation_metrics: Optional[List[Metric]] = None) -> None:
         """Initialize an instance of Trainer
 
@@ -81,6 +84,11 @@ class Trainer(Component):
         lower_is_better : bool, optional
             If true, the lowest val metric is considered best,
             otherwise the highest. Defaults to False.
+        max_grad_norm : float, optional
+            Maximum Euclidean norm of gradient after clipping.
+        max_grad_abs_val: float, optional
+            Maximum absolute value of all gradient vector components
+            after clipping.
         extra_validation_metrics: Optional[List[Metric]]
             A list with extra metrics to show in each step
             but which don't guide the training procedures
@@ -96,6 +104,8 @@ class Trainer(Component):
         self.optimizer = optimizer
         self.scheduler = scheduler
         self.lower_is_better = lower_is_better
+        self.max_grad_norm = max_grad_norm
+        self.max_grad_abs_val = max_grad_abs_val
         self.extra_validation_metrics = extra_validation_metrics or []
 
         # By default, no prefix applied to tb logs
@@ -189,6 +199,12 @@ class Trainer(Component):
 
                 # Log loss
                 global_step = (self.iter_per_step * self._step) + i
+
+                # Clip gradients if necessary
+                if self.max_grad_norm:
+                    clip_grad_norm_(self.model.parameters(), self.max_grad_norm)
+                if self.max_grad_abs_val:
+                    clip_grad_value_(self.model.parameters(), self.max_grad_abs_val)
 
                 log(f'{tb_prefix}Training/Loss', accumulated_loss, global_step)
                 log(f'{tb_prefix}Training/Gradient_Norm', self.model.gradient_norm, global_step)
