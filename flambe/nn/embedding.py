@@ -163,13 +163,13 @@ class Embeddings(Module):
             Whether the positonal embeddings should be frozen
 
         """
-        assert embeddings.dim() == 2, \
-            'Embeddings parameter is expected to be 2-dimensional'
+        if embeddings.dim() != 2:
+            raise ValueError('Embeddings parameter is expected to be 2-dimensional')
         if positonal_embeddings is not None:
-            assert positonal_embeddings.dim() == 2, \
-                'Positonal embeddings parameter is expected to be 2-dimensional'
-            assert positonal_embeddings.size() == embeddings.size(), \
-                'Both pretrained matrices must have the same dimensions'
+            if positonal_embeddings.dim() != 2:
+                raise ValueError('Positonal embeddings parameter is expected to be 2-dimensional')
+            if positonal_embeddings.size() != embeddings.size():
+                raise ValueError('Both pretrained matrices must have the same dimensions')
 
         rows, cols = embeddings.shape
         positional_encoding = positional_encoding or (positonal_embeddings is not None)
