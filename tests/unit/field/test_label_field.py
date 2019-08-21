@@ -197,6 +197,25 @@ def test_label_process_multilabel_one_hot_frequencies():
     assert isclose(field.label_inv_freq[2].item(), 6, rtol=NUMERIC_PRECISION)
 
 
+def test_pass_bool_labels():
+    """Test labels specified in the init"""
+    dummy = [True, False, True, True]
+
+    field = LabelField(labels=[False, True])
+    field.setup(dummy)
+
+    assert len(field.vocab) == 2
+    assert list(field.process(False)) == [0]
+    assert list(field.process(True)) == [1]
+
+    field = LabelField(labels=[True, False])
+    field.setup(dummy)
+
+    assert len(field.vocab) == 2
+    assert list(field.process(False)) == [1]
+    assert list(field.process(True)) == [0]
+
+
 def test_pass_labels():
     """Test labels specified in the init"""
     dummy = ['LABEL1', 'LABEL3', 'LABEL2', 'LABEL2']
