@@ -27,6 +27,12 @@ class LabelField(Field):
         multilabel_sep : str, optional
             If given, splits the input label into multiple labels
             using the given separator, defaults to None.
+        labels: Sequence[str], optional
+            If given, sets the labels and the ordering is used to map
+            the labels to indices. That means the first item in this
+            list will have label id 0, the next one id 1, etc..
+            When not provided, indices are assigned as labels are
+            encountered during preprocessing.
 
         """
         self.one_hot = one_hot
@@ -104,6 +110,18 @@ class LabelField(Field):
             out = torch.tensor(out).long()  # Back to Tensor
 
         return out
+
+    @property
+    def vocab_size(self) -> int:
+        """Get the vocabulary length.
+
+        Returns
+        -------
+        int
+            The length of the vocabulary
+
+        """
+        return len(self.vocab)
 
     @property
     def label_count(self) -> torch.Tensor:

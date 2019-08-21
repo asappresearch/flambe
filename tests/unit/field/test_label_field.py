@@ -1,7 +1,9 @@
-from flambe.field import LabelField
-from flambe.tokenizer import LabelTokenizer
+import pytest
 
 from numpy import isclose
+
+from flambe.field import LabelField
+from flambe.tokenizer import LabelTokenizer
 
 
 NUMERIC_PRECISION = 1e-2
