@@ -9,9 +9,9 @@ from typing import Optional
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from nn.activation import MultiheadAttention
-from nn.container import ModuleList
-from nn.init import xavier_uniform_
+from torch.nn import MultiheadAttention
+from torch.nn import ModuleList
+from torch.nn.init import xavier_uniform_
 from sru import SRU
 
 from flambe.nn import Module
