@@ -62,6 +62,10 @@ class Transformer(Module):
             the dropout value (default=0.1).
         use_sru: bool, optional
             If true, replaces the Transformer FFN with an SRU
+        custom_encoder: Module, optional
+            A custom encoder, all other parameters will be ignored
+        custom_decoder: Module, optional
+            A custom decoder, all other parameters will be ignored
 
         """
         super(Transformer, self).__init__()
@@ -69,18 +73,24 @@ class Transformer(Module):
         self.d_model = d_model
         self.nhead = nhead
 
-        self.encoder = TransformerEncoder(d_model,
-                                          nhead,
-                                          dim_feedforward,
-                                          num_encoder_layers,
-                                          dropout,
-                                          use_sru)
-        self.decoder = TransformerDecoder(d_model,
-                                          nhead,
-                                          dim_feedforward,
-                                          num_encoder_layers,
-                                          dropout,
-                                          use_sru)
+        if custom_encoder is not None:
+            self.encoder = custom_encoder
+        else:
+            self.encoder = TransformerEncoder(d_model,
+                                              nhead,
+                                              dim_feedforward,
+                                              num_encoder_layers,
+                                              dropout,
+                                              use_sru)
+        if custom_decoder is not None:
+            self.decoder = custom_decoder
+        else:
+            self.decoder = TransformerDecoder(d_model,
+                                              nhead,
+                                              dim_feedforward,
+                                              num_encoder_layers,
+                                              dropout,
+                                              use_sru)
 
     def forward(self,  # type: ignore
                 src: torch.Tensor,

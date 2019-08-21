@@ -102,39 +102,36 @@ class RNNEncoder(Module):
         Parameters
         ----------
         data : Tensor
-            The input data, as a float tensor
+            The input data, as a float tensor of shape [S x B x E]
+        state: Tensor
+            An optional previous state of shape [L x B x H]
+        mask: Tensor, optional
+            The padding mask of shape [S x B]
 
         Returns
         -------
         Tensor
-            The encoded output, as a float tensor
+            The encoded output, as a float tensor of shape [S x B x H]
         Tensor
-            The encoded state, as a float tensor
+            The encoded state, as a float tensor of shape [L x B x H]
 
         """
-        # batch_size x seq_len -> seq_len x batch_size
-        data_t = data.transpose(0, 1)
-
         if mask is None:
             # Default RNN behavior
-            output, state = self.rnn(data_t, state)
+            output, state = self.rnn(data, state)
         elif self.rnn_type == 'sru':
             # SRU takes a mask instead of PackedSequence objects
-            mask_t = mask.transpose(0, 1)
             # Write (1 - mask_t) in weird way for type checking to work
-            output, state = self.rnn(data_t, state, mask_pad=(-mask_t + 1).byte())
+            output, state = self.rnn(data, state, mask_pad=(-mask + 1).byte())
         else:
             # Deal with variable length sequences
-            mask_t = mask.transpose(0, 1)
-            lengths = mask_t.long().sum(dim=0)
+            lengths = mask.long().sum(dim=0)
             # Pass through the RNN
-            packed = nn.utils.rnn.pack_padded_sequence(data_t, lengths,
+            packed = nn.utils.rnn.pack_padded_sequence(data, lengths,
                                                        enforce_sorted=self.enforce_sorted)
             output, state = self.rnn(packed, state)
             output, _ = nn.utils.rnn.pad_packed_sequence(output)
 
-        # Revert back to batch first
-        output = output.transpose(0, 1).contiguous()
         # TODO investigate why PyTorch returns type Any for output
         return output, state  # type: ignore
 
@@ -214,12 +211,12 @@ class PooledRNNEncoder(Module):
         Parameters
         ----------
         data : torch.Tensor
-            The input data, as a float tensor
+            The input data, as a float tensor of shape [S x B x E]
 
         Returns
         -------
         torch.Tensor
-            The encoded output, as a float tensor
+            The encoded output, as a float tensor of shape [B x H]
 
         """
         output, _ = self.rnn(data, state=state, mask=mask)
@@ -228,6 +225,10 @@ class PooledRNNEncoder(Module):
         if mask is None:
             mask = torch.ones_like(output)
         cast(torch.Tensor, mask)
+
+        # Make batch first
+        output = output.transpose(0, 1)
+        mask = mask.transpose(0, 1)
 
         if self.pooling == 'average':
             output = (output * mask.unsqueeze(2)).sum(dim=1)
