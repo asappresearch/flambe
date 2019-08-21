@@ -1,13 +1,14 @@
-from typing import Optional, Dict
+from typing import Optional, Dict, Sequence
+from collections import OrderedDict as odict
 
 import torch
 import numpy as np
 
-from flambe.field.text import TextField
+from flambe.field.field import Field
 from flambe.tokenizer import LabelTokenizer
 
 
-class LabelField(TextField):
+class LabelField(Field):
     """Featurizes input labels.
 
     The class also handles multilabel inputs and one hot encoding.
@@ -15,7 +16,8 @@ class LabelField(TextField):
     """
     def __init__(self,
                  one_hot: bool = False,
-                 multilabel_sep: Optional[str] = None) -> None:
+                 multilabel_sep: Optional[str] = None,
+                 labels: Optional[Sequence[str]] = None) -> None:
         """Initializes the LabelFetaurizer.
 
         Parameters
@@ -29,13 +31,19 @@ class LabelField(TextField):
         """
         self.one_hot = one_hot
         self.multilabel_sep = multilabel_sep
-        self.label_count_dict: Dict[str, int] = dict()
+        self.tokenizer = LabelTokenizer(self.multilabel_sep)
 
-        tokenizer = LabelTokenizer(self.multilabel_sep)
-        super().__init__(tokenizer=tokenizer,
-                         lower=False,
-                         unk_token=None,
-                         pad_token=None)
+        if labels is not None:
+            self.label_given = True
+            self.vocab = odict((label, i) for i, label in enumerate(labels))
+            self.label_count_dict = {label: 0 for label in self.vocab}
+        else:
+            self.label_given = False
+            self.vocab = odict()
+            self.label_count_dict: Dict[str, int] = dict()
+
+        self.register_attrs('vocab')
+        self.register_attrs('label_count_dict')
 
     def setup(self, *data: np.ndarray) -> None:
         """Build the vocabulary.
@@ -49,17 +57,20 @@ class LabelField(TextField):
         # Iterate over all examples
         examples = (e for dataset in data for e in dataset if dataset is not None)
 
-        # Get current last id
-        index = len(self.vocab) - 1
-
         for example in examples:
             # Tokenize and add to vocabulary
             for token in self.tokenizer(example):
-                if token not in self.vocab:
-                    self.vocab[token] = index = index + 1
-                    self.label_count_dict[token] = 1
+                if self.label_given:
+                    if token not in self.vocab:
+                        raise ValueError(f"Found label {token} not provided in label list.")
+                    else:
+                        self.label_count_dict[token] += 1
                 else:
-                    self.label_count_dict[token] += 1
+                    if token not in self.vocab:
+                        self.vocab[token] = len(self.vocab)
+                        self.label_count_dict[token] = 1
+                    else:
+                        self.label_count_dict[token] += 1
 
     def process(self, example):
         """Featurize a single example.
