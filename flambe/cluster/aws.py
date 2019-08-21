@@ -5,6 +5,7 @@
 import boto3
 import botocore
 import logging
+from datetime import datetime, timedelta
 
 from typing import Generator, Dict, Tuple, List, TypeVar, Type, Any, Optional
 
@@ -56,6 +57,12 @@ class AWSCluster(Cluster):
     key: str
         The path to the ssh key used to communicate to all instances.
         IMPORTANT: all instances must be accessible with the same key.
+    volume_type: str
+        The type of volume in AWS to use. Only 'gp2' and 'io1' are
+        currently available. If 'io1' is used, then IOPS will be
+        fixed to 5000. IMPORTANT: 'io1' volumes are significantly
+        more expensive than 'gp2' volumes.
+        Defaults to 'gp2'.
     region_name: Optional[str]
         The region name to use. If not specified, it uses the locally
         configured region name or 'us-east-1' in case it's not
@@ -115,6 +122,7 @@ class AWSCluster(Cluster):
                  subnet_id: str,
                  creator: str,
                  key: str,
+                 volume_type: str = 'gp2',
                  region_name: Optional[str] = None,
                  username: str = "ubuntu",
                  tags: Dict[str, str] = None,
@@ -130,6 +138,7 @@ class AWSCluster(Cluster):
         self.factories_type = factories_type
         self.orchestrator_type = orchestrator_type
 
+        self.region_name = region_name
         self.sess = self._get_boto_session(region_name)
 
         self.ec2_resource = self.sess.resource('ec2')
@@ -154,6 +163,11 @@ class AWSCluster(Cluster):
         self.factories_timeout = factories_timeout
 
         self.created_instances_ids: List[str] = []
+
+        if volume_type not in ['gp2', 'io1']:
+            raise ValueError("Only gp2 and io1 drives available.")
+
+        self.volume_type = volume_type
 
     def _get_boto_session(self, region_name: Optional[str]) -> boto3.Session:
         """Get the boto3 Session from which the resources
@@ -513,15 +527,18 @@ class AWSCluster(Cluster):
 
         boto_tags: List[Dict[str, str]] = [{'Key': k, 'Value': v} for k, v in tags.items()]
 
+        ebs = {
+            'VolumeSize': self.volume_size,
+            'DeleteOnTermination': True,
+            'VolumeType': self.volume_type,
+        }
+        if self.volume_type == 'io1':
+            ebs['Iops'] = 5000
+
         bdm = [
             {
                 'DeviceName': '/dev/sda1',
-                'Ebs': {
-                    'VolumeSize': self.volume_size,
-                    'DeleteOnTermination': True,
-                    'VolumeType': 'io1',
-                    'Iops': 50 * self.volume_size
-                }
+                'Ebs': ebs,
             }
         ]
         tags_param = [
@@ -751,8 +768,12 @@ class AWSCluster(Cluster):
                 f_id = self._get_instance_id_by_host(f.host)
                 if f_id:
                     mins = fact_t * 60 if fact_t > 0 else 5
+                    # Adding fake data for CPU usage to avoid the alarm
+                    # triggering immediately in case the machine was
+                    # already idle
+                    self._put_fake_cloudwatch_data(f_id, value=100, points=10)
                     self._create_cloudwatch_event(f_id, mins=mins, cpu_thresh=0.5)
-                    logger.info(cl.YE(f"{f.host} timeout of {mins} set"))
+                    logger.info(cl.YE(f"{f.host} timeout of {mins} mins set"))
         else:
             logger.info(cl.YE(f"Factories have no timeout"))
 
@@ -762,6 +783,10 @@ class AWSCluster(Cluster):
             orch_t = self.orchestrator_timeout
             if orch_t >= 0:
                 mins = orch_t * 60 if orch_t > 0 else 5
+                # Adding fake data for CPU usage to avoid the alarm
+                # triggering immediately in case the machine was already
+                # idle
+                self._put_fake_cloudwatch_data(orch_id, value=100, points=10)
                 self._create_cloudwatch_event(orch_id, mins=mins, cpu_thresh=4)
                 logger.info(cl.YE(f"{self.orchestrator.host} timeout of {mins} set"))
             else:
@@ -779,6 +804,54 @@ class AWSCluster(Cluster):
 
         except botocore.exceptions.ParamValidationError:
             raise errors.ClusterError(f"Could not delete alarm for {instance_id}")
+
+    def _put_fake_cloudwatch_data(self,
+                                  instance_id: str,
+                                  value: int = 100,
+                                  points: int = 10) -> None:
+        """Put fake CPU Usage metric in an instance.
+
+        This method is useful to avoid triggering alarms when they are
+        created. For example, is an instance was idle for 10 hours and
+        an termination alarm is set for 5 hours, it will be triggered
+        immediately. Adding a fake point will allow the alarms to start
+        the timer from the current moment.
+
+        Parameters
+        ----------
+        instance_id: str
+            The ID of the EC2 instance
+        value: int
+            The CPU percent value to use. Defaults to 100
+        points: int
+            The amount of past minutes from the current time
+            to generate metric points. For example, if points is 10,
+            then 10 data metrics will be generated for the past 10
+            minutes, one per minute.
+
+        """
+        try:
+            for i in range(10):
+                self.cloudwatch.put_metric_data(
+                    Namespace='AWS/EC2',
+                    MetricData=[
+                        {
+                            'MetricName': 'CPUUtilization',
+                            'Dimensions': [
+                                {
+                                    'Name': 'InstanceId',
+                                    'Value': instance_id
+                                },
+                            ],
+                            'Timestamp': datetime.utcnow() - timedelta(minutes=i),
+                            'Value': 100,
+                            'Unit': 'Percent',
+                        },
+                    ]
+                )
+            logger.debug(f"Added fake CPU usage for {instance_id}")
+        except botocore.exceptions.ParamValidationError:
+            raise errors.ClusterError(f"Could not put metric data for {instance_id}")
 
     def _create_cloudwatch_event(self, instance_id: str, mins: int = 60,
                                  cpu_thresh: float = 0.1) -> None:
@@ -813,7 +886,7 @@ class AWSCluster(Cluster):
                 Threshold=cpu_thresh,
                 ActionsEnabled=True,
                 AlarmActions=[
-                    'arn:aws:automate:us-east-1:ec2:terminate'
+                    f'arn:aws:automate:{self.region_name}:ec2:terminate'
                 ],
                 AlarmDescription=f'Terminate when CPU < {cpu_thresh}%',
                 Dimensions=[
