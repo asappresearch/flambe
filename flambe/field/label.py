@@ -86,14 +86,24 @@ class LabelField(Field):
             A list of integer tokens
 
         """
-        # First process normally
-        n = super().process(example)
+        tokens = self.tokenizer(example)
+
+        # Numericalize
+        numericals = []
+        for token in tokens:
+            if token not in self.vocab:
+                raise ValueError("Encounterd out-of-vocabulary label {token}")
+
+            numerical = self.vocab[token]  # type: ignore
+            numericals.append(numerical)
+
+        out = torch.tensor(numericals).long()
 
         if self.one_hot:
-            n = [int(i in n) for i in range(len(self.vocab))]
-            n = torch.tensor(n).long()  # Back to Tensor
+            out = [int(i in out) for i in range(len(self.vocab))]
+            out = torch.tensor(out).long()  # Back to Tensor
 
-        return n
+        return out
 
     @property
     def label_count(self) -> torch.Tensor:

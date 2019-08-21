@@ -1,7 +1,6 @@
 from flambe.field import LabelField
 from flambe.tokenizer import LabelTokenizer
 
-from torch import Tensor
 from numpy import isclose
 
 
@@ -194,3 +193,43 @@ def test_label_process_multilabel_one_hot_frequencies():
     assert isclose(field.label_inv_freq[0].item(), 3, rtol=NUMERIC_PRECISION)
     assert isclose(field.label_inv_freq[1].item(), 2, rtol=NUMERIC_PRECISION)
     assert isclose(field.label_inv_freq[2].item(), 6, rtol=NUMERIC_PRECISION)
+
+
+def test_pass_labels():
+    """Test labels specified in the init"""
+    dummy = ['LABEL1', 'LABEL3', 'LABEL2', 'LABEL2']
+
+    field = LabelField(labels=['LABEL1', 'LABEL2', 'LABEL3'])
+    field.setup(dummy)
+
+    assert len(field.vocab) == 3
+    assert list(field.process('LABEL1')) == [0]
+    assert list(field.process('LABEL2')) == [1]
+    assert list(field.process('LABEL3')) == [2]
+
+    field = LabelField(labels=['LABEL3', 'LABEL1', 'LABEL2'])
+    field.setup(dummy)
+
+    assert len(field.vocab) == 3
+    assert list(field.process('LABEL1')) == [1]
+    assert list(field.process('LABEL2')) == [2]
+    assert list(field.process('LABEL3')) == [0]
+
+
+def test_pass_labels_with_unkown_1():
+    """Test labels specified in the init"""
+    dummy = ['LABEL1', 'LABEL3', 'LABEL2', 'LABEL2']
+
+    field = LabelField(labels=['LABEL1', 'LABEL2'])
+    with pytest.raises(ValueError):
+        field.setup(dummy)
+
+
+def test_pass_labels_with_unkown_2():
+    """Test labels specified in the init"""
+    dummy = ['LABEL1', 'LABEL3', 'LABEL2', 'LABEL2']
+
+    field = LabelField(labels=['LABEL1', 'LABEL2', 'LABEL3'])
+    field.setup(dummy)
+    with pytest.raises(ValueError):
+        list(field.process('LABEL4'))
