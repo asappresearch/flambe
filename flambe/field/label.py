@@ -95,7 +95,7 @@ class LabelField(TextField):
             by the id of the label in the vocabulary.
         """
         counts = [self.label_count_dict[label] for label in self.vocab]
-        return torch.tensor(counts)
+        return torch.tensor(counts).float()
 
     @property
     def label_freq(self) -> torch.Tensor:
@@ -109,7 +109,7 @@ class LabelField(TextField):
 
         """
         counts = [self.label_count_dict[label] for label in self.vocab]
-        return torch.tensor(counts) / sum(counts)
+        return torch.tensor(counts).float() / sum(counts)
 
     @property
     def label_inv_freq(self) -> torch.Tensor:
