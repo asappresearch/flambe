@@ -200,15 +200,15 @@ class Trainer(Component):
                 # Log loss
                 global_step = (self.iter_per_step * self._step) + i
 
-                log(f'{tb_prefix}Training/Loss', accumulated_loss, global_step)
-                log(f'{tb_prefix}Training/Gradient_Norm', self.model.gradient_norm, global_step)
-                log(f'{tb_prefix}Training/Parameter_Norm', self.model.parameter_norm, global_step)
-
                 # Clip gradients if necessary
                 if self.max_grad_norm:
                     clip_grad_norm_(self.model.parameters(), self.max_grad_norm)
                 if self.max_grad_abs_val:
                     clip_grad_value_(self.model.parameters(), self.max_grad_abs_val)
+
+                log(f'{tb_prefix}Training/Loss', accumulated_loss, global_step)
+                log(f'{tb_prefix}Training/Gradient_Norm', self.model.gradient_norm, global_step)
+                log(f'{tb_prefix}Training/Parameter_Norm', self.model.parameter_norm, global_step)
 
                 # Optimize
                 self.optimizer.step()
