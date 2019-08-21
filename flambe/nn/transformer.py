@@ -3,22 +3,22 @@ Code taken from the PyTorch source code. Slightly modified to improve
 the interface to the TransformerEncoder, and TransformerDecoder modules.
 
 """
-
+import copy
 from typing import Optional
 
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-
-from flambe.nn import Module
-
 from nn.activation import MultiheadAttention
 from nn.container import ModuleList
 from nn.init import xavier_uniform_
+from sru import SRU
+
+from flambe.nn import Module
 
 
 class Transformer(Module):
-    r"""A Transformer model
+    """A Transformer model
 
     User is able to modify the attributes as needed. The architechture
     is based on the paper "Attention Is All You Need". Ashish Vaswani,
@@ -36,6 +36,7 @@ class Transformer(Module):
                  num_decoder_layers: int = 6,
                  dim_feedforward: int = 2048,
                  dropout: float = 0.1,
+                 use_sru: bool = False,
                  custom_encoder: Optional[Module] = None,
                  custom_decoder: Optional[Module] = None) -> None:
         """Initialize the Transformer Model.
@@ -59,10 +60,8 @@ class Transformer(Module):
             (default=2048).
         dropout : float, optional
             the dropout value (default=0.1).
-        custom_encoder : [type], optional
-            custom encoder (default=None).
-        custom_decoder : [type], optional
-            custom decoder (default=None).
+        use_sru: bool, optional
+            If true, replaces the Transformer FFN with an SRU
 
         """
         super(Transformer, self).__init__()
@@ -70,25 +69,18 @@ class Transformer(Module):
         self.d_model = d_model
         self.nhead = nhead
 
-        if custom_encoder is not None:
-            self.encoder = custom_encoder
-        else:
-            self.encoder = TransformerEncoder(d_model,
-                                              nhead,
-                                              dim_feedforward,
-                                              num_encoder_layers,
-                                              dropout=dropout,
-                                              norm=True)
-
-        if custom_decoder is not None:
-            self.decoder = custom_decoder
-        else:
-            self.decoder = TransformerDecoder(d_model,
-                                              nhead,
-                                              dim_feedforward,
-                                              num_encoder_layers,
-                                              dropout=dropout,
-                                              norm=True)
+        self.encoder = TransformerEncoder(d_model,
+                                          nhead,
+                                          dim_feedforward,
+                                          num_encoder_layers,
+                                          dropout,
+                                          use_sru)
+        self.decoder = TransformerDecoder(d_model,
+                                          nhead,
+                                          dim_feedforward,
+                                          num_encoder_layers,
+                                          dropout,
+                                          use_sru)
 
     def forward(self,  # type: ignore
                 src: torch.Tensor,
@@ -99,7 +91,7 @@ class Transformer(Module):
                 src_key_padding_mask: Optional[torch.Tensor] = None,
                 tgt_key_padding_mask: Optional[torch.Tensor] = None,
                 memory_key_padding_mask: Optional[torch.Tensor] = None) -> torch.Tensor:
-        r"""Take in and process masked source/target sequences.
+        """Take in and process masked source/target sequences.
 
         Parameters
         ----------
@@ -109,22 +101,22 @@ class Transformer(Module):
         tgt: torch.Tensor
             the sequence to the decoder (required).
             shape: :math:`(T, N, E)`.
-        src_mask: Optional[torch.Tensor]
+        src_mask: torch.Tensor, optional
             the additive mask for the src sequence (optional).
             shape: :math:`(S, S)`.
-        tgt_mask: Optional[torch.Tensor]
+        tgt_mask: torch.Tensor, optional
             the additive mask for the tgt sequence (optional).
             shape: :math:`(T, T)`.
-        memory_mask: Optional[torch.Tensor]
+        memory_mask: torch.Tensor, optional
             the additive mask for the encoder output (optional).
             shape: :math:`(T, S)`.
-        src_key_padding_mask: Optional[torch.Tensor]
+        src_key_padding_mask: torch.Tensor, optional
             the ByteTensor mask for src keys per batch (optional).
             shape: :math:`(N, S)`
-        tgt_key_padding_mask: Optional[torch.Tensor]
+        tgt_key_padding_mask: torch.Tensor, optional
             the ByteTensor mask for tgt keys per batch (optional).
             shape: :math:`(N, T)`.
-        memory_key_padding_mask: Optional[torch.Tensor]
+        memory_key_padding_mask: torch.Tensor, optional
             the ByteTensor mask for memory keys per batch (optional).
             shape" :math:`(N, S)`.
 
@@ -160,8 +152,13 @@ class Transformer(Module):
         if src.size(2) != self.d_model or tgt.size(2) != self.d_model:
             raise RuntimeError("the feature number of src and tgt must be equal to d_model")
 
-        memory = self.encoder(src, mask=src_mask, src_key_padding_mask=src_key_padding_mask)
-        output = self.decoder(tgt, memory, tgt_mask=tgt_mask, memory_mask=memory_mask,
+        memory = self.encoder(src,
+                              mask=src_mask,
+                              src_key_padding_mask=src_key_padding_mask)
+        output = self.decoder(tgt,
+                              memory,
+                              tgt_mask=tgt_mask,
+                              memory_mask=memory_mask,
                               tgt_key_padding_mask=tgt_key_padding_mask,
                               memory_key_padding_mask=memory_key_padding_mask)
         return output
@@ -178,153 +175,198 @@ class Transformer(Module):
 
 
 class TransformerEncoder(Module):
-    r"""TransformerEncoder is a stack of N encoder layers.
-
-    Args:
-        encoder_layer: an instance of the TransformerEncoderLayer() class (required).
-        num_layers: 
-        norm: the layer normalization component (optional).
-
-    """
+    """TransformerEncoder is a stack of N encoder layers."""
 
     def __init__(self,
                  d_model: int,
                  nhead: int,
                  num_layers: int,
                  dim_feedforward: int = 2048,
-                 dropout: float = 0.1) -> None:
+                 dropout: float = 0.1,
+                 use_sru: bool = False) -> None:
         """Initialize the TransformerEncoder.
 
         Parameters
-        ----------
+        ---------
         d_model : int
-            [description]
-        nhead : int
-            [description]
+            the number of expected features in encoder/decoder inputs
+        nhead : int, optional
+            the number of heads in the multiheadattention
         num_layers : int
             the number of sub-encoder-layers in the encoder (required).
         dim_feedforward : int, optional
-            [description], by default 2048
+            the inner feedforard dimension, by default 2048
         dropout : float, optional
-            [description], by default 0.1
+            the dropout percentage, by default 0.1
+        use_sru: bool, optional
+            If true, replaces the FFN with an SRU.
 
         """
         super(TransformerEncoder, self).__init__()
 
-        encoder_layer = TransformerEncoderLayer(d_model, nhead, dim_feedforward, dropout)
+        encoder_layer = TransformerEncoderLayer(d_model, nhead, dim_feedforward, dropout, use_sru)
         self.layers = _get_clones(encoder_layer, num_layers)
         self.num_layers = num_layers
-        self.norm = nn.LayerNorm(d_model) if norm else None
-
         self._reset_parameters()
 
-    def forward(self, src, mask=None, src_key_padding_mask=None):
-        r"""Pass the input through the endocder layers in turn.
+    def forward(self,  # type: ignore
+                src: torch.Tensor,
+                mask: Optional[torch.Tensor] = None,
+                src_key_padding_mask: Optional[torch.Tensor] = None) -> torch.Tensor:
+        """Pass the input through the endocder layers in turn.
 
-        Args:
-            src: the sequnce to the encoder (required).
-            mask: the mask for the src sequence (optional).
-            src_key_padding_mask: the mask for the src keys per batch (optional).
+        Parameters
+        ----------
+        src: torch.Tensor
+            The sequnce to the encoder (required).
+        mask: torch.Tensor, optional
+            The mask for the src sequence (optional).
+        src_key_padding_mask: torch.Tensor, optional
+            The mask for the src keys per batch (optional).
 
-        Shape:
-            see the docs in Transformer class.
         """
         output = src
 
         for i in range(self.num_layers):
-            output = self.layers[i](output, src_mask=mask,
+            output = self.layers[i](output,
+                                    src_mask=mask,
                                     src_key_padding_mask=src_key_padding_mask)
 
         return output
 
     def _reset_parameters(self):
-        r"""Initiate parameters in the transformer model."""
-
+        """Initiate parameters in the transformer model."""
         for p in self.parameters():
             if p.dim() > 1:
                 xavier_uniform_(p)
 
 
 class TransformerDecoder(Module):
-    r"""TransformerDecoder is a stack of N decoder layers
+    """TransformerDecoder is a stack of N decoder layers"""
 
-    Args:
-        decoder_layer: an instance of the TransformerDecoderLayer() class (required).
-        num_layers: the number of sub-decoder-layers in the decoder (required).
-        norm: the layer normalization component (optional).
+    def __init__(self,
+                 d_model: int,
+                 nhead: int,
+                 num_layers: int,
+                 dim_feedforward: int = 2048,
+                 dropout: float = 0.1,
+                 use_sru: bool = False) -> None:
+        """Initialize the TransformerDecoder.
 
-    Examples::
-        >>> decoder_layer = nn.TransformerDecoderLayer(d_model, nhead)
-        >>> transformer_decoder = nn.TransformerDecoder(decoder_layer, num_layers)
-    """
+        Parameters
+        ---------
+        d_model : int
+            The number of expected features in encoder/decoder inputs.
+        nhead : int, optional
+            The number of heads in the multiheadattention.
+        num_layers : int
+            The number of sub-encoder-layers in the encoder (required).
+        dim_feedforward : int, optional
+            The inner feedforard dimension, by default 2048.
+        dropout : float, optional
+            The dropout percentage, by default 0.1.
+        use_sru: bool, optional
+            If true, replaces the FFN with an SRU.
 
-    def __init__(self, decoder_layer, num_layers, norm=None):
-        super(TransformerDecoder, self).__init__()
+        """
+        decoder_layer = TransformerDecoderLayer(d_model, nhead, dim_feedforward, dropout, use_sru)
         self.layers = _get_clones(decoder_layer, num_layers)
         self.num_layers = num_layers
-        self.norm = norm
 
-    def forward(self, tgt, memory, tgt_mask=None,
-                memory_mask=None, tgt_key_padding_mask=None,
-                memory_key_padding_mask=None):
-        r"""Pass the inputs (and mask) through the decoder layer in turn.
+        self._reset_parameters()
 
-        Args:
-            tgt: the sequence to the decoder (required).
-            memory: the sequnce from the last layer of the encoder (required).
-            tgt_mask: the mask for the tgt sequence (optional).
-            memory_mask: the mask for the memory sequence (optional).
-            tgt_key_padding_mask: the mask for the tgt keys per batch (optional).
-            memory_key_padding_mask: the mask for the memory keys per batch (optional).
+    def forward(self,  # type: ignore
+                tgt: torch.Tensor,
+                memory: torch.Tensor,
+                tgt_mask: Optional[torch.Tensor] = None,
+                memory_mask: Optional[torch.Tensor] = None,
+                tgt_key_padding_mask: Optional[torch.Tensor] = None,
+                memory_key_padding_mask: Optional[torch.Tensor] = None) -> torch.Tensor:
+        """Pass the inputs (and mask) through the decoder layer in turn.
 
-        Shape:
-            see the docs in Transformer class.
+        Parameters
+        ----------
+        tgt: torch.Tensor
+            The sequence to the decoder (required).
+        memory: torch.Tensor
+            The sequence from the last layer of the encoder (required).
+        tgt_mask: torch.Tensor, optional
+            The mask for the tgt sequence (optional).
+        memory_mask: torch.Tensor, optional
+            The mask for the memory sequence (optional).
+        tgt_key_padding_mask: torch.Tensor, optional
+            The mask for the tgt keys per batch (optional).
+        memory_key_padding_mask: torch.Tensor, optional
+            The mask for the memory keys per batch (optional).
+
+        Returns
+        -------
+        torch.Tensor
+
         """
         output = tgt
 
         for i in range(self.num_layers):
-            output = self.layers[i](output, memory, tgt_mask=tgt_mask,
+            output = self.layers[i](output,
+                                    memory,
+                                    tgt_mask=tgt_mask,
                                     memory_mask=memory_mask,
                                     tgt_key_padding_mask=tgt_key_padding_mask,
                                     memory_key_padding_mask=memory_key_padding_mask)
 
-        if self.norm:
-            output = self.norm(output)
-
         return output
 
     def _reset_parameters(self):
-        r"""Initiate parameters in the transformer model."""
-
+        """Initiate parameters in the transformer model."""
         for p in self.parameters():
             if p.dim() > 1:
                 xavier_uniform_(p)
 
 
 class TransformerEncoderLayer(Module):
-    r"""TransformerEncoderLayer is made up of self-attn and feedforward network.
-    This standard encoder layer is based on the paper "Attention Is All You Need".
-    Ashish Vaswani, Noam Shazeer, Niki Parmar, Jakob Uszkoreit, Llion Jones, Aidan N Gomez,
-    Lukasz Kaiser, and Illia Polosukhin. 2017. Attention is all you need. In Advances in
-    Neural Information Processing Systems, pages 6000-6010. Users may modify or implement
-    in a different way during application.
+    """TransformerEncoderLayer is made up of self-attn and feedforward.
 
-    Args:
-        d_model: the number of expected features in the input (required).
-        nhead: the number of heads in the multiheadattention models (required).
-        dim_feedforward: the dimension of the feedforward network model (default=2048).
-        dropout: the dropout value (default=0.1).
+    This standard encoder layer is based on the paper "Attention Is
+    All You Need". Ashish Vaswani, Noam Shazeer, Niki Parmar,
+    Jakob Uszkoreit, Llion Jones, Aidan N Gomez, Lukasz Kaiser, and
+    Illia Polosukhin. 2017. Attention is all you need. In Advances in
+    Neural Information Processing Systems, pages 6000-6010. Users may
+    modify or implement in a different way during application.
 
-    Examples::
-        >>> encoder_layer = nn.TransformerEncoderLayer(d_model, nhead)
     """
 
-    def __init__(self, d_model, n_head, dim_feedforward=2048, dropout=0.1):
+    def __init__(self,
+                 d_model: int,
+                 nhead: int,
+                 dim_feedforward: int = 2048,
+                 dropout: float = 0.1,
+                 use_sru: bool = False) -> None:
+        """Initialize a TransformerEncoderLayer.
+
+        Parameters
+        ----------
+        d_model : int
+            The number of expected features in the input.
+        n_head : int
+            The number of heads in the multiheadattention models.
+        dim_feedforward : int, optional
+            The dimension of the feedforward network (default=2048).
+        dropout : float, optional
+            The dropout value (default=0.1).
+        use_sru: bool, optional
+            If true, replaces the FFN with an SRU.
+
+        """
         super(TransformerEncoderLayer, self).__init__()
+
         self.self_attn = MultiheadAttention(d_model, nhead, dropout=dropout)
-        # Implementation of Feedforward model
-        self.linear1 = nn.Linear(d_model, dim_feedforward)
-        self.dropout = nn.Dropout(dropout)
+
+        if use_sru:
+            self.sru = SRU(d_model, dim_feedforward, num_layers=1, dropout=dropout)
+        else:
+            self.dropout = nn.Dropout(dropout)
+            self.linear1 = nn.Linear(d_model, dim_feedforward)
+
         self.linear2 = nn.Linear(dim_feedforward, d_model)
 
         self.norm1 = nn.LayerNorm(d_model)
@@ -332,30 +374,38 @@ class TransformerEncoderLayer(Module):
         self.dropout1 = nn.Dropout(dropout)
         self.dropout2 = nn.Dropout(dropout)
 
-    def forward(self, src, src_mask=None, src_key_padding_mask=None):
-        r"""Pass the input through the endocder layer.
+    def forward(self,  # type: ignore
+                src: torch.Tensor,
+                src_mask: Optional[torch.Tensor] = None,
+                src_key_padding_mask: Optional[torch.Tensor] = None) -> torch.Tensor:
+        """Pass the input through the endocder layer.
 
-        Args:
-            src: the sequnce to the encoder layer (required).
-            src_mask: the mask for the src sequence (optional).
-            src_key_padding_mask: the mask for the src keys per batch (optional).
+        Parameters
+        ----------
+        src: torch.Tensor
+            The seqeunce to the encoder layer (required).
+        src_mask: torch.Tensor, optional
+            The mask for the src sequence (optional).
+        src_key_padding_mask: torch.Tensor, optional
+            The mask for the src keys per batch (optional).
 
-        Shape:
-            see the docs in Transformer class.
         """
         src2 = self.self_attn(src, src, src, attn_mask=src_mask,
                               key_padding_mask=src_key_padding_mask)[0]
         src = src + self.dropout1(src2)
         src = self.norm1(src)
-        src2 = self.linear2(self.dropout(F.relu(self.linear1(src))))
+        if self.use_sru:
+            src2 = self.linear2(self.sru(src))
+        else:
+            src2 = self.linear2(self.dropout(F.relu(self.linear1(src))))
         src = src + self.dropout2(src2)
         src = self.norm2(src)
         return src
 
 
 class TransformerDecoderLayer(Module):
-    r"""A TransformerDecoderLayer.
-    
+    """A TransformerDecoderLayer.
+
     A TransformerDecoderLayer is made up of self-attn, multi-head-attn
     and feedforward network. This standard decoder layer is based on the
     paper "Attention Is All You Need". Ashish Vaswani, Noam Shazeer,
@@ -365,23 +415,42 @@ class TransformerDecoderLayer(Module):
     pages 6000-6010. Users may modify or implement in a different way
     during application.
 
-    Args:
-        d_model: the number of expected features in the input (required).
-        nhead: the number of heads in the multiheadattention models (required).
-        dim_feedforward: the dimension of the feedforward network model (default=2048).
-        dropout: the dropout value (default=0.1).
-
-    Examples::
-        >>> decoder_layer = nn.TransformerDecoderLayer(d_model, nhead)
     """
 
-    def __init__(self, d_model, nhead, dim_feedforward=2048, dropout=0.1):
+    def __init__(self,
+                 d_model: int,
+                 nhead: int,
+                 dim_feedforward: int = 2048,
+                 dropout: float = 0.1,
+                 use_sru: bool = False) -> None:
+        """Initialize a TransformerDecoder.
+
+        Parameters
+        ----------
+        d_model : int
+            The number of expected features in the input.
+        n_head : int
+            The number of heads in the multiheadattention models.
+        dim_feedforward : int, optional
+            The dimension of the feedforward network (default=2048).
+        dropout : float, optional
+            The dropout value (default=0.1).
+        use_sru: bool, optional
+            If true, replaces the FFN with an SRU.
+
+        """
         super(TransformerDecoderLayer, self).__init__()
+
+        self.use_sru = use_sru
         self.self_attn = MultiheadAttention(d_model, nhead, dropout=dropout)
         self.multihead_attn = MultiheadAttention(d_model, nhead, dropout=dropout)
-        # Implementation of Feedforward model
-        self.linear1 = nn.Linear(d_model, dim_feedforward)
-        self.dropout = nn.Dropout(dropout)
+
+        if use_sru:
+            self.sru = SRU(d_model, dim_feedforward, num_layers=1, dropout=dropout)
+        else:
+            self.dropout = nn.Dropout(dropout)
+            self.linear1 = nn.Linear(d_model, dim_feedforward)
+
         self.linear2 = nn.Linear(dim_feedforward, d_model)
 
         self.norm1 = nn.LayerNorm(d_model)
@@ -391,20 +460,30 @@ class TransformerDecoderLayer(Module):
         self.dropout2 = nn.Dropout(dropout)
         self.dropout3 = nn.Dropout(dropout)
 
-    def forward(self, tgt, memory, tgt_mask=None, memory_mask=None,
-                tgt_key_padding_mask=None, memory_key_padding_mask=None):
+    def forward(self,  # type: ignore
+                tgt: torch.Tensor,
+                memory: torch.Tensor,
+                tgt_mask: Optional[torch.Tensor] = None,
+                memory_mask: Optional[torch.Tensor] = None,
+                tgt_key_padding_mask: Optional[torch.Tensor] = None,
+                memory_key_padding_mask: Optional[torch.Tensor] = None) -> torch.Tensor:
         r"""Pass the inputs (and mask) through the decoder layer.
 
-        Args:
-            tgt: the sequence to the decoder layer (required).
-            memory: the sequnce from the last layer of the encoder (required).
-            tgt_mask: the mask for the tgt sequence (optional).
-            memory_mask: the mask for the memory sequence (optional).
-            tgt_key_padding_mask: the mask for the tgt keys per batch (optional).
-            memory_key_padding_mask: the mask for the memory keys per batch (optional).
+        Parameters
+        ----------
+        tgt: torch.Tensor
+            The sequence to the decoder layer (required).
+        memory: torch.Tensor
+            The sequnce from the last layer of the encoder (required).
+        tgt_mask: torch.Tensor, optional
+            The mask for the tgt sequence (optional).
+        memory_mask: torch.Tensor, optional
+            the mask for the memory sequence (optional).
+        tgt_key_padding_mask: torch.Tensor, optional
+            the mask for the tgt keys per batch (optional).
+        memory_key_padding_mask: torch.Tensor, optional
+            the mask for the memory keys per batch (optional).
 
-        Shape:
-            see the docs in Transformer class.
         """
         tgt2 = self.self_attn(tgt, tgt, tgt, attn_mask=tgt_mask,
                               key_padding_mask=tgt_key_padding_mask)[0]
@@ -414,11 +493,30 @@ class TransformerDecoderLayer(Module):
                                    key_padding_mask=memory_key_padding_mask)[0]
         tgt = tgt + self.dropout2(tgt2)
         tgt = self.norm2(tgt)
-        tgt2 = self.linear2(self.dropout(F.relu(self.linear1(tgt))))
+        if self.use_sru:
+            tgt2 = self.linear2(self.sru(tgt))
+        else:
+            tgt2 = self.linear2(self.dropout(F.relu(self.linear1(tgt))))
         tgt = tgt + self.dropout3(tgt2)
         tgt = self.norm3(tgt)
+
         return tgt
 
 
-def _get_clones(module, N):
+def _get_clones(module: Module, N: int) -> nn.ModuleList:
+    """Create N copies of the module
+
+    Parameters
+    ----------
+    module : Module
+        The module to copy
+    N : int
+        The number of copies
+
+    Returns
+    -------
+    nn.ModuleList
+        The list of modules
+
+    """
     return ModuleList([copy.deepcopy(module) for i in range(N)])
