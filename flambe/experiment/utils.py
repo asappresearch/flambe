@@ -45,7 +45,7 @@ def check_links(blocks: Dict[str, Schema],
         for _, value in block.items():
             # Check link order
             if isinstance(value, Link):
-                target_block_id = value.var_name
+                target_block_id = value.root_schema
                 if target_block_id not in visited:
                     raise LinkError(block_id, target_block_id)
 
@@ -369,14 +369,14 @@ def extract_needed_blocks(schemas: Dict[str, Schema],
 
     # Get this block's links
     for _, _, value in traverse(this_block):
-        if isinstance(value, Link) and value.var_name != block_id:
+        if isinstance(value, Link) and value.root_schema != block_id:
             # TODO Add new block_id attribute to Link
             # Ensure intra-block links are not added to prevent inf loop
-            needed.add(value.var_name)
+            needed.add(value.root_schema)
         elif isinstance(value, Iterable):
             for element in value:
-                if isinstance(element, Link) and element.var_name != block_id:
-                    needed.add(element.var_name)
+                if isinstance(element, Link) and element.root_schema != block_id:
+                    needed.add(element.root_schema)
 
     # Reccurse through the new needed blocks
     for linked_block_id in needed.copy():
@@ -407,10 +407,10 @@ def update_link_refs(schemas: Dict[str, Schema],
     this_block = schemas[block_id]
     for _, _, value in traverse(this_block):
         if isinstance(value, Link):
-            if value.var_name in schemas:
-                value.obj = schemas[value.var_name]
-            elif value.var_name in global_vars:
-                value.obj = global_vars[value.var_name]
+            if value.root_schema in schemas:
+                value.target = schemas[value.root_schema]
+            elif value.root_schema in global_vars:
+                value.target = global_vars[value.root_schema]
                 value.local = False
 
 

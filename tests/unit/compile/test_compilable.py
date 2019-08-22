@@ -2,6 +2,7 @@ import pytest
 
 from flambe import Component
 from flambe.compile import yaml
+from flambe.compile.component import MalformedLinkError, parse_link_str, create_link_str
 from ruamel.yaml.compat import StringIO
 
 
@@ -248,3 +249,84 @@ def test_load_basic():
 
 def test_load_save_roundtrip():
     pass
+
+
+class TestLinkParser:
+
+    def test_only_obj(self):
+        link = 'model'
+        assert parse_link_str(link) == (['model'], [])
+
+    def test_only_attr(self):
+        link = 'model.emb'
+        assert parse_link_str(link) == (['model'], ['emb'])
+        link = 'model.emb.enc'
+        assert parse_link_str(link) == (['model'], ['emb', 'enc'])
+
+    def test_only_schematic(self):
+        link = 'model[emb]'
+        assert parse_link_str(link) == (['model', 'emb'], [])
+        link = 'model[emb][enc]'
+        assert parse_link_str(link) == (['model', 'emb', 'enc'], [])
+
+    def test_schematic_and_attr(self):
+        link = 'model[emb].attr1'
+        assert parse_link_str(link) == (['model', 'emb'], ['attr1'])
+        link = 'model[emb][enc].attr1.attr2'
+        assert parse_link_str(link) == (['model', 'emb', 'enc'], ['attr1', 'attr2'])
+
+    def test_close_unopen_schematic(self):
+        with pytest.raises(MalformedLinkError):
+            link = 'modelemb][enc].attr1.attr2'
+            parse_link_str(link)
+
+    def test_close_unopen_schematic_2(self):
+        with pytest.raises(MalformedLinkError):
+            link = 'model[emb]enc].attr1.attr2'
+            parse_link_str(link)
+
+    def test_reopen_schematic(self):
+        with pytest.raises(MalformedLinkError):
+            link = 'model[emb[enc].attr1.attr2'
+            parse_link_str(link)
+
+    def test_attr_without_dot(self):
+        with pytest.raises(MalformedLinkError):
+            link = 'model[emb][enc]attr1.attr2'
+            parse_link_str(link)
+
+    def test_no_root_obj(self):
+        with pytest.raises(MalformedLinkError):
+            link = '[emb]'
+            parse_link_str(link)
+        with pytest.raises(MalformedLinkError):
+            link = '.attr2'
+            parse_link_str(link)
+        with pytest.raises(MalformedLinkError):
+            link = '[emb][enc].attr1.attr2'
+            parse_link_str(link)
+
+
+class TestLinkCreator:
+
+    def test_only_obj(self):
+        link = (['model'], [])
+        assert create_link_str(*link) == 'model'
+
+    def test_only_attr(self):
+        link = (['model'], ['emb'])
+        assert create_link_str(*link) == 'model.emb'
+        link = (['model'], ['emb', 'enc'])
+        assert create_link_str(*link) == 'model.emb.enc'
+
+    def test_only_schematic(self):
+        link = (['model', 'emb'], [])
+        assert create_link_str(*link) == 'model[emb]'
+        link = (['model', 'emb', 'enc'], [])
+        assert create_link_str(*link) == 'model[emb][enc]'
+
+    def test_schematic_and_attr(self):
+        link = (['model', 'emb'], ['attr1'])
+        assert create_link_str(*link) == 'model[emb].attr1'
+        link = (['model', 'emb', 'enc'], ['attr1', 'attr2'])
+        assert create_link_str(*link) == 'model[emb][enc].attr1.attr2'

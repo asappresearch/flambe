@@ -2,9 +2,10 @@
 import inspect
 import dill
 import logging
+from reprlib import recursive_repr
 from warnings import warn
 from typing import Type, TypeVar, Any, Mapping, Dict, Optional, List
-from typing import Generator, MutableMapping, Callable, Set
+from typing import Generator, MutableMapping, Callable, Set, Tuple, Sequence
 from functools import WRAPPER_ASSIGNMENTS
 from collections import OrderedDict
 import copy
@@ -117,6 +118,7 @@ class Schema(MutableMapping[str, Any]):
             _flambe_stash=stash,
             **newkeywords)
         self._compiled = compiled
+        compiled._schema = self
         compiled._created_with_tag = self._created_with_tag  # type: ignore
         return compiled
 
@@ -171,6 +173,22 @@ class Schema(MutableMapping[str, Any]):
 
         return exts
 
+    def contains(self, schema: 'Schema') -> bool:
+        schematic_path = []
+        if self is schema:
+            return True, schematic_path
+
+        def helper(current, name):
+            if current is schema:
+                schematic_path.append(name)
+                return True, schematic_path
+            for key, child in current.keywords.items():
+                if isinstance(child, Schema):
+                    helper(current=child, name=key)
+            return False, []
+
+        return helper(self, '')
+
     def __setitem__(self, key: str, value: Any) -> None:
         self.keywords[key] = value
 
@@ -204,7 +222,7 @@ class Schema(MutableMapping[str, Any]):
             self.__setitem__(key, value)
 
     # TODO uncomment recursive?
-    # @recursive_repr()
+    @recursive_repr()
     def __repr__(self) -> str:
         """Identical to super (schema), but sorts keywords"""
         keywords = ", ".join("{}={!r}".format(k, v) for k, v in sorted(self.keywords.items()))
@@ -352,10 +370,87 @@ class PickledDataLink(Registrable):
         return cls(obj_id=obj_id)
 
 
+class MalformedLinkError(Exception):
+    pass
+
+
+def parse_link_str(x: str) -> Tuple[Sequence[str], Sequence[str]]:
+    schematic_path: List[str] = []
+    attr_path: List[str] = []
+    temp: List[str] = []
+    # Parse schematic path
+    bracket_open = False
+    root_extracted = False
+    while '[' in x or ']' in x:
+        if bracket_open:
+            temp = x.split(']', 1)
+            if '[' in temp[0]:
+                raise MalformedLinkError("Previous bracket unclosed")
+            if len(temp) != 2:
+                # Error case: [ not closed
+                raise MalformedLinkError("open bracket '[' not closed")
+            schematic_path.append(temp[0])
+            bracket_open = False
+        else:
+            # No bracket open yet
+            temp = x.split('[', 1)
+            if ']' in temp[0]:
+                raise MalformedLinkError("close ']' before open")
+            if len(temp) != 2:
+                # Error case: ] encountered without [
+                raise MalformedLinkError("']' encountered before '['")
+            if len(temp[0]) != 0:
+                if len(schematic_path) != 0:
+                    # Error case: ]text[
+                    print(schematic_path)
+                    raise MalformedLinkError("Text between brackets")
+                # Beginning object name
+                schematic_path.append(temp[0])
+                root_extracted = True
+            else:
+                if len(schematic_path) == 0:
+                    raise MalformedLinkError("No top level object")
+            bracket_open = True
+        # First part already added to schematic path, keep remainder
+        x = temp[1]
+    # Parse attribute path
+    attr_path = x.split('.')
+    if not root_extracted:
+        if len(attr_path[0]) == 0:
+            raise MalformedLinkError("No top level object")
+        schematic_path.append(attr_path[0])
+    elif len(attr_path) > 1:
+        # Schematic processing did happen, so leading dot
+        if attr_path[0] != '':
+            # Error case: attr without dot beforehand
+            raise MalformedLinkError("Text without dot before")
+        if attr_path[-1] == '':
+            # Error case: trailing dot
+            raise MalformedLinkError("Trailing dot")
+    attr_path = attr_path[1:]
+    return schematic_path, attr_path
+
+
+def create_link_str(schematic_path: Sequence[str], attr_path: Sequence[str]) -> str:
+    if len(schematic_path) == 0:
+        raise MalformedLinkError("Can't create link without schematic path")
+    root, schematic_path = schematic_path[0], schematic_path[1:]
+    schematic_str = ''
+    attr_str = ''
+    if len(schematic_path) > 0:
+        schematic_str = '[' + "][".join(schematic_path) + ']'
+    if len(attr_path) > 0:
+        attr_str = '.' + '.'.join(attr_path)
+    return root + schematic_str + attr_str
+
+
 @alias('@')
 @alias('link')
 class Link(Registrable):
-    """Represent a dependency in your object hierarchy
+    """Delayed access to another object in an object hiearchy
+
+    Currently only supported in the context of Experiment but this
+    may be updated in a future release
 
     A Link delays the access of some property, or the calling of some
     method, until the Link is called. Links can be passed directly
@@ -365,73 +460,75 @@ class Link(Registrable):
     recorded links will show up in the config if `yaml.dump()` is
     called on your object hierarchy. This typically happens when
     logging individual configs during a grid search, and when
-    serializing between multiple processes
+    serializing between multiple processes.
+
+    For example, if the schematic path is ['model', 'encoder'] and the
+    attribute path is ['rnn', 'hidden_size'] then before the link can
+    be compiled, the target attribute should be set to point to the
+    model schema (this is handled automatically by Experiment) then,
+    during compilation the child schema 'encoder' will be accessed,
+    and finally the attribute encoder.rnn.hidden_size will be returned
 
     Parameters
     ----------
-    ref : str
-        Period separated list of keywords starting with the block id
-        and ending at the target attribute. For example,
-        `b1.model.encoder.hidden_size`.
-    obj : Optional[Any]
-        Object named by ref's first keyword
+    schematic_path : Sequence[str]
+        Path to the relevant schema denoted by dictionary-like bracket
+        access e.g. ['model', 'encoder']
+    attr_path : Sequence[str]
+        Path to the relevant attribute on the given schema (after it's
+        been compiled) using standard attribute dot notation e.g.
+        ['rnn', 'hidden_size']
+    target : Optional[Schema]
+        The root object corresponding to the first element in the
+        schematic path; needs to be passed in here or set later before
+        link can be resolved
     local : bool
         if true, changes tune convert behavior to insert a dummy link;
         used for links to global variables ("resources" in config)
-
-    Attributes
-    ----------
-    ref : str
-        Period separated list of keywords starting with the block id
-        and ending at the target attribute.
-    var_name : str
-        The name of the class of `obj`
-    attr : List[str]
-        Attribute of `obj` that will be accessed
-    obj : Any
-        Object containing the attribute or method to link. If it is a
-        Schema it will be compiled when the Link is called
-        if necessary
-    local : bool
-        if true, changes tune convert behavior to insert a dummy link;
-        used for links to global variables ("resources" in config)
+        (defaults to True)
 
     """
 
     def __init__(self,
-                 ref: str,
-                 obj: Optional[Any] = None,
-                 local: bool = True) -> None:
-        self.ref = ref
-        path = ref.split('.')
-        self.var_name = path[0]
-        self.attr = path[1:]
-        self.obj: Optional[Any] = obj
+                 schematic_path: Sequence[str],
+                 attr_path: Optional[Sequence[str]] = None,
+                 target: Optional[Schema] = None,
+                 local: bool = True) -> None:  # TODO FIGURE OUT WHEN THIS WAS CHANGED AND IF IT BROKE SOMETHING
+        self.schematic_path = schematic_path
+        self.attr_path = attr_path
+        self.target = target
         self.local = local
 
+    @property
+    def root_schema(self) -> str:
+        return self.schematic_path[0]
+
     def __repr__(self) -> str:
-        return f'link({self.ref})'
+        return f'link(schematic:{self.schematic_path}, attr:{self.attr_path})'
 
     def __call__(self) -> Any:
         if hasattr(self, '_resolved'):
             return self._resolved  # type: ignore
-        if self.obj is None:
+        if self.target is None:
             raise Exception('Link object was not properly updated')
-        current_obj = self.obj() if isinstance(self.obj, Link) else self.obj
-        # Iteratively call given attr's to get to the target attr or
-        # method
-        for attr in self.attr:
-            # Before using current_obj, if it's a link resolve it first
-            # This enables chaining links, even with intrablock
-            # connections
-            if isinstance(current_obj, Schema):
-                if current_obj._compiled is not None:
-                    current_obj = getattr(current_obj._compiled, attr)
-                else:
-                    current_obj = current_obj.keywords[attr]
-            else:
-                current_obj = getattr(current_obj, attr)
+        current_obj = self.target() if isinstance(self.target, Link) else self.target
+        for schema in self.schematic_path[1:]:
+            current_obj = current_obj.keywords[schema]
             current_obj = current_obj() if isinstance(current_obj, Link) else current_obj
+        if isinstance(current_obj, Schema):
+            if current_obj._compiled is not None:
+                current_obj = current_obj._compiled
+            else:
+                if len(self.attr_path) != 0:
+                    raise Exception(f"Cannot access attributes {self.attr_path} on non-compiled "
+                                    f"object {current_obj}. Remember only non-parent objects above"
+                                    " the link in the config will be compiled when a link is "
+                                    "resolved.")
+                warn("Linked schema not compiled")
+                self._resolved = current_obj
+                return current_obj
+        for attr in self.attr_path:
+            current_obj = getattr(current_obj, attr)
         self._resolved = current_obj
         return current_obj
 
@@ -454,41 +551,17 @@ class Link(Registrable):
 
         """
         global _link_root_obj
-        global _link_prefix
         global _link_context_active
         global _link_obj_stash
-        final_link = node.attr[:]
-        referenced_root = node.obj._compiled if isinstance(node.obj, Schema) else node.obj
         if _link_context_active:
-            if _link_prefix is None:
-                raise TypeError('Link context active but prefix not set')
-            if _link_prefix != '':
-                # If there is a prefix, iterate through the prefix
-                # navigating from the root object If the attribute
-                # path continues past the link's own attribute path, OR
-                # a non-matching attribute is found, this link is
-                # "out-of-scope", so try copying the value
-                prefix = _link_prefix.split(STATE_DICT_DELIMETER)
-                for i, attr in enumerate(prefix):
-                    if len(node.attr) <= i or node.attr[i] != attr:
-                        if isinstance(node._resolved, Registrable):
-                            return node._resolved.to_yaml(representer, node._resolved,
-                                                          node._resolved._created_with_tag)  # type: ignore  # noqa: E501
-                        else:
-                            try:
-                                return representer.represent_data(node._resolved)
-                            except RepresenterError:
-                                obj_id = str(len(_link_obj_stash.keys()))
-                                _link_obj_stash[obj_id] = node._resolved
-                                data_link = PickledDataLink(obj_id=obj_id)
-                                return PickledDataLink.to_yaml(representer, data_link, '!$')
-                    final_link = final_link[1:]
-            elif referenced_root is not _link_root_obj:
-                # No prefix, but the referenced root object doesn't
-                #  match so it's out-of-scope
+            present, schematic_path = _link_root_obj._schema.contains(node.target)
+            if present:
+                link_str = create_link_str(schematic_path, node.attr_path)
+                return representer.represent_scalar(tag, link_str)
+            else:
                 if isinstance(node._resolved, Registrable):
                     return node._resolved.to_yaml(representer, node._resolved,
-                                                  node._resolved._created_with_tag)  # type: ignore
+                                                  node._resolved._created_with_tag)  # type: ignore  # noqa: E501
                 else:
                     try:
                         return representer.represent_data(node._resolved)
@@ -497,17 +570,15 @@ class Link(Registrable):
                         _link_obj_stash[obj_id] = node._resolved
                         data_link = PickledDataLink(obj_id=obj_id)
                         return PickledDataLink.to_yaml(representer, data_link, '!$')
-            # Root object matches and no prefix, or prefix exists in
-            # current object hiearchy
-            #  i.e. "in-scope"
-            return representer.represent_scalar(tag, STATE_DICT_DELIMETER.join(final_link))
         # No contextualization necessary
-        return representer.represent_scalar(tag, node.ref)
+        link_str = create_link_str(node.schematic_path, node.attr_path)
+        return representer.represent_scalar(tag, link_str)
 
     @classmethod
     def from_yaml(cls, constructor: Any, node: Any, factory_name: str) -> 'Link':
-        ref = constructor.construct_scalar(node)
-        kwargs = {'ref': ref}
+        link_str = constructor.construct_scalar(node)
+        schematic_path, attr_path = parse_link_str(link_str)
+        kwargs = {'schematic_path': schematic_path, 'attr_path': attr_path}
         return cls(**kwargs)
 
     def convert(self) -> Callable[..., Any]:
