@@ -184,7 +184,9 @@ class Schema(MutableMapping[str, Any]):
                 return True, schematic_path
             for key, child in current.keywords.items():
                 if isinstance(child, Schema):
-                    helper(current=child, name=key)
+                    present, temp = helper(current=child, name=key)
+                    if present:
+                        return present, temp
             return False, []
 
         return helper(self, '')

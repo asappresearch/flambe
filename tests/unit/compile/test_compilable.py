@@ -330,3 +330,24 @@ class TestLinkCreator:
         assert create_link_str(*link) == 'model[emb].attr1'
         link = (['model', 'emb', 'enc'], ['attr1', 'attr2'])
         assert create_link_str(*link) == 'model[emb][enc].attr1.attr2'
+
+
+class TestSchema:
+
+    def test_contains(self, make_classes):
+        A, B = make_classes
+
+        txt = """
+top: !A
+  akw1: 8
+  akw2: !B
+    bkw1: 1
+    bkw2: 'test'
+"""
+        schema_a = yaml.load(txt)['top']
+        assert schema_a.contains(schema_a)[0]
+        present, updated_path = schema_a.contains(schema_a.akw2)
+        print(f"present: {present}, updated_path: {updated_path}")
+        assert present
+        assert updated_path == ['akw2']
+        assert not schema_a.akw2.contains(schema_a)[0]
