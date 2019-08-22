@@ -374,10 +374,11 @@ class MalformedLinkError(Exception):
     pass
 
 
-def parse_link_str(x: str) -> Tuple[Sequence[str], Sequence[str]]:
+def parse_link_str(link_str: str) -> Tuple[Sequence[str], Sequence[str]]:
     schematic_path: List[str] = []
     attr_path: List[str] = []
     temp: List[str] = []
+    x = link_str
     # Parse schematic path
     bracket_open = False
     root_extracted = False
@@ -385,31 +386,31 @@ def parse_link_str(x: str) -> Tuple[Sequence[str], Sequence[str]]:
         if bracket_open:
             temp = x.split(']', 1)
             if '[' in temp[0]:
-                raise MalformedLinkError("Previous bracket unclosed")
+                raise MalformedLinkError(f"Previous bracket unclosed in {link_str}")
             if len(temp) != 2:
                 # Error case: [ not closed
-                raise MalformedLinkError("open bracket '[' not closed")
+                raise MalformedLinkError(f"Open bracket '[' not closed in {link_str}")
             schematic_path.append(temp[0])
             bracket_open = False
         else:
             # No bracket open yet
             temp = x.split('[', 1)
             if ']' in temp[0]:
-                raise MalformedLinkError("close ']' before open")
+                raise MalformedLinkError(f"Close ']' before open in {link_str}")
             if len(temp) != 2:
                 # Error case: ] encountered without [
-                raise MalformedLinkError("']' encountered before '['")
+                raise MalformedLinkError(f"']' encountered before '[' in {link_str}")
             if len(temp[0]) != 0:
                 if len(schematic_path) != 0:
                     # Error case: ]text[
                     print(schematic_path)
-                    raise MalformedLinkError("Text between brackets")
+                    raise MalformedLinkError(f"Text between brackets in {link_str}")
                 # Beginning object name
                 schematic_path.append(temp[0])
                 root_extracted = True
             else:
                 if len(schematic_path) == 0:
-                    raise MalformedLinkError("No top level object")
+                    raise MalformedLinkError(f"No top level object in {link_str}")
             bracket_open = True
         # First part already added to schematic path, keep remainder
         x = temp[1]
@@ -417,16 +418,16 @@ def parse_link_str(x: str) -> Tuple[Sequence[str], Sequence[str]]:
     attr_path = x.split('.')
     if not root_extracted:
         if len(attr_path[0]) == 0:
-            raise MalformedLinkError("No top level object")
+            raise MalformedLinkError(f"No top level object in {link_str}")
         schematic_path.append(attr_path[0])
     elif len(attr_path) > 1:
         # Schematic processing did happen, so leading dot
         if attr_path[0] != '':
             # Error case: attr without dot beforehand
-            raise MalformedLinkError("Text without dot before")
+            raise MalformedLinkError(f"Attribute without preceeding dot notation in {link_str}")
         if attr_path[-1] == '':
             # Error case: trailing dot
-            raise MalformedLinkError("Trailing dot")
+            raise MalformedLinkError(f"Trailing dot in {link_str}")
     attr_path = attr_path[1:]
     return schematic_path, attr_path
 
@@ -493,7 +494,7 @@ class Link(Registrable):
                  schematic_path: Sequence[str],
                  attr_path: Optional[Sequence[str]] = None,
                  target: Optional[Schema] = None,
-                 local: bool = True) -> None:  # TODO FIGURE OUT WHEN THIS WAS CHANGED AND IF IT BROKE SOMETHING
+                 local: bool = True) -> None:  # TODO FIGURE OUT WHEN THIS WAS CHANGED AND IF
         self.schematic_path = schematic_path
         self.attr_path = attr_path
         self.target = target

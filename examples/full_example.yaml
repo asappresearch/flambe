@@ -17,7 +17,7 @@ pipeline: # Define the list of components to execute
     model: !TextClassifier
       embedder: !Embedder
         embedding: !Embeddings.from_pretrained
-          embeddings: !@ 1_train[dataset]text.embedding_matrix # Link over attributes of previously defined objects
+          embeddings: !@ 1_train[dataset].text.embedding_matrix # Link over attributes of previously defined objects
           freeze: True
         embedding_dropout: 0.3
         encoder: !PooledRNNEncoder

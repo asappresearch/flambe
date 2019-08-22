@@ -409,6 +409,8 @@ def update_link_refs(schemas: Dict[str, Schema],
         if isinstance(value, Link):
             if value.root_schema in schemas:
                 value.target = schemas[value.root_schema]
+                if isinstance(value.target, Component):
+                    value.target = value.target._schema
             elif value.root_schema in global_vars:
                 value.target = global_vars[value.root_schema]
                 value.local = False

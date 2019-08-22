@@ -43,7 +43,7 @@ pipeline:
         n_layers: 1
         hidden_size: 16
     output_layer: !SoftmaxLayer
-      input_size: !@ model.embedder.encoder.rnn.hidden_size
+      input_size: !@ model[embedder].encoder.rnn.hidden_size
       output_size: !@ dataset.label.vocab_size
 
   exporter: !Exporter
