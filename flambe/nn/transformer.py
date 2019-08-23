@@ -9,10 +9,7 @@ from typing import Optional
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from torch.nn import MultiheadAttention
-from torch.nn import ModuleList
 from torch.nn.init import xavier_uniform_
-from sru import SRU
 
 from flambe.nn import Module
 
@@ -35,10 +32,7 @@ class Transformer(Module):
                  num_encoder_layers: int = 6,
                  num_decoder_layers: int = 6,
                  dim_feedforward: int = 2048,
-                 dropout: float = 0.1,
-                 use_sru: bool = False,
-                 custom_encoder: Optional[Module] = None,
-                 custom_decoder: Optional[Module] = None) -> None:
+                 dropout: float = 0.1) -> None:
         """Initialize the Transformer Model.
 
         Parameters
@@ -60,37 +54,21 @@ class Transformer(Module):
             (default=2048).
         dropout : float, optional
             the dropout value (default=0.1).
-        use_sru: bool, optional
-            If true, replaces the Transformer FFN with an SRU
-        custom_encoder: Module, optional
-            A custom encoder, all other parameters will be ignored
-        custom_decoder: Module, optional
-            A custom decoder, all other parameters will be ignored
 
         """
         super(Transformer, self).__init__()
 
-        self.d_model = d_model
-        self.nhead = nhead
+        self.encoder = TransformerEncoder(d_model,
+                                          nhead,
+                                          dim_feedforward,
+                                          num_encoder_layers,
+                                          dropout)
 
-        if custom_encoder is not None:
-            self.encoder = custom_encoder
-        else:
-            self.encoder = TransformerEncoder(d_model,
-                                              nhead,
-                                              dim_feedforward,
-                                              num_encoder_layers,
-                                              dropout,
-                                              use_sru)
-        if custom_decoder is not None:
-            self.decoder = custom_decoder
-        else:
-            self.decoder = TransformerDecoder(d_model,
-                                              nhead,
-                                              dim_feedforward,
-                                              num_encoder_layers,
-                                              dropout,
-                                              use_sru)
+        self.decoder = TransformerDecoder(d_model,
+                                          nhead,
+                                          dim_feedforward,
+                                          num_encoder_layers,
+                                          dropout)
 
     def forward(self,  # type: ignore
                 src: torch.Tensor,
@@ -188,39 +166,43 @@ class TransformerEncoder(Module):
     """TransformerEncoder is a stack of N encoder layers."""
 
     def __init__(self,
-                 d_model: int,
-                 nhead: int,
-                 num_layers: int,
+                 d_model: int = 512,
+                 nhead: int = 8,
+                 num_layers: int = 6,
                  dim_feedforward: int = 2048,
-                 dropout: float = 0.1,
-                 use_sru: bool = False) -> None:
+                 dropout: float = 0.1) -> None:
         """Initialize the TransformerEncoder.
 
         Parameters
         ---------
         d_model : int
-            the number of expected features in encoder/decoder inputs
+            the number of expected features in encoder/decoder inputs.
+            Default ``512``.
         nhead : int, optional
             the number of heads in the multiheadattention
+            Default ``8``.
         num_layers : int
             the number of sub-encoder-layers in the encoder (required).
+            Default ``6``.
         dim_feedforward : int, optional
-            the inner feedforard dimension, by default 2048
+            the inner feedforard dimension. Default ``2048``.
         dropout : float, optional
-            the dropout percentage, by default 0.1
-        use_sru: bool, optional
-            If true, replaces the FFN with an SRU.
+            the dropout percentage. Default ``0.1``.
 
         """
         super(TransformerEncoder, self).__init__()
 
-        encoder_layer = TransformerEncoderLayer(d_model, nhead, dim_feedforward, dropout, use_sru)
+        encoder_layer = TransformerEncoderLayer(d_model,
+                                                nhead,
+                                                dim_feedforward,
+                                                dropout)
+
         self.layers = _get_clones(encoder_layer, num_layers)
-        self.num_layers = num_layers
         self._reset_parameters()
 
     def forward(self,  # type: ignore
                 src: torch.Tensor,
+                memory: Optional[torch.Tensor] = None,
                 mask: Optional[torch.Tensor] = None,
                 src_key_padding_mask: Optional[torch.Tensor] = None) -> torch.Tensor:
         """Pass the input through the endocder layers in turn.
@@ -229,6 +211,8 @@ class TransformerEncoder(Module):
         ----------
         src: torch.Tensor
             The sequnce to the encoder (required).
+        memory: torch.Tensor, optional
+            Optional memory, unused by default.
         mask: torch.Tensor, optional
             The mask for the src sequence (optional).
         src_key_padding_mask: torch.Tensor, optional
@@ -239,6 +223,7 @@ class TransformerEncoder(Module):
 
         for i in range(self.num_layers):
             output = self.layers[i](output,
+                                    memory=memory,
                                     src_mask=mask,
                                     src_key_padding_mask=src_key_padding_mask)
 
@@ -259,8 +244,7 @@ class TransformerDecoder(Module):
                  nhead: int,
                  num_layers: int,
                  dim_feedforward: int = 2048,
-                 dropout: float = 0.1,
-                 use_sru: bool = False) -> None:
+                 dropout: float = 0.1) -> None:
         """Initialize the TransformerDecoder.
 
         Parameters
@@ -275,14 +259,16 @@ class TransformerDecoder(Module):
             The inner feedforard dimension, by default 2048.
         dropout : float, optional
             The dropout percentage, by default 0.1.
-        use_sru: bool, optional
-            If true, replaces the FFN with an SRU.
 
         """
-        decoder_layer = TransformerDecoderLayer(d_model, nhead, dim_feedforward, dropout, use_sru)
-        self.layers = _get_clones(decoder_layer, num_layers)
-        self.num_layers = num_layers
+        super(TransformerDecoder, self).__init__()
 
+        decoder_layer = TransformerDecoderLayer(d_model,
+                                                nhead,
+                                                dim_feedforward,
+                                                dropout)
+
+        self.layers = _get_clones(decoder_layer, num_layers)
         self._reset_parameters()
 
     def forward(self,  # type: ignore
@@ -349,8 +335,7 @@ class TransformerEncoderLayer(Module):
                  d_model: int,
                  nhead: int,
                  dim_feedforward: int = 2048,
-                 dropout: float = 0.1,
-                 use_sru: bool = False) -> None:
+                 dropout: float = 0.1) -> None:
         """Initialize a TransformerEncoderLayer.
 
         Parameters
@@ -363,20 +348,14 @@ class TransformerEncoderLayer(Module):
             The dimension of the feedforward network (default=2048).
         dropout : float, optional
             The dropout value (default=0.1).
-        use_sru: bool, optional
-            If true, replaces the FFN with an SRU.
 
         """
         super(TransformerEncoderLayer, self).__init__()
 
-        self.self_attn = MultiheadAttention(d_model, nhead, dropout=dropout)
+        self.self_attn = nn.MultiheadAttention(d_model, nhead, dropout=dropout)
 
-        if use_sru:
-            self.sru = SRU(d_model, dim_feedforward, num_layers=1, dropout=dropout)
-        else:
-            self.dropout = nn.Dropout(dropout)
-            self.linear1 = nn.Linear(d_model, dim_feedforward)
-
+        self.dropout = nn.Dropout(dropout)
+        self.linear1 = nn.Linear(d_model, dim_feedforward)
         self.linear2 = nn.Linear(dim_feedforward, d_model)
 
         self.norm1 = nn.LayerNorm(d_model)
@@ -386,6 +365,7 @@ class TransformerEncoderLayer(Module):
 
     def forward(self,  # type: ignore
                 src: torch.Tensor,
+                memory: Optional[torch.Tensor] = None,
                 src_mask: Optional[torch.Tensor] = None,
                 src_key_padding_mask: Optional[torch.Tensor] = None) -> torch.Tensor:
         """Pass the input through the endocder layer.
@@ -394,6 +374,8 @@ class TransformerEncoderLayer(Module):
         ----------
         src: torch.Tensor
             The seqeunce to the encoder layer (required).
+        memory: torch.Tensor, optional
+            Optional memory from previous sequence, unused by default.
         src_mask: torch.Tensor, optional
             The mask for the src sequence (optional).
         src_key_padding_mask: torch.Tensor, optional
@@ -404,10 +386,7 @@ class TransformerEncoderLayer(Module):
                               key_padding_mask=src_key_padding_mask)[0]
         src = src + self.dropout1(src2)
         src = self.norm1(src)
-        if self.use_sru:
-            src2 = self.linear2(self.sru(src))
-        else:
-            src2 = self.linear2(self.dropout(F.relu(self.linear1(src))))
+        src2 = self.linear2(self.dropout(F.relu(self.linear1(src))))
         src = src + self.dropout2(src2)
         src = self.norm2(src)
         return src
@@ -431,8 +410,7 @@ class TransformerDecoderLayer(Module):
                  d_model: int,
                  nhead: int,
                  dim_feedforward: int = 2048,
-                 dropout: float = 0.1,
-                 use_sru: bool = False) -> None:
+                 dropout: float = 0.1) -> None:
         """Initialize a TransformerDecoder.
 
         Parameters
@@ -445,22 +423,15 @@ class TransformerDecoderLayer(Module):
             The dimension of the feedforward network (default=2048).
         dropout : float, optional
             The dropout value (default=0.1).
-        use_sru: bool, optional
-            If true, replaces the FFN with an SRU.
 
         """
         super(TransformerDecoderLayer, self).__init__()
 
-        self.use_sru = use_sru
-        self.self_attn = MultiheadAttention(d_model, nhead, dropout=dropout)
-        self.multihead_attn = MultiheadAttention(d_model, nhead, dropout=dropout)
+        self.self_attn = nn.MultiheadAttention(d_model, nhead, dropout=dropout)
+        self.multihead_attn = nn.MultiheadAttention(d_model, nhead, dropout=dropout)
 
-        if use_sru:
-            self.sru = SRU(d_model, dim_feedforward, num_layers=1, dropout=dropout)
-        else:
-            self.dropout = nn.Dropout(dropout)
-            self.linear1 = nn.Linear(d_model, dim_feedforward)
-
+        self.dropout = nn.Dropout(dropout)
+        self.linear1 = nn.Linear(d_model, dim_feedforward)
         self.linear2 = nn.Linear(dim_feedforward, d_model)
 
         self.norm1 = nn.LayerNorm(d_model)
@@ -503,10 +474,7 @@ class TransformerDecoderLayer(Module):
                                    key_padding_mask=memory_key_padding_mask)[0]
         tgt = tgt + self.dropout2(tgt2)
         tgt = self.norm2(tgt)
-        if self.use_sru:
-            tgt2 = self.linear2(self.sru(tgt))
-        else:
-            tgt2 = self.linear2(self.dropout(F.relu(self.linear1(tgt))))
+        tgt2 = self.linear2(self.dropout(F.relu(self.linear1(tgt))))
         tgt = tgt + self.dropout3(tgt2)
         tgt = self.norm3(tgt)
 
@@ -529,4 +497,4 @@ def _get_clones(module: Module, N: int) -> nn.ModuleList:
         The list of modules
 
     """
-    return ModuleList([copy.deepcopy(module) for i in range(N)])
+    return nn.ModuleList([copy.deepcopy(module) for i in range(N)])

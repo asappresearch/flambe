@@ -7,9 +7,11 @@ from flambe.nn.rnn import RNNEncoder, PooledRNNEncoder
 from flambe.nn.cnn import CNNEncoder
 from flambe.nn.sequential import Sequential
 from flambe.nn.transformer import Transformer, TransformerEncoder, TransformerDecoder
+from flambe.nn.transformer_sru import TransformerSRU, TransformerSRUEncoder, TransformerSRUDecoder
 
 
 __all__ = ['Module', 'Embeddings', 'Embedder', 'RNNEncoder',
            'PooledRNNEncoder', 'CNNEncoder', 'MLPEncoder',
            'SoftmaxLayer', 'MixtureOfSoftmax', 'Sequential',
-           'Transformer', 'TransformerEncoder', 'TransformerDecoder']
+           'Transformer', 'TransformerEncoder', 'TransformerDecoder',
+           'TransformerSRU', 'TransformerSRUEncoder', 'TransformerSRUDecoder']
