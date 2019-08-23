@@ -183,10 +183,13 @@ class TransformerSRUEncoderLayer(Module):
         super(TransformerSRUEncoderLayer, self).__init__()
 
         self.self_attn = nn.MultiheadAttention(d_model, nhead, dropout=dropout)
+        self.sru = SRUCell(d_model,
+                           dim_feedforward,
+                           dropout,
+                           bidirectional=bidirectional,
+                           has_skip_term=False, **kwargs)
 
-        self.sru = SRUCell(d_model, dim_feedforward, dropout, bidirectional=bidirectional, **kwargs)
         self.linear2 = nn.Linear(dim_feedforward, d_model)
-
         self.norm1 = nn.LayerNorm(d_model)
         self.norm2 = nn.LayerNorm(d_model)
         self.dropout1 = nn.Dropout(dropout)
@@ -250,10 +253,13 @@ class TransformerSRUDecoderLayer(Module):
 
         self.self_attn = nn.MultiheadAttention(d_model, nhead, dropout=dropout)
         self.multihead_attn = nn.MultiheadAttention(d_model, nhead, dropout=dropout)
+        self.sru = SRUCell(d_model,
+                           dim_feedforward,
+                           dropout,
+                           bidirectional=False,
+                           has_skip_term=False, **kwargs)
 
-        self.sru = SRUCell(d_model, dim_feedforward, dropout, bidirectional=False, **kwargs)
         self.linear2 = nn.Linear(dim_feedforward, d_model)
-
         self.norm1 = nn.LayerNorm(d_model)
         self.norm2 = nn.LayerNorm(d_model)
         self.norm3 = nn.LayerNorm(d_model)
