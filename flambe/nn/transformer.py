@@ -142,12 +142,12 @@ class Transformer(Module):
 
         memory = self.encoder(src,
                               mask=src_mask,
-                              src_key_padding_mask=src_key_padding_mask)
+                              padding_mask=src_key_padding_mask)
         output = self.decoder(tgt,
                               memory,
                               tgt_mask=tgt_mask,
                               memory_mask=memory_mask,
-                              tgt_key_padding_mask=tgt_key_padding_mask,
+                              padding_mask=tgt_key_padding_mask,
                               memory_key_padding_mask=memory_key_padding_mask)
         return output
 
@@ -204,7 +204,7 @@ class TransformerEncoder(Module):
                 src: torch.Tensor,
                 memory: Optional[torch.Tensor] = None,
                 mask: Optional[torch.Tensor] = None,
-                src_key_padding_mask: Optional[torch.Tensor] = None) -> torch.Tensor:
+                padding_mask: Optional[torch.Tensor] = None) -> torch.Tensor:
         """Pass the input through the endocder layers in turn.
 
         Parameters
@@ -215,7 +215,7 @@ class TransformerEncoder(Module):
             Optional memory, unused by default.
         mask: torch.Tensor, optional
             The mask for the src sequence (optional).
-        src_key_padding_mask: torch.Tensor, optional
+        padding_mask: torch.Tensor, optional
             The mask for the src keys per batch (optional).
 
         """
@@ -225,7 +225,7 @@ class TransformerEncoder(Module):
             output = self.layers[i](output,
                                     memory=memory,
                                     src_mask=mask,
-                                    src_key_padding_mask=src_key_padding_mask)
+                                    padding_mask=padding_mask)
 
         return output
 
@@ -276,7 +276,7 @@ class TransformerDecoder(Module):
                 memory: torch.Tensor,
                 tgt_mask: Optional[torch.Tensor] = None,
                 memory_mask: Optional[torch.Tensor] = None,
-                tgt_key_padding_mask: Optional[torch.Tensor] = None,
+                padding_mask: Optional[torch.Tensor] = None,
                 memory_key_padding_mask: Optional[torch.Tensor] = None) -> torch.Tensor:
         """Pass the inputs (and mask) through the decoder layer in turn.
 
@@ -290,7 +290,7 @@ class TransformerDecoder(Module):
             The mask for the tgt sequence (optional).
         memory_mask: torch.Tensor, optional
             The mask for the memory sequence (optional).
-        tgt_key_padding_mask: torch.Tensor, optional
+        padding_mask: torch.Tensor, optional
             The mask for the tgt keys per batch (optional).
         memory_key_padding_mask: torch.Tensor, optional
             The mask for the memory keys per batch (optional).
@@ -307,7 +307,7 @@ class TransformerDecoder(Module):
                                     memory,
                                     tgt_mask=tgt_mask,
                                     memory_mask=memory_mask,
-                                    tgt_key_padding_mask=tgt_key_padding_mask,
+                                    padding_mask=padding_mask,
                                     memory_key_padding_mask=memory_key_padding_mask)
 
         return output
@@ -367,7 +367,7 @@ class TransformerEncoderLayer(Module):
                 src: torch.Tensor,
                 memory: Optional[torch.Tensor] = None,
                 src_mask: Optional[torch.Tensor] = None,
-                src_key_padding_mask: Optional[torch.Tensor] = None) -> torch.Tensor:
+                padding_mask: Optional[torch.Tensor] = None) -> torch.Tensor:
         """Pass the input through the endocder layer.
 
         Parameters
@@ -378,12 +378,12 @@ class TransformerEncoderLayer(Module):
             Optional memory from previous sequence, unused by default.
         src_mask: torch.Tensor, optional
             The mask for the src sequence (optional).
-        src_key_padding_mask: torch.Tensor, optional
+        padding_mask: torch.Tensor, optional
             The mask for the src keys per batch (optional).
 
         """
         src2 = self.self_attn(src, src, src, attn_mask=src_mask,
-                              key_padding_mask=src_key_padding_mask)[0]
+                              key_padding_mask=padding_mask)[0]
         src = src + self.dropout1(src2)
         src = self.norm1(src)
         src2 = self.linear2(self.dropout(F.relu(self.linear1(src))))
@@ -446,7 +446,7 @@ class TransformerDecoderLayer(Module):
                 memory: torch.Tensor,
                 tgt_mask: Optional[torch.Tensor] = None,
                 memory_mask: Optional[torch.Tensor] = None,
-                tgt_key_padding_mask: Optional[torch.Tensor] = None,
+                padding_mask: Optional[torch.Tensor] = None,
                 memory_key_padding_mask: Optional[torch.Tensor] = None) -> torch.Tensor:
         r"""Pass the inputs (and mask) through the decoder layer.
 
@@ -467,7 +467,7 @@ class TransformerDecoderLayer(Module):
 
         """
         tgt2 = self.self_attn(tgt, tgt, tgt, attn_mask=tgt_mask,
-                              key_padding_mask=tgt_key_padding_mask)[0]
+                              key_padding_mask=padding_mask)[0]
         tgt = tgt + self.dropout1(tgt2)
         tgt = self.norm1(tgt)
         tgt2 = self.multihead_attn(tgt, memory, memory, attn_mask=memory_mask,

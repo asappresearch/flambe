@@ -283,8 +283,8 @@ class Embedder(Module):
         embedded = self.dropout(embedded)
 
         if self.padding_idx is not None:
-            mask = (data != self.padding_idx).float()
-            encoding = self.encoder(embedded, mask=mask)
+            padding_mask = (data != self.padding_idx).byte()
+            encoding = self.encoder(embedded, padding_mask=padding_mask)
         else:
             encoding = self.encoder(embedded)
 
