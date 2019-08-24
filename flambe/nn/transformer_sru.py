@@ -18,6 +18,7 @@ class TransformerSRU(Transformer):
                  num_decoder_layers: int = 6,
                  dim_feedforward: int = 2048,
                  dropout: float = 0.1,
+                 sru_dropout: Optional[float] = None,
                  bidrectional: bool = False,
                  **kwargs: Dict[str, Any]) -> None:
         """Initialize the TransformerSRU Model.
@@ -41,6 +42,9 @@ class TransformerSRU(Transformer):
             (default=2048).
         dropout : float, optional
             the dropout value (default=0.1).
+        sru_dropout: float, optional
+            Dropout for the SRU cell. If not given, uses the same
+            dropout value as the rest of the transformer.
         bidrectional: bool, optional
             Whether the SRU Encoder module should be bidrectional.
             Defaul ``False``.
@@ -55,6 +59,7 @@ class TransformerSRU(Transformer):
                                              dim_feedforward,
                                              num_encoder_layers,
                                              dropout,
+                                             sru_dropout,
                                              bidrectional,
                                              **kwargs)
 
@@ -63,6 +68,7 @@ class TransformerSRU(Transformer):
                                              dim_feedforward,
                                              num_encoder_layers,
                                              dropout,
+                                             sru_dropout,
                                              **kwargs)
 
 
@@ -75,6 +81,7 @@ class TransformerSRUEncoder(TransformerEncoder):
                  num_layers: int = 6,
                  dim_feedforward: int = 2048,
                  dropout: float = 0.1,
+                 sru_dropout: Optional[float] = None,
                  bidirectional: bool = False,
                  **kwargs: Dict[str, Any]) -> None:
         """Initialize the TransformerEncoder.
@@ -94,6 +101,9 @@ class TransformerSRUEncoder(TransformerEncoder):
             the inner feedforard dimension. Default ``2048``.
         dropout : float, optional
             the dropout percentage. Default ``0.1``.
+        sru_dropout: float, optional
+            Dropout for the SRU cell. If not given, uses the same
+            dropout value as the rest of the transformer.
         bidirectional: bool
             Whether the SRU module should be bidrectional.
             Defaul ``False``.
@@ -105,6 +115,7 @@ class TransformerSRUEncoder(TransformerEncoder):
                                                    nhead,
                                                    dim_feedforward,
                                                    dropout,
+                                                   sru_dropout,
                                                    bidirectional)
 
         self.layers = _get_clones(encoder_layer, num_layers)
@@ -120,6 +131,7 @@ class TransformerSRUDecoder(TransformerDecoder):
                  num_layers: int = 6,
                  dim_feedforward: int = 2048,
                  dropout: float = 0.1,
+                 sru_dropout: Optional[float] = None,
                  **kwargs: Dict[str, Any]) -> None:
         """Initialize the TransformerEncoder.
 
@@ -138,6 +150,9 @@ class TransformerSRUDecoder(TransformerDecoder):
             the inner feedforard dimension. Default ``2048``.
         dropout : float, optional
             the dropout percentage. Default ``0.1``.
+        sru_dropout: float, optional
+            Dropout for the SRU cell. If not given, uses the same
+            dropout value as the rest of the transformer.
 
         Extra keyword arguments are passed to the SRUCell.
 
@@ -145,7 +160,8 @@ class TransformerSRUDecoder(TransformerDecoder):
         decoder_layer = TransformerSRUDecoderLayer(d_model,
                                                    nhead,
                                                    dim_feedforward,
-                                                   dropout)
+                                                   dropout,
+                                                   sru_dropout)
 
         self.layers = _get_clones(decoder_layer, num_layers)
         self._reset_parameters()
@@ -159,6 +175,7 @@ class TransformerSRUEncoderLayer(Module):
                  nhead: int,
                  dim_feedforward: int = 2048,
                  dropout: float = 0.1,
+                 sru_dropout: Optional[float] = None,
                  bidirectional: bool = False,
                  **kwargs: Dict[str, Any]) -> None:
         """Initialize a TransformerSRUEncoderLayer.
@@ -173,6 +190,9 @@ class TransformerSRUEncoderLayer(Module):
             The dimension of the feedforward network (default=2048).
         dropout : float, optional
             The dropout value (default=0.1).
+        sru_dropout: float, optional
+            Dropout for the SRU cell. If not given, uses the same
+            dropout value as the rest of the transformer.
         bidirectional: bool
             Whether the SRU module should be bidrectional.
             Defaul ``False``.
@@ -186,6 +206,7 @@ class TransformerSRUEncoderLayer(Module):
         self.sru = SRUCell(d_model,
                            dim_feedforward,
                            dropout,
+                           sru_dropout or dropout,
                            bidirectional=bidirectional,
                            has_skip_term=False, **kwargs)
 
@@ -218,7 +239,7 @@ class TransformerSRUEncoderLayer(Module):
                               key_padding_mask=src_key_padding_mask)[0]
         src = src + self.dropout1(src2)
         src = self.norm1(src)
-        src2 = self.linear2(self.sru(src, state=memory, mask_pad=src_key_padding_mask))
+        src2 = self.linear2(self.sru(src, memory, mask_pad=src_key_padding_mask))
         src = src + self.dropout2(src2)
         src = self.norm2(src)
         return src
@@ -232,6 +253,7 @@ class TransformerSRUDecoderLayer(Module):
                  nhead: int,
                  dim_feedforward: int = 2048,
                  dropout: float = 0.1,
+                 sru_dropout: Optional[float] = None,
                  **kwargs: Dict[str, Any]) -> None:
         """Initialize a TransformerDecoder.
 
@@ -245,6 +267,9 @@ class TransformerSRUDecoderLayer(Module):
             The dimension of the feedforward network (default=2048).
         dropout : float, optional
             The dropout value (default=0.1).
+        sru_dropout: float, optional
+            Dropout for the SRU cell. If not given, uses the same
+            dropout value as the rest of the transformer.
 
         Extra keyword arguments are passed to the SRUCell.
 
@@ -256,6 +281,7 @@ class TransformerSRUDecoderLayer(Module):
         self.sru = SRUCell(d_model,
                            dim_feedforward,
                            dropout,
+                           sru_dropout or dropout,
                            bidirectional=False,
                            has_skip_term=False, **kwargs)
 
@@ -300,7 +326,7 @@ class TransformerSRUDecoderLayer(Module):
                                    key_padding_mask=memory_key_padding_mask)[0]
         tgt = tgt + self.dropout2(tgt2)
         tgt = self.norm2(tgt)
-        tgt2 = self.linear2(self.sru(tgt, state=memory, mask_pad=tgt_key_padding_mask))
+        tgt2 = self.linear2(self.sru(tgt, memory, mask_pad=tgt_key_padding_mask))
         tgt = tgt + self.dropout3(tgt2)
         tgt = self.norm3(tgt)
 
