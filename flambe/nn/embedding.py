@@ -78,6 +78,8 @@ class Embeddings(Module):
             embedding matrix. Default ``5000``.
 
         """
+        super().__init__()
+
         self.token_embedding = nn.Embedding(num_embeddings,
                                             embedding_dim,
                                             padding_idx,
