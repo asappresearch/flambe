@@ -26,6 +26,7 @@ class WordTokenizer(Tokenizer):
             The output word tokens, as a list of strings
 
         """
+        nltk.download('punkt')
         return word_tokenize(example)
 
 
@@ -76,6 +77,7 @@ class NGramsTokenizer(Tokenizer):
         """Tokenize an input example using ngrams.
 
         """
+        nltk.download('punkt')
         return list(" ".join(x) if len(x) > 1 else x[0] for x in ngrams(word_tokenize(example), n))
 
     def tokenize(self, example: str) -> List[str]:
