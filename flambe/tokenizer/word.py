@@ -1,10 +1,12 @@
 
 from typing import Union, List
 
-from nltk import ngrams
+from nltk import ngrams, download
 from nltk.corpus import stopwords
 
 from flambe.tokenizer import Tokenizer
+
+download('stopwords')
 
 
 class WordTokenizer(Tokenizer):
