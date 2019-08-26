@@ -213,8 +213,9 @@ class Embeddings(Module):
         out = self.token_embedding(data)
 
         if self.pos_embedding is not None:
-            positions = torch.arange(data.size(0)).repeat(data.size(1), 1)
-            out = out + self.pos_embedding(positions.to(data))
+            column = torch.arange(data.size(0)).unsqueeze(1)
+            positions = column.repeat(1, data.size(1)).to(data)
+            out = out + self.pos_embedding(positions)
 
         return out
 
