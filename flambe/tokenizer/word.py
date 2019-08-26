@@ -93,7 +93,8 @@ class NGramsTokenizer(Tokenizer):
 
         """
         if self.exclude_stopwords:
-            example = ' '.join([word for word in word_tokenize(example) if word not in self.stop_words])
+            example = ' '.join([word for word in word_tokenize(example)
+                                if word not in self.stop_words])
 
         if isinstance(self.ngrams, List):
             ret: List[str] = []
