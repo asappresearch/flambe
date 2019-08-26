@@ -1,12 +1,11 @@
 
-from typing import Union, List
+from typing import Union, List, Optional
 
-from nltk import ngrams, download
+import nltk
+from nltk import ngrams
 from nltk.corpus import stopwords
 
 from flambe.tokenizer import Tokenizer
-
-download('stopwords')
 
 
 class WordTokenizer(Tokenizer):
@@ -49,7 +48,7 @@ class NGramsTokenizer(Tokenizer):
 
     """
     def __init__(self, ngrams: Union[int, List[int]] = 1, exclude_stopwords: bool = False,
-                 stopwords: List = stopwords.words('english')) -> None:
+                 stop_words: Optional[List] = None) -> None:
         """[summary]
 
         Parameters
@@ -64,7 +63,12 @@ class NGramsTokenizer(Tokenizer):
         """
         self.ngrams = ngrams
         self.exclude_stopwords = exclude_stopwords
-        self.stopwords = stopwords
+
+        if self.exclude_stopwords:
+            self.stop_words = stop_words
+            if self.stop_words is None:
+                nltk.download('stopwords')
+                self.stop_words = stopwords.words('english')
 
     @staticmethod
     def _tokenize(example: str, n: int) -> List[str]:
