@@ -2,6 +2,7 @@
 from typing import Union, List
 
 from nltk import ngrams
+from nltk.corpus import stopwords
 
 from flambe.tokenizer import Tokenizer
 
@@ -45,7 +46,8 @@ class NGramsTokenizer(Tokenizer):
         (for each int) will be considered in the tokenizer.
 
     """
-    def __init__(self, ngrams: Union[int, List[int]] = 1) -> None:
+    def __init__(self, ngrams: Union[int, List[int]] = 1, exclude_stopwords: bool = False,
+                 stopwords: List = stopwords.words('english')) -> None:
         """[summary]
 
         Parameters
@@ -59,6 +61,8 @@ class NGramsTokenizer(Tokenizer):
             [description]
         """
         self.ngrams = ngrams
+        self.exclude_stopwords = exclude_stopwords
+        self.stopwords = stopwords
 
     @staticmethod
     def _tokenize(example: str, n: int) -> List[str]:
@@ -81,6 +85,9 @@ class NGramsTokenizer(Tokenizer):
             The output word tokens, as a list of strings
 
         """
+        if self.exclude_stopwords:
+            example = ' '.join([word for word in example.split() if word not in self.stopwords])
+
         if isinstance(self.ngrams, List):
             ret: List[str] = []
             for i in self.ngrams:

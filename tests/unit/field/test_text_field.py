@@ -44,6 +44,24 @@ def test_ngram_tokenizer_equivalence_2():
 
     assert t(example) == ret
 
+
+def test_ngram_tokenizer_stopwords():
+    tokenizer = NGramsTokenizer(2, exclude_stopwords=True)
+
+    dummy = "justo. Praesent the luctus."
+    assert tokenizer(dummy) == ["justo. Praesent", "Praesent luctus."]
+
+    tokenizer = NGramsTokenizer(1, exclude_stopwords=True)
+
+    dummy = "justo. Praesent the luctus."
+    assert tokenizer(dummy) == ["justo.", "Praesent", "luctus."]
+
+    tokenizer = NGramsTokenizer(2, exclude_stopwords=True, stopwords=["Praesent", "the"])
+
+    dummy = "justo. Praesent the luctus."
+    assert tokenizer(dummy) == ["justo. luctus."]
+
+
 def test_char_tokenizer():
     tokenizer = CharTokenizer()
 
