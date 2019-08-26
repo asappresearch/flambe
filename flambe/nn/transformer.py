@@ -56,7 +56,7 @@ class Transformer(Module):
             the dropout value (default=0.1).
 
         """
-        super(Transformer, self).__init__()
+        super().__init__()
 
         self.encoder = TransformerEncoder(d_model,
                                           nhead,
@@ -133,7 +133,6 @@ class Transformer(Module):
             sequence length, N is the batchsize, E is the feature number
 
         """
-
         if src.size(1) != tgt.size(1):
             raise RuntimeError("the batch number of src and tgt must be equal")
 
@@ -150,16 +149,6 @@ class Transformer(Module):
                               padding_mask=tgt_key_padding_mask,
                               memory_key_padding_mask=memory_key_padding_mask)
         return output
-
-    def generate_square_subsequent_mask(self, sz):
-        r"""Generate a square mask for the sequence.
-
-        The masked positions are filled with float('-inf').
-        Unmasked positions are filled with float(0.0).
-        """
-        mask = (torch.triu(torch.ones(sz, sz)) == 1).transpose(0, 1)
-        mask = mask.float().masked_fill(mask == 0, float('-inf')).masked_fill(mask == 1, float(0.0))
-        return mask
 
 
 class TransformerEncoder(Module):
@@ -190,14 +179,14 @@ class TransformerEncoder(Module):
             the dropout percentage. Default ``0.1``.
 
         """
-        super(TransformerEncoder, self).__init__()
+        super().__init__()
 
-        encoder_layer = TransformerEncoderLayer(d_model,
-                                                nhead,
-                                                dim_feedforward,
-                                                dropout)
+        layer = TransformerEncoderLayer(d_model,
+                                        nhead,
+                                        dim_feedforward,
+                                        dropout)
 
-        self.layers = _get_clones(encoder_layer, num_layers)
+        self.layers = nn.ModuleList([copy.deepcopy(layer) for _ in range(num_layers)])
         self._reset_parameters()
 
     def forward(self,  # type: ignore
@@ -261,14 +250,14 @@ class TransformerDecoder(Module):
             The dropout percentage, by default 0.1.
 
         """
-        super(TransformerDecoder, self).__init__()
+        super().__init__()
 
-        decoder_layer = TransformerDecoderLayer(d_model,
-                                                nhead,
-                                                dim_feedforward,
-                                                dropout)
+        layer = TransformerDecoderLayer(d_model,
+                                        nhead,
+                                        dim_feedforward,
+                                        dropout)
 
-        self.layers = _get_clones(decoder_layer, num_layers)
+        self.layers = nn.ModuleList([copy.deepcopy(layer) for _ in range(num_layers)])
         self._reset_parameters()
 
     def forward(self,  # type: ignore
@@ -350,7 +339,7 @@ class TransformerEncoderLayer(Module):
             The dropout value (default=0.1).
 
         """
-        super(TransformerEncoderLayer, self).__init__()
+        super().__init__()
 
         self.self_attn = nn.MultiheadAttention(d_model, nhead, dropout=dropout)
 
@@ -425,7 +414,7 @@ class TransformerDecoderLayer(Module):
             The dropout value (default=0.1).
 
         """
-        super(TransformerDecoderLayer, self).__init__()
+        super().__init__()
 
         self.self_attn = nn.MultiheadAttention(d_model, nhead, dropout=dropout)
         self.multihead_attn = nn.MultiheadAttention(d_model, nhead, dropout=dropout)
@@ -481,20 +470,12 @@ class TransformerDecoderLayer(Module):
         return tgt
 
 
-def _get_clones(module: Module, N: int) -> nn.ModuleList:
-    """Create N copies of the module
+def generate_square_subsequent_mask(self, sz):
+    r"""Generate a square mask for the sequence.
 
-    Parameters
-    ----------
-    module : Module
-        The module to copy
-    N : int
-        The number of copies
-
-    Returns
-    -------
-    nn.ModuleList
-        The list of modules
-
+    The masked positions are filled with float('-inf').
+    Unmasked positions are filled with float(0.0).
     """
-    return nn.ModuleList([copy.deepcopy(module) for i in range(N)])
+    mask = (torch.triu(torch.ones(sz, sz)) == 1).transpose(0, 1)
+    mask = mask.float().masked_fill(mask == 0, float('-inf')).masked_fill(mask == 1, float(0.0))
+    return mask

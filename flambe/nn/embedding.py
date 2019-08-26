@@ -227,18 +227,21 @@ class Embedder(Module):
 
     Attributes
     ----------
-    embeddings: Embedding
-        The embedding layer
-    encoder: Encoder
+    embeddings: Module
+        The embedding module
+    encoder: Module
         The sub-encoder that this object is wrapping
+    pooling: Module
+        An optional pooling module
     drop: nn.Dropout
         The dropout layer
 
     """
 
     def __init__(self,
-                 embedding: nn.Embedding,
+                 embedding: Module,
                  encoder: Module,
+                 pooling: Optional[Module] = None,
                  embedding_dropout: float = 0,
                  padding_idx: Optional[int] = 0) -> None:
         """Initializes the TextEncoder module.
@@ -251,6 +254,9 @@ class Embedder(Module):
             The embedding layer
         encoder: Module
             The encoder
+        pooling: Module, optional
+            An optioonal pooling module, takes a sequence of Tensor and
+            reduces them to a single Tensor.
         embedding_dropout: float, optional
             Amount of dropout between the embeddings and the encoder
         padding_idx: int, optional
@@ -262,6 +268,7 @@ class Embedder(Module):
         self.embedding = embedding
         self.dropout = nn.Dropout(embedding_dropout)
         self.encoder = encoder
+        self.pooling = pooling
         self.padding_idx = padding_idx
 
     def forward(self, data: Tensor) -> Union[Tensor, Tuple[Tensor, Tensor]]:
@@ -270,13 +277,13 @@ class Embedder(Module):
         Parameters
         ----------
         data : torch.Tensor
-            The input data, as a float tensor, batch first
+            The input data, as a float tensor of shape [S x B]
 
         Returns
         -------
         Union[Tensor, Tuple[Tensor, Tensor]]
             The encoded output, as a float tensor. May return a state
-            if the encoder is an RNN
+            if the encoder is an RNN and no pooling is provided.
 
         """
         embedded = self.embedding(data)
@@ -287,5 +294,10 @@ class Embedder(Module):
             encoding = self.encoder(embedded, padding_mask=padding_mask)
         else:
             encoding = self.encoder(embedded)
+
+        if self.pooling is not None:
+            # Ignore states from encoders such as RNN or TransformerSRU
+            encoding = encoding[0] if isinstance(encoding, tuple) else encoding
+            encoding = self.pooling(encoding)
 
         return encoding

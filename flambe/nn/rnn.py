@@ -191,6 +191,8 @@ class PooledRNNEncoder(Module):
         """
         super().__init__()
 
+        print("WARNING: Deprecated, please use the Pooling module in the Embedder")
+
         self.pooling = pooling
         self.rnn = RNNEncoder(input_size,
                               hidden_size,

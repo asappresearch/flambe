@@ -1,14 +1,14 @@
-from typing import Optional, Dict, Any
+import copy
+from typing import Optional, Dict, Any, Tuple
 
 import torch
 import torch.nn as nn
 from sru import SRUCell
 
 from flambe.nn import Module
-from flambe.nn.transformer import Transformer, TransformerEncoder, TransformerDecoder, _get_clones
 
 
-class TransformerSRU(Transformer):
+class TransformerSRU(Module):
     """A Transformer with an SRU replacing the FFN."""
 
     def __init__(self,
@@ -52,7 +52,7 @@ class TransformerSRU(Transformer):
         Extra keyword arguments are passed to the SRUCell.
 
         """
-        super(Transformer, self).__init__()
+        super().__init__()
 
         self.encoder = TransformerSRUEncoder(d_model,
                                              nhead,
@@ -71,8 +71,89 @@ class TransformerSRU(Transformer):
                                              sru_dropout,
                                              **kwargs)
 
+    def forward(self,  # type: ignore
+                src: torch.Tensor,
+                tgt: torch.Tensor,
+                src_mask: Optional[torch.Tensor] = None,
+                tgt_mask: Optional[torch.Tensor] = None,
+                memory_mask: Optional[torch.Tensor] = None,
+                src_key_padding_mask: Optional[torch.Tensor] = None,
+                tgt_key_padding_mask: Optional[torch.Tensor] = None,
+                memory_key_padding_mask: Optional[torch.Tensor] = None) -> torch.Tensor:
+        """Take in and process masked source/target sequences.
 
-class TransformerSRUEncoder(TransformerEncoder):
+        Parameters
+        ----------
+        src: torch.Tensor
+            the sequence to the encoder (required).
+            shape: :math:`(S, N, E)`.
+        tgt: torch.Tensor
+            the sequence to the decoder (required).
+            shape: :math:`(T, N, E)`.
+        src_mask: torch.Tensor, optional
+            the additive mask for the src sequence (optional).
+            shape: :math:`(S, S)`.
+        tgt_mask: torch.Tensor, optional
+            the additive mask for the tgt sequence (optional).
+            shape: :math:`(T, T)`.
+        memory_mask: torch.Tensor, optional
+            the additive mask for the encoder output (optional).
+            shape: :math:`(T, S)`.
+        src_key_padding_mask: torch.Tensor, optional
+            the ByteTensor mask for src keys per batch (optional).
+            shape: :math:`(N, S)`
+        tgt_key_padding_mask: torch.Tensor, optional
+            the ByteTensor mask for tgt keys per batch (optional).
+            shape: :math:`(N, T)`.
+        memory_key_padding_mask: torch.Tensor, optional
+            the ByteTensor mask for memory keys per batch (optional).
+            shape" :math:`(N, S)`.
+
+        Returns
+        -------
+        output: torch.Tensor
+            The output sequence, shape: :math:`(T, N, E)`.
+
+        Note: [src/tgt/memory]_mask should be filled with
+            float('-inf') for the masked positions and float(0.0) else.
+            These masks ensure that predictions for position i depend
+            only on the unmasked positions j and are applied identically
+            for each sequence in a batch.
+            [src/tgt/memory]_key_padding_mask should be a ByteTensor
+            where True values are positions that should be masked with
+            float('-inf') and False values will be unchanged.
+            This mask ensures that no information will be taken from
+            position i if it is masked, and has a separate mask for each
+            sequence in a batch.
+        Note: Due to the multi-head attention architecture in the
+            transformer model, the output sequence length of a
+            transformer is same as the input sequence
+            (i.e. target) length of the decode.
+
+            where S is the source sequence length, T is the target
+            sequence length, N is the batchsize, E is the feature number
+
+        """
+        if src.size(1) != tgt.size(1):
+            raise RuntimeError("the batch number of src and tgt must be equal")
+
+        if src.size(2) != self.d_model or tgt.size(2) != self.d_model:
+            raise RuntimeError("the feature number of src and tgt must be equal to d_model")
+
+        memory, state = self.encoder(src,
+                                     mask=src_mask,
+                                     padding_mask=src_key_padding_mask)
+        output = self.decoder(tgt,
+                              memory,
+                              state=state,
+                              tgt_mask=tgt_mask,
+                              memory_mask=memory_mask,
+                              padding_mask=tgt_key_padding_mask,
+                              memory_key_padding_mask=memory_key_padding_mask)
+        return output
+
+
+class TransformerSRUEncoder(Module):
     """A TransformerSRUEncoder with an SRU replacing the FFN."""
 
     def __init__(self,
@@ -111,18 +192,61 @@ class TransformerSRUEncoder(TransformerEncoder):
         Extra keyword arguments are passed to the SRUCell.
 
         """
-        encoder_layer = TransformerSRUEncoderLayer(d_model,
-                                                   nhead,
-                                                   dim_feedforward,
-                                                   dropout,
-                                                   sru_dropout,
-                                                   bidirectional)
+        super().__init__()
 
-        self.layers = _get_clones(encoder_layer, num_layers)
+        layer = TransformerSRUEncoderLayer(d_model,
+                                           nhead,
+                                           dim_feedforward,
+                                           dropout,
+                                           sru_dropout,
+                                           bidirectional)
+
+        self.layers = nn.ModuleList([copy.deepcopy(layer) for _ in range(num_layers)])
         self._reset_parameters()
 
+    def forward(self,  # type: ignore
+                src: torch.Tensor,
+                state: Optional[torch.Tensor] = None,
+                mask: Optional[torch.Tensor] = None,
+                padding_mask: Optional[torch.Tensor] = None) -> Tuple[torch.Tensor, torch.Tensor]:
+        """Pass the input through the endocder layers in turn.
 
-class TransformerSRUDecoder(TransformerDecoder):
+        Parameters
+        ----------
+        src: torch.Tensor
+            The sequnce to the encoder (required).
+        state: Optional[torch.Tensor]
+            Optional state from previous sequence encoding.
+            Only passed to the SRU (not used to perform multihead
+            attention).
+        mask: torch.Tensor, optional
+            The mask for the src sequence (optional).
+        padding_mask: torch.Tensor, optional
+            The mask for the src keys per batch (optional).
+
+        """
+        output = src
+        state = state or [None] * len(self.layers)
+
+        new_states = []
+        for i in range(self.num_layers):
+            output, new_state = self.layers[i](output,
+                                               state=state[i:i + 1],  # Keeps the first dimension
+                                               src_mask=mask,
+                                               padding_mask=padding_mask)
+            new_states.append(new_state)
+
+        new_states = torch.stack(new_states, dim=0)
+        return output, new_states
+
+    def _reset_parameters(self):
+        """Initiate parameters in the transformer model."""
+        for p in self.parameters():
+            if p.dim() > 1:
+                xavier_uniform_(p)
+
+
+class TransformerSRUDecoder(Module):
     """A TransformerSRUDecoderwith an SRU replacing the FFN."""
 
     def __init__(self,
@@ -157,14 +281,70 @@ class TransformerSRUDecoder(TransformerDecoder):
         Extra keyword arguments are passed to the SRUCell.
 
         """
-        decoder_layer = TransformerSRUDecoderLayer(d_model,
-                                                   nhead,
-                                                   dim_feedforward,
-                                                   dropout,
-                                                   sru_dropout)
+        super().__init__()
 
-        self.layers = _get_clones(decoder_layer, num_layers)
+        layer = TransformerSRUDecoderLayer(d_model,
+                                           nhead,
+                                           dim_feedforward,
+                                           dropout,
+                                           sru_dropout)
+
+        self.layers = nn.ModuleList([copy.deepcopy(layer) for _ in range(num_layers)])
         self._reset_parameters()
+
+    def forward(self,  # type: ignore
+                tgt: torch.Tensor,
+                memory: torch.Tensor,
+                state: Optional[torch.Tensor] = None,
+                tgt_mask: Optional[torch.Tensor] = None,
+                memory_mask: Optional[torch.Tensor] = None,
+                padding_mask: Optional[torch.Tensor] = None,
+                memory_key_padding_mask: Optional[torch.Tensor] = None) -> torch.Tensor:
+        """Pass the inputs (and mask) through the decoder layer in turn.
+
+        Parameters
+        ----------
+        tgt: torch.Tensor
+            The sequence to the decoder (required).
+        memory: torch.Tensor
+            The sequence from the last layer of the encoder (required).
+        state: Optional[torch.Tensor]
+            Optional state from previous sequence encoding.
+            Only passed to the SRU (not used to perform multihead
+            attention).
+        tgt_mask: torch.Tensor, optional
+            The mask for the tgt sequence (optional).
+        memory_mask: torch.Tensor, optional
+            The mask for the memory sequence (optional).
+        padding_mask: torch.Tensor, optional
+            The mask for the tgt keys per batch (optional).
+        memory_key_padding_mask: torch.Tensor, optional
+            The mask for the memory keys per batch (optional).
+
+        Returns
+        -------
+        torch.Tensor
+
+        """
+        output = tgt
+        state = state or [None] * len(self.layers)
+
+        for i in range(self.num_layers):
+            output = self.layers[i](output,
+                                    memory,
+                                    state=state[i],
+                                    tgt_mask=tgt_mask,
+                                    memory_mask=memory_mask,
+                                    padding_mask=padding_mask,
+                                    memory_key_padding_mask=memory_key_padding_mask)
+
+        return output
+
+    def _reset_parameters(self):
+        """Initiate parameters in the transformer model."""
+        for p in self.parameters():
+            if p.dim() > 1:
+                xavier_uniform_(p)
 
 
 class TransformerSRUEncoderLayer(Module):
@@ -200,7 +380,7 @@ class TransformerSRUEncoderLayer(Module):
         Extra keyword arguments are passed to the SRUCell.
 
         """
-        super(TransformerSRUEncoderLayer, self).__init__()
+        super().__init__()
 
         self.self_attn = nn.MultiheadAttention(d_model, nhead, dropout=dropout)
         self.sru = SRUCell(d_model,
@@ -218,17 +398,20 @@ class TransformerSRUEncoderLayer(Module):
 
     def forward(self,  # type: ignore
                 src: torch.Tensor,
-                memory: Optional[torch.Tensor] = None,
+                state: Optional[torch.Tensor] = None,
                 src_mask: Optional[torch.Tensor] = None,
-                src_key_padding_mask: Optional[torch.Tensor] = None) -> torch.Tensor:
+                src_key_padding_mask: Optional[torch.Tensor] = None
+                ) -> Tuple[torch.Tensor, torch.Tensor]:
         """Pass the input through the endocder layer.
 
         Parameters
         ----------
         src: torch.Tensor
-            The seqeunce to the encoder layer (required).
-        memory: Optional[torch.Tensor]
-            Optional memory from previous sequence.
+            The sequence to the encoder layer (required).
+        state: Optional[torch.Tensor]
+            Optional state from previous sequence encoding.
+            Only passed to the SRU (not used to perform multihead
+            attention).
         src_mask: torch.Tensor, optional
             The mask for the src sequence (optional).
         src_key_padding_mask: torch.Tensor, optional
@@ -239,10 +422,12 @@ class TransformerSRUEncoderLayer(Module):
                               key_padding_mask=src_key_padding_mask)[0]
         src = src + self.dropout1(src2)
         src = self.norm1(src)
-        src2 = self.linear2(self.sru(src, memory, mask_pad=src_key_padding_mask))
+        src2, state = self.sru(src, state, mask_pad=src_key_padding_mask)
+        src2 = self.linear2(src2)
         src = src + self.dropout2(src2)
         src = self.norm2(src)
-        return src
+
+        return src, state
 
 
 class TransformerSRUDecoderLayer(Module):
@@ -274,7 +459,7 @@ class TransformerSRUDecoderLayer(Module):
         Extra keyword arguments are passed to the SRUCell.
 
         """
-        super(TransformerSRUDecoderLayer, self).__init__()
+        super().__init__()
 
         self.self_attn = nn.MultiheadAttention(d_model, nhead, dropout=dropout)
         self.multihead_attn = nn.MultiheadAttention(d_model, nhead, dropout=dropout)
@@ -296,6 +481,7 @@ class TransformerSRUDecoderLayer(Module):
     def forward(self,  # type: ignore
                 tgt: torch.Tensor,
                 memory: torch.Tensor,
+                state: Optional[torch.Tensor] = None,
                 tgt_mask: Optional[torch.Tensor] = None,
                 memory_mask: Optional[torch.Tensor] = None,
                 tgt_key_padding_mask: Optional[torch.Tensor] = None,
@@ -307,7 +493,11 @@ class TransformerSRUDecoderLayer(Module):
         tgt: torch.Tensor
             The sequence to the decoder layer (required).
         memory: torch.Tensor
-            The sequnce from the last layer of the encoder (required).
+            The sequence from the last layer of the encoder (required).
+        state: Optional[torch.Tensor]
+            Optional state from previous sequence encoding.
+            Only passed to the SRU (not used to perform multihead
+            attention).
         tgt_mask: torch.Tensor, optional
             The mask for the tgt sequence (optional).
         memory_mask: torch.Tensor, optional
@@ -326,7 +516,8 @@ class TransformerSRUDecoderLayer(Module):
                                    key_padding_mask=memory_key_padding_mask)[0]
         tgt = tgt + self.dropout2(tgt2)
         tgt = self.norm2(tgt)
-        tgt2 = self.linear2(self.sru(tgt, memory, mask_pad=tgt_key_padding_mask))
+        tgt2, _ = self.sru(tgt, state, mask_pad=tgt_key_padding_mask)
+        tgt2 = self.linear2(tgt2)
         tgt = tgt + self.dropout3(tgt2)
         tgt = self.norm3(tgt)
 
