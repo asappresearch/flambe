@@ -94,7 +94,7 @@ class NGramsTokenizer(Tokenizer):
             The output word tokens, as a list of strings
 
         """
-        if self.exclude_stopwords:
+        if self.exclude_stopwords and self.stop_words:
             example = ' '.join([word for word in word_tokenize(example)
                                 if word not in self.stop_words])
 
