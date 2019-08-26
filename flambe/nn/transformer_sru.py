@@ -202,6 +202,8 @@ class TransformerSRUEncoder(Module):
                                            bidirectional)
 
         self.layers = nn.ModuleList([copy.deepcopy(layer) for _ in range(num_layers)])
+        self.num_layers = num_layers
+
         self._reset_parameters()
 
     def forward(self,  # type: ignore
@@ -226,7 +228,7 @@ class TransformerSRUEncoder(Module):
 
         """
         output = src
-        state = state or [None] * len(self.layers)
+        state = state or [None] * self.num_layers
 
         new_states = []
         for i in range(self.num_layers):
@@ -290,6 +292,8 @@ class TransformerSRUDecoder(Module):
                                            sru_dropout)
 
         self.layers = nn.ModuleList([copy.deepcopy(layer) for _ in range(num_layers)])
+        self.num_layers = num_layers
+
         self._reset_parameters()
 
     def forward(self,  # type: ignore
@@ -327,7 +331,7 @@ class TransformerSRUDecoder(Module):
 
         """
         output = tgt
-        state = state or [None] * len(self.layers)
+        state = state or [None] * self.num_layers
 
         for i in range(self.num_layers):
             output = self.layers[i](output,

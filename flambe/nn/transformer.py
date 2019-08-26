@@ -187,6 +187,8 @@ class TransformerEncoder(Module):
                                         dropout)
 
         self.layers = nn.ModuleList([copy.deepcopy(layer) for _ in range(num_layers)])
+        self.num_layers = num_layers
+
         self._reset_parameters()
 
     def forward(self,  # type: ignore
@@ -258,6 +260,8 @@ class TransformerDecoder(Module):
                                         dropout)
 
         self.layers = nn.ModuleList([copy.deepcopy(layer) for _ in range(num_layers)])
+        self.num_layers = num_layers
+
         self._reset_parameters()
 
     def forward(self,  # type: ignore
