@@ -10,7 +10,8 @@ from flambe.tokenizer import Tokenizer
 
 
 class WordTokenizer(Tokenizer):
-    """Implement a word level tokenizer using nltk.tokenize.word_tokenize ."""
+    """Implement a word level tokenizer using
+       nltk.tokenize.word_tokenize """
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         nltk.download('punkt')
@@ -50,16 +51,17 @@ class NGramsTokenizer(Tokenizer):
         An int or a list of ints. If it's a list of ints, all n-grams
         (for each int) will be considered in the tokenizer.
     exclude_stopwords: bool
-        Whether to exlude stopword or not. See the related param stop_words
+        Whether to exlude stopword or not.
+        See the related param stop_words
     stop_words: Optional[List]
-        List of stop words to exclude when exclude_stopwords is True. If None
-        set to nltk.corpus.stopwords.
+        List of stop words to exclude when exclude_stopwords is True.
+        If None set to nltk.corpus.stopwords.
 
     """
     def __init__(self, ngrams: Union[int, List[int]] = 1,
                  exclude_stopwords: bool = False,
                  stop_words: Optional[List] = None) -> None:
-        """[summary]
+        """ Initialize the NGramsTokenizer
 
         Parameters
         ----------
