@@ -211,7 +211,7 @@ Full configuration
           rnn_type: sru
           n_layers: 2
           hidden_size: 256
-        pooling: !LastPooling
+        pooling: last
       output_layer: !SoftmaxLayer
         input_size: !@ student.embedder.encoder.hidden_size
         output_size: !@ dataset.label.vocab_size
