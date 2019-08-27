@@ -196,6 +196,8 @@ class Schema(MutableMapping[str, Any]):
                                                schematic_path=new_path)
                         if present:
                             return present, temp
+                elif child is original_link:
+                    return False, []
             return False, []
 
         return helper(self, [])
@@ -523,6 +525,7 @@ class Link(Registrable):
             return self._resolved  # type: ignore
         if self.target is None:
             raise Exception('Link object was not properly updated')
+        print(f"schematic={self.schematic_path}, attr={self.attr_path}, target={self.target}")
         current_obj = self.target
         if isinstance(current_obj, Link):
             current_obj()
@@ -602,7 +605,7 @@ class Link(Registrable):
     def convert(self) -> Callable[..., Any]:
         if self.local:
             return ray.tune.function(lambda spec: eval(f'spec'))  # TODO what do here
-        return ray.tune.function(lambda spec: eval(f'spec.config.params.{self.var_name}'))
+        return ray.tune.function(lambda spec: eval(f'spec.config.params.{self.root_schema}'))
 
 
 @alias('call')
