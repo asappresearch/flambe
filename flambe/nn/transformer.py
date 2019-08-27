@@ -9,7 +9,6 @@ from typing import Optional
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from torch.nn.init import xavier_uniform_
 
 from flambe.nn import Module
 
@@ -224,7 +223,7 @@ class TransformerEncoder(Module):
         """Initiate parameters in the transformer model."""
         for p in self.parameters():
             if p.dim() > 1:
-                xavier_uniform_(p)
+                nn.init.xavier_uniform_(p)
 
 
 class TransformerDecoder(Module):
@@ -309,7 +308,7 @@ class TransformerDecoder(Module):
         """Initiate parameters in the transformer model."""
         for p in self.parameters():
             if p.dim() > 1:
-                xavier_uniform_(p)
+                nn.init.xavier_uniform_(p)
 
 
 class TransformerEncoderLayer(Module):

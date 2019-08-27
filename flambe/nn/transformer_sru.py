@@ -245,7 +245,7 @@ class TransformerSRUEncoder(Module):
         """Initiate parameters in the transformer model."""
         for p in self.parameters():
             if p.dim() > 1:
-                xavier_uniform_(p)
+                nn.init.xavier_uniform_(p)
 
 
 class TransformerSRUDecoder(Module):
@@ -348,7 +348,7 @@ class TransformerSRUDecoder(Module):
         """Initiate parameters in the transformer model."""
         for p in self.parameters():
             if p.dim() > 1:
-                xavier_uniform_(p)
+                nn.init.xavier_uniform_(p)
 
 
 class TransformerSRUEncoderLayer(Module):
