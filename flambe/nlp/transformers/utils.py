@@ -184,7 +184,7 @@ class TransformerEmbedder(Module):
         return output
 
     def __getattr__(self, name: str) -> Any:
-        """Overried getattr to inspect config.
+        """Override getattr to inspect config.
 
         Parameters
         ----------
