@@ -17,10 +17,6 @@ class Embeddings(Module, nn.Embedding):
     during the registration of PyTorch objects.
 
     """
-    # def __init__(self, *args, **kwargs):
-    #     """Initialize the Embeddings Module"""
-    #     Module.__init__(self)
-    #     nn.Embedding.__init__(self, *args, **kwargs)
 
     @registrable_factory
     @classmethod

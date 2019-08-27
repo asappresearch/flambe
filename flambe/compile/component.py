@@ -629,9 +629,6 @@ class Component(Registrable):
 
     _flambe_version = '0.0.0'  # >0.0.0 opts into semantic versioning
 
-    def __init__(self, *args, **kwargs) -> None:
-        pass
-
     def run(self) -> bool:
         """Run a single computational step.
 
@@ -1112,7 +1109,7 @@ class Component(Registrable):
             instance = flambe_load(path)
         else:
             loaded_state = load_state_from_file(path)
-            instance = cls(**kwargs)  # type: ignore
+            instance = cls(**kwargs)
             instance.load_state(loaded_state)
         return instance
 

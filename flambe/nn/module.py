@@ -1,6 +1,6 @@
 import math
 from typing import Iterator, Tuple
-from collections import OrderedDict
+
 import torch.nn as nn
 
 from flambe.compile import Component
@@ -18,14 +18,6 @@ class Module(Component, nn.Module):
     every Pytorch module, a forward method should be implemented.
 
     """
-
-    def __init__(self) -> None:
-        """Initialize Module."""
-        Component.__init__(self)
-        nn.Module.__init__(self)
-
-        self._register_state_dict_hook(self._state_dict_hook)
-        self._register_load_state_dict_pre_hook(self._load_state_dict_hook)
 
     @property
     def named_trainable_params(self) -> Iterator[Tuple[str, nn.Parameter]]:
