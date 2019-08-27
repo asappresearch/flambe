@@ -375,6 +375,10 @@ class TransformerEncoderLayer(Module):
             The mask for the src keys per batch (optional).
 
         """
+        # Transpose anr reverse
+        if padding_mask is not None:
+            padding_mask = (-padding_mask + 1).t()
+
         src2 = self.self_attn(src, src, src, attn_mask=src_mask,
                               key_padding_mask=padding_mask)[0]
         src = src + self.dropout1(src2)
@@ -459,6 +463,10 @@ class TransformerDecoderLayer(Module):
             the mask for the memory keys per batch (optional).
 
         """
+        # Transpose anr reverse
+        if padding_mask is not None:
+            padding_mask = (-padding_mask + 1).t()
+
         tgt2 = self.self_attn(tgt, tgt, tgt, attn_mask=tgt_mask,
                               key_padding_mask=padding_mask)[0]
         tgt = tgt + self.dropout1(tgt2)

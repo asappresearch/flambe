@@ -404,7 +404,7 @@ class TransformerSRUEncoderLayer(Module):
                 src: torch.Tensor,
                 state: Optional[torch.Tensor] = None,
                 src_mask: Optional[torch.Tensor] = None,
-                src_key_padding_mask: Optional[torch.Tensor] = None
+                padding_mask: Optional[torch.Tensor] = None
                 ) -> Tuple[torch.Tensor, torch.Tensor]:
         """Pass the input through the endocder layer.
 
@@ -418,15 +418,20 @@ class TransformerSRUEncoderLayer(Module):
             attention).
         src_mask: torch.Tensor, optional
             The mask for the src sequence (optional).
-        src_key_padding_mask: torch.Tensor, optional
+        padding_mask: torch.Tensor, optional
             The mask for the src keys per batch (optional).
 
         """
+        # Transpose and reverse
+        reversed_mask = None
+        if padding_mask is not None:
+            reversed_mask = (-padding_mask + 1)
+
         src2 = self.self_attn(src, src, src, attn_mask=src_mask,
-                              key_padding_mask=src_key_padding_mask)[0]
+                              key_padding_mask=reversed_mask)[0]
         src = src + self.dropout1(src2)
         src = self.norm1(src)
-        src2, state = self.sru(src, state, mask_pad=src_key_padding_mask)
+        src2, state = self.sru(src, state, mask_pad=padding_mask)
         src2 = self.linear2(src2)
         src = src + self.dropout2(src2)
         src = self.norm2(src)
@@ -488,7 +493,7 @@ class TransformerSRUDecoderLayer(Module):
                 state: Optional[torch.Tensor] = None,
                 tgt_mask: Optional[torch.Tensor] = None,
                 memory_mask: Optional[torch.Tensor] = None,
-                tgt_key_padding_mask: Optional[torch.Tensor] = None,
+                padding_mask: Optional[torch.Tensor] = None,
                 memory_key_padding_mask: Optional[torch.Tensor] = None) -> torch.Tensor:
         r"""Pass the inputs (and mask) through the decoder layer.
 
@@ -506,21 +511,26 @@ class TransformerSRUDecoderLayer(Module):
             The mask for the tgt sequence (optional).
         memory_mask: torch.Tensor, optional
             the mask for the memory sequence (optional).
-        tgt_key_padding_mask: torch.Tensor, optional
+        padding_mask: torch.Tensor, optional
             the mask for the tgt keys per batch (optional).
         memory_key_padding_mask: torch.Tensor, optional
             the mask for the memory keys per batch (optional).
 
         """
+        # Transpose and reverse
+        reversed_mask = None
+        if padding_mask is not None:
+            reversed_mask = (-padding_mask + 1)
+
         tgt2 = self.self_attn(tgt, tgt, tgt, attn_mask=tgt_mask,
-                              key_padding_mask=tgt_key_padding_mask)[0]
+                              key_padding_mask=reversed_mask)[0]
         tgt = tgt + self.dropout1(tgt2)
         tgt = self.norm1(tgt)
         tgt2 = self.multihead_attn(tgt, memory, memory, attn_mask=memory_mask,
                                    key_padding_mask=memory_key_padding_mask)[0]
         tgt = tgt + self.dropout2(tgt2)
         tgt = self.norm2(tgt)
-        tgt2, _ = self.sru(tgt, state, mask_pad=tgt_key_padding_mask)
+        tgt2, _ = self.sru(tgt, state, mask_pad=padding_mask)
         tgt2 = self.linear2(tgt2)
         tgt = tgt + self.dropout3(tgt2)
         tgt = self.norm3(tgt)
