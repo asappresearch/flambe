@@ -35,7 +35,7 @@ any number of features.
           :class:`~flambe.dataset.Dataset`.
 
 
-In this example, we apply a :class:`~flambe.nlp.transformers.bert.BERTTextField`
+In this example, we apply a :class:`~flambe.nlp.transformers.bert.BertTextField`
 and a :class:`~flambe.field.LabelField`.
 
 
@@ -43,9 +43,8 @@ and a :class:`~flambe.field.LabelField`.
 
     dataset: !SSTDataset
         transform:
-            text: !BERTTextField.from_alias
+            text: !BertTextField
                 alias: 'bert-base-uncased'
-                lower: true
             label: !LabelField
 
 .. tip::
@@ -57,30 +56,25 @@ and a :class:`~flambe.field.LabelField`.
         transform:
             text:
                 columns: 0
-                field: !BERTTextField.from_alias
+                field: !BertTextField
                     alias: 'bert-base-uncased'
-                    lower: true
             label:
                 columns: 1
                 field: !LabelField
 
 Next we define our model. We use the :class:`~flambe.nlp.classification.TextClassifier`
-object, which takes an :class:`~flambe.nn.Embedder`, and an output layer:
+object, which takes an :class:`~flambe.nn.Embedder`, and an output layer. Here,
+we use the :class:`~flambe.nlp.transformer.BertEmbedder` 
 
 .. code-block:: yaml
 
     teacher: !TextClassifier
 
-      embedder: !Embedder
-        embedding: !BERTEmbeddings.from_alias
-          path: 'bert-base-uncased'
-          embedding_freeze: True
-        encoder: !BERTEncoder.from_alias
-          path: 'bert-base-uncased'
-          pool_last: True
+      embedder: !BertEmbedder
+        pool: True
 
       output_layer: !SoftmaxLayer
-        input_size: !@ model.embedder.encoder.config.hidden_size
+        input_size: !@ model.embedder.hidden_size
         output_size: !@ dataset.label.vocab_size  # We link the to size of the label space
 
 Finally we put all of this in a :class:`~flambe.learn.Trainer` object, which will execute training.
@@ -117,14 +111,15 @@ We now introduce a second model, which we will call the student model:
     student: !TextClassifier
 
       embedder: !Embedder
-        embedding: !BERTEmbeddings.from_alias
-          path: 'bert-base-uncased'
-          embedding_freeze: True
+        embedding: !Embeddings
+          num_embeddings: !@dataset.text.vocab_size
+          embedding_dim: 300
         encoder: !PooledRNNEncoder
+          input_size: 300
           rnn_type: sru
           n_layers: 2
           hidden_size: 256
-          pooling: last
+        pooling: !LastPooling
       output_layer: !SoftmaxLayer
         input_size: !@ student.embedder.encoder.hidden_size
         output_size: !@ dataset.label.vocab_size
@@ -195,33 +190,28 @@ Full configuration
 
     dataset: !SSTDataset
         transform:
-            text: !BERTTextField.from_alias
+            text: !BertTextField
                 alias: 'bert-base-uncased'
-                lower: true
             label: !LabelField
 
     teacher: !TextClassifier
-      embedder: !Embedder
-        embedding: !BERTEmbeddings.from_alias
-          path: 'bert-base-uncased'
-          embedding_freeze: True
-        encoder: !BERTEncoder.from_alias
-          path: 'bert-base-uncased'
-          pool_last: True
+      embedder: !BertEmbedder
+        pool: True
       output_layer: !SoftmaxLayer
-        input_size: !@ teacher.embedder.encoder.config.hidden_size
+        input_size: !@ teacher.embedder.hidden_size
         output_size: !@ dataset.label.vocab_size  # We link the to size of the label space
 
     student: !TextClassifier
       embedder: !Embedder
-        embedding: !BERTEmbeddings.from_alias
-          path: 'bert-base-uncased'
-          embedding_freeze: True
+        embedding: !Embeddings
+          num_embeddings: !@ dataset.text.vocab_size
+          embedding_dim: 300
         encoder: !PooledRNNEncoder
+          input_size: 300
           rnn_type: sru
           n_layers: 2
           hidden_size: 256
-          pooling: last
+        pooling: last
       output_layer: !SoftmaxLayer
         input_size: !@ student.embedder.encoder.hidden_size
         output_size: !@ dataset.label.vocab_size
