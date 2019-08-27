@@ -10,7 +10,7 @@ from flambe.nn import Module
 
 class TransformerTextField(Field):
 
-    _cls: Type[pt.PretrainedTokenizer]
+    _cls: Type[pt.tokenization_utils.PreTrainedTokenizer]
 
     def __init__(self,
                  alias: str,
@@ -81,7 +81,7 @@ class TransformerTextField(Field):
             The processed example, tokenized and numericalized
 
         """
-        tokens = self._tokenizer.tokenize(example)
+        tokens = self._tokenizer.encode(example)
 
         if self.max_len_truncate is not None:
             tokens = tokens[:self.max_len_truncate]
@@ -91,7 +91,7 @@ class TransformerTextField(Field):
 
 class TransformerEmbedder(Module):
 
-    _cls: Type[pt.PreTrainedModel]
+    _cls: Type[pt.modeling_utils.PreTrainedModel]
 
     def __init__(self,
                  alias: str,
@@ -113,8 +113,11 @@ class TransformerEmbedder(Module):
             encoding. Default ``False``.
 
         """
-        self._embedder = self._cls.from_pretrained(alias, cache_dir, **kwargs)
-        self.config = self._embedder.config
+        super().__init__()
+
+        embedder = self._cls.from_pretrained(alias, cache_dir=cache_dir, **kwargs)
+        self.config = embedder.config
+        self._embedder = embedder
         self.padding_idx = padding_idx
         self.pool = pool
 
@@ -194,7 +197,11 @@ class TransformerEmbedder(Module):
             The attribute
 
         """
-        if hasattr(self.config, name):
-            return getattr(self.config, name)
-
-        return super().__getattr__(name)
+        try:
+            return super().__getattr__(name)
+        except AttributeError as e:
+            config = self.__dict__['config']
+            if hasattr(config, name):
+                return getattr(config, name)
+            else:
+                raise e
