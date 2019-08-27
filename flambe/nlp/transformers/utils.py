@@ -180,7 +180,7 @@ class TransformerEmbedder(Module):
                                  position_ids=position_ids,
                                  head_mask=head_mask)
 
-        output = outputs[0] if not self.pool else outputs[1]
+        output = outputs[0].t(0, 1) if not self.pool else outputs[1]
         return output
 
     def __getattr__(self, name: str) -> Any:
