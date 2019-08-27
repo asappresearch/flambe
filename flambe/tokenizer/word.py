@@ -10,7 +10,10 @@ from flambe.tokenizer import Tokenizer
 
 
 class WordTokenizer(Tokenizer):
-    """Implement a word level tokenizer."""
+    """Implement a word level tokenizer using nltk.tokenize.word_tokenize ."""
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        nltk.download('punkt')
 
     def tokenize(self, example: str) -> List[str]:
         """Tokenize an input example.
@@ -26,7 +29,6 @@ class WordTokenizer(Tokenizer):
             The output word tokens, as a list of strings
 
         """
-        nltk.download('punkt')
         return word_tokenize(example)
 
 
@@ -47,9 +49,15 @@ class NGramsTokenizer(Tokenizer):
     ngrams: Union[int, List[int]]
         An int or a list of ints. If it's a list of ints, all n-grams
         (for each int) will be considered in the tokenizer.
+    exclude_stopwords: bool
+        Whether to exlude stopword or not. See the related param stop_words
+    stop_words: Optional[List]
+        List of stop words to exclude when exclude_stopwords is True. If None
+        set to nltk.corpus.stopwords.
 
     """
-    def __init__(self, ngrams: Union[int, List[int]] = 1, exclude_stopwords: bool = False,
+    def __init__(self, ngrams: Union[int, List[int]] = 1,
+                 exclude_stopwords: bool = False,
                  stop_words: Optional[List] = None) -> None:
         """[summary]
 
@@ -57,6 +65,10 @@ class NGramsTokenizer(Tokenizer):
         ----------
         ngrams : Union[int, List[int]], optional
             [description], by default 1
+        exclude_stopwords: bool
+            [description], by default False
+        stop_words: Optional[List]
+            [description], by default None
 
         Returns
         -------
@@ -72,12 +84,13 @@ class NGramsTokenizer(Tokenizer):
                 nltk.download('stopwords')
                 self.stop_words = stopwords.words('english')
 
+        nltk.download('punkt')
+
     @staticmethod
     def _tokenize(example: str, n: int) -> List[str]:
         """Tokenize an input example using ngrams.
 
         """
-        nltk.download('punkt')
         return list(" ".join(x) if len(x) > 1 else x[0] for x in ngrams(word_tokenize(example), n))
 
     def tokenize(self, example: str) -> List[str]:
