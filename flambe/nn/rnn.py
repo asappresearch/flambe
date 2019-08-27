@@ -1,4 +1,5 @@
 from typing import Optional, Tuple, cast
+import warnings
 
 import torch
 from torch import nn
@@ -191,7 +192,8 @@ class PooledRNNEncoder(Module):
         """
         super().__init__()
 
-        print("WARNING: Deprecated, please use the Pooling module in the Embedder")
+        warnings.warn("PooledRNNEncoder is deprecated, please use the Pooling \
+                       module in the Embedder object", DeprecationWarning)
 
         self.pooling = pooling
         self.rnn = RNNEncoder(input_size,
