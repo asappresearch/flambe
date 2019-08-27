@@ -1,10 +1,6 @@
 import pytest
 import tempfile
-import shutil
 import sys
-from io import StringIO
-import importlib
-import copy
 
 from flambe.runnable import SafeExecutionContext, error
 
@@ -340,3 +336,29 @@ flambe_script: tests/data/dummy_extensions/runnable
     with pytest.raises(AttributeError):
         ex = context(config)
         ex.preprocess(install_ext=True)
+
+
+def test_preprocessor_unknown_tag(context):
+    config = """
+    !Experiment
+
+    name: random-name
+
+    pipeline:
+        b0: !Something
+    """
+    with pytest.raises(error.TagError):
+        context('').check_tags(config)
+
+
+def test_preprocessor_unknown_factory(context):
+    config = """
+    !Experiment
+
+    name: random-name
+
+    pipeline:
+        b0: !Trainer.something
+    """
+    with pytest.raises(error.TagError):
+        context('').check_tags(config)
