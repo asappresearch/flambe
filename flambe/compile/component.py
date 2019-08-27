@@ -173,23 +173,32 @@ class Schema(MutableMapping[str, Any]):
 
         return exts
 
-    def contains(self, schema: 'Schema') -> bool:
-        schematic_path = []
+    def contains(self, schema: 'Schema', original_link: 'Link') -> bool:
         if self is schema:
-            return True, schematic_path
+            return True, []
 
-        def helper(current, name):
+        def helper(current, schematic_path):
             if current is schema:
-                schematic_path.append(name)
+                schematic_path = [''] if len(schematic_path) == 0 else schematic_path
                 return True, schematic_path
             for key, child in current.keywords.items():
+                new_path = schematic_path[:] + [key]
                 if isinstance(child, Schema):
-                    present, temp = helper(current=child, name=key)
+                    present, temp = helper(current=child, schematic_path=new_path)
                     if present:
                         return present, temp
+                if isinstance(child, Link) and child is not original_link:
+                    resolved = child._resolved
+                    if hasattr(resolved, '_schema'):
+                        # Pass through the link to the original object
+                        # TODO enforce links to earlier objects
+                        present, temp = helper(current=child._resolved._schema,
+                                               schematic_path=new_path)
+                        if present:
+                            return present, temp
             return False, []
 
-        return helper(self, '')
+        return helper(self, [])
 
     def __setitem__(self, key: str, value: Any) -> None:
         self.keywords[key] = value
@@ -405,7 +414,6 @@ def parse_link_str(link_str: str) -> Tuple[Sequence[str], Sequence[str]]:
             if len(temp[0]) != 0:
                 if len(schematic_path) != 0:
                     # Error case: ]text[
-                    print(schematic_path)
                     raise MalformedLinkError(f"Text between brackets in {link_str}")
                 # Beginning object name
                 schematic_path.append(temp[0])
@@ -500,6 +508,7 @@ class Link(Registrable):
         self.schematic_path = schematic_path
         self.attr_path = attr_path
         self.target = target
+        self.target_leaf = None
         self.local = local
 
     @property
@@ -514,10 +523,16 @@ class Link(Registrable):
             return self._resolved  # type: ignore
         if self.target is None:
             raise Exception('Link object was not properly updated')
-        current_obj = self.target() if isinstance(self.target, Link) else self.target
+        current_obj = self.target
+        if isinstance(current_obj, Link):
+            current_obj()
+            current_obj = current_obj.target_leaf
         for schema in self.schematic_path[1:]:
             current_obj = current_obj.keywords[schema]
-            current_obj = current_obj() if isinstance(current_obj, Link) else current_obj
+            if isinstance(current_obj, Link):
+                current_obj()
+                current_obj = current_obj.target_leaf
+        self.target_leaf = current_obj
         if isinstance(current_obj, Schema):
             if current_obj._compiled is not None:
                 current_obj = current_obj._compiled
@@ -557,7 +572,7 @@ class Link(Registrable):
         global _link_context_active
         global _link_obj_stash
         if _link_context_active:
-            present, schematic_path = _link_root_obj._schema.contains(node.target)
+            present, schematic_path = _link_root_obj._schema.contains(node.target_leaf, node)
             if present:
                 link_str = create_link_str(schematic_path, node.attr_path)
                 return representer.represent_scalar(tag, link_str)
@@ -878,8 +893,8 @@ class Component(Registrable):
                 global _link_obj_stash
                 if len(_link_obj_stash) > 0:
                     local_metadata[FLAMBE_STASH_KEY] = copy.deepcopy(_link_obj_stash)
-            except AttributeError:
-                pass
+            except AttributeError as ae:
+                raise ae
         # 2 need to recurse on Components
         # Iterating over __dict__ does NOT include pytorch children
         # modules, parameters or buffers

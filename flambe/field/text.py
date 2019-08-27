@@ -79,7 +79,7 @@ class TextField(Field):
             Otherwise, all of them map to the '<unk>' token.
 
         """
-        self.tokenizer = tokenizer or WordTokenizer()
+        self.tokenizer = tokenizer or WordTokenizer.compile()
         self.lower = lower
 
         self.pad = pad_token

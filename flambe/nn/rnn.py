@@ -195,15 +195,15 @@ class PooledRNNEncoder(Module):
         super().__init__()
 
         self.pooling = pooling
-        self.rnn = RNNEncoder(input_size,
-                              hidden_size,
-                              n_layers,
-                              rnn_type,
-                              dropout,
-                              bidirectional,
-                              layer_norm,
-                              highway_bias,
-                              rescale)
+        self.rnn = RNNEncoder.compile(input_size=input_size,
+                                      hidden_size=hidden_size,
+                                      n_layers=n_layers,
+                                      rnn_type=rnn_type,
+                                      dropout=dropout,
+                                      bidirectional=bidirectional,
+                                      layer_norm=layer_norm,
+                                      highway_bias=highway_bias,
+                                      rescale=rescale)
 
     def forward(self,
                 data: Tensor,
