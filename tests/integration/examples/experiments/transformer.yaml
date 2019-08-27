@@ -18,7 +18,7 @@ pipeline:
           positional_encoding: True
           positional_learned: True
         embedding_dropout: 0.2
-        encoder: !TransformerSRUEncoder
+        encoder: !TransformerEncoder
           d_model: 300
           num_layers: 4
           nhead: 1
