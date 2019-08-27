@@ -101,7 +101,7 @@ class TransformerSRU(Module):
             shape: :math:`(T, S)`.
         src_key_padding_mask: torch.Tensor, optional
             the ByteTensor mask for src keys per batch (optional).
-            shape: :math:`(N, S)`
+            shape: :math:`(N, S)`.
         tgt_key_padding_mask: torch.Tensor, optional
             the ByteTensor mask for tgt keys per batch (optional).
             shape: :math:`(N, T)`.
@@ -120,8 +120,8 @@ class TransformerSRU(Module):
             only on the unmasked positions j and are applied identically
             for each sequence in a batch.
             [src/tgt/memory]_key_padding_mask should be a ByteTensor
-            where True values are positions that should be masked with
-            float('-inf') and False values will be unchanged.
+            where False values are positions that should be masked with
+            float('-inf') and True values will be unchanged.
             This mask ensures that no information will be taken from
             position i if it is masked, and has a separate mask for each
             sequence in a batch.
@@ -225,15 +225,17 @@ class TransformerSRUEncoder(Module):
             The mask for the src sequence (optional).
         padding_mask: torch.Tensor, optional
             The mask for the src keys per batch (optional).
+            Should be True for tokens to leave untouched, and False
+            for padding tokens.
 
         """
         output = src
-        state = state or [None] * self.num_layers
 
         new_states = []
         for i in range(self.num_layers):
+            input_state = state[i] if state is not None else None
             output, new_state = self.layers[i](output,
-                                               state=state[i:i + 1],  # Keeps the first dimension
+                                               state=input_state,
                                                src_mask=mask,
                                                padding_mask=padding_mask)
             new_states.append(new_state)
@@ -322,6 +324,8 @@ class TransformerSRUDecoder(Module):
             The mask for the memory sequence (optional).
         padding_mask: torch.Tensor, optional
             The mask for the tgt keys per batch (optional).
+            Should be True for tokens to leave untouched, and False
+            for padding tokens.
         memory_key_padding_mask: torch.Tensor, optional
             The mask for the memory keys per batch (optional).
 
@@ -420,6 +424,15 @@ class TransformerSRUEncoderLayer(Module):
             The mask for the src sequence (optional).
         padding_mask: torch.Tensor, optional
             The mask for the src keys per batch (optional).
+            Should be True for tokens to leave untouched, and False
+            for padding tokens.
+
+        Returns
+        -------
+        torch.Tensor
+            Output Tensor of shape [S x B x H]
+        torch.Tensor
+            Output state of the SRU of shape [N x B x H]
 
         """
         # Transpose and reverse
@@ -515,6 +528,11 @@ class TransformerSRUDecoderLayer(Module):
             the mask for the tgt keys per batch (optional).
         memory_key_padding_mask: torch.Tensor, optional
             the mask for the memory keys per batch (optional).
+
+        Returns
+        -------
+        torch.Tensor
+            Output Tensor of shape [S x B x H]
 
         """
         # Transpose and reverse

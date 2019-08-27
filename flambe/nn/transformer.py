@@ -118,8 +118,8 @@ class Transformer(Module):
             only on the unmasked positions j and are applied identically
             for each sequence in a batch.
             [src/tgt/memory]_key_padding_mask should be a ByteTensor
-            where True values are positions that should be masked with
-            float('-inf') and False values will be unchanged.
+            where False values are positions that should be masked with
+            float('-inf') and True values will be unchanged.
             This mask ensures that no information will be taken from
             position i if it is masked, and has a separate mask for each
             sequence in a batch.
@@ -207,6 +207,8 @@ class TransformerEncoder(Module):
             The mask for the src sequence (optional).
         padding_mask: torch.Tensor, optional
             The mask for the src keys per batch (optional).
+            Should be True for tokens to leave untouched, and False
+            for padding tokens.
 
         """
         output = src
@@ -284,6 +286,8 @@ class TransformerDecoder(Module):
             The mask for the memory sequence (optional).
         padding_mask: torch.Tensor, optional
             The mask for the tgt keys per batch (optional).
+            Should be True for tokens to leave untouched, and False
+            for padding tokens.
         memory_key_padding_mask: torch.Tensor, optional
             The mask for the memory keys per batch (optional).
 
@@ -372,6 +376,13 @@ class TransformerEncoderLayer(Module):
             The mask for the src sequence (optional).
         padding_mask: torch.Tensor, optional
             The mask for the src keys per batch (optional).
+            Should be True for tokens to leave untouched, and False
+            for padding tokens.
+
+        Returns
+        -------
+        torch.Tensor
+            Output tensor of shape [S x B x H]
 
         """
         # Transpose anr reverse
@@ -456,10 +467,17 @@ class TransformerDecoderLayer(Module):
             The mask for the tgt sequence (optional).
         memory_mask: torch.Tensor, optional
             the mask for the memory sequence (optional).
-        tgt_key_padding_mask: torch.Tensor, optional
+        padding_mask: torch.Tensor, optional
             the mask for the tgt keys per batch (optional).
+            Should be True for tokens to leave untouched, and False
+            for padding tokens.
         memory_key_padding_mask: torch.Tensor, optional
             the mask for the memory keys per batch (optional).
+
+        Returns
+        -------
+        torch.Tensor
+            Output tensor of shape [T x B x H]
 
         """
         # Transpose anr reverse
