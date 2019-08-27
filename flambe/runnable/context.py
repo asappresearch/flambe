@@ -105,7 +105,7 @@ class SafeExecutionContext:
             Whether to import the extensions or not.
             Defaults to True.
         check_tags: bool
-            Whether that all tags are valid. Defaults to True.
+            Whether to check that all tags are valid. Defaults to True.
 
         Returns
         -------
@@ -134,7 +134,8 @@ class SafeExecutionContext:
             import_modules(extensions.keys())
 
         # Check that all tags are valid
-        self.check_tags(content)
+        if check_tags:
+            self.check_tags(content)
 
         # Compile the runnable now that the extensions were imported.
         runnable = self.compile_runnable(content)
