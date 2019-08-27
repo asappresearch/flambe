@@ -1,4 +1,4 @@
-from typing import Optional, Type
+from typing import Optional, Type, Any
 
 import torch
 import numpy as np
@@ -43,6 +43,19 @@ class TransformerTextField(Field):
         pass
 
     @property
+    def padding_idx(self) -> int:
+        """Get the padding index.
+
+        Returns
+        -------
+        int
+            The padding index in the vocabulary
+
+        """
+        pad_token = self._tokenizer.pad_token
+        return self._tokenizer.convert_tokens_to_ids(pad_token)
+
+    @property
     def vocab_size(self) -> int:
         """Get the vocabulary length.
 
@@ -52,7 +65,7 @@ class TransformerTextField(Field):
             The length of the vocabulary
 
         """
-        return self._tokenizer.vocab_size
+        return len(self._tokenizer)
 
     def process(self, example: str) -> torch.Tensor:  # type: ignore
         """Process an example, and create a Tensor.
@@ -85,12 +98,12 @@ class TransformerEmbedder(Module):
                  cache_dir: Optional[str] = None,
                  padding_idx: Optional[int] = None,
                  pool: bool = False, **kwargs) -> None:
-        """Initialize from a pretrained tokenizer.
+        """Initialize from a pretrained model.
 
         Parameters
         ----------
         alias: str
-            Alias of a pretrained tokenizer.
+            Alias of a pretrained model.
         cache_dir: str, optional
             A directory where to cache the downloaded vocabularies.
         padding_idx: int, optional
@@ -101,6 +114,7 @@ class TransformerEmbedder(Module):
 
         """
         self._embedder = self._cls.from_pretrained(alias, cache_dir, **kwargs)
+        self.config = self._embedder.config
         self.padding_idx = padding_idx
         self.pool = pool
 
@@ -165,3 +179,22 @@ class TransformerEmbedder(Module):
 
         output = outputs[0] if not self.pool else outputs[1]
         return output
+
+    def __getattr__(self, name: str) -> Any:
+        """Overried getattr to inspect config.
+
+        Parameters
+        ----------
+        name : str
+            The attribute to fetch
+
+        Returns
+        -------
+        Any
+            The attribute
+
+        """
+        if hasattr(self.config, name):
+            return getattr(self.config, name)
+
+        return super().__getattr__(name)
