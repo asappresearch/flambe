@@ -629,6 +629,12 @@ class Component(Registrable):
 
     _flambe_version = '0.0.0'  # >0.0.0 opts into semantic versioning
 
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        if isinstance(self, torch.nn.Module):	
+            self._register_state_dict_hook(self._state_dict_hook)	
+            self._register_load_state_dict_pre_hook(self._load_state_dict_hook)
+
     def run(self) -> bool:
         """Run a single computational step.
 
