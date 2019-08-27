@@ -56,7 +56,7 @@ class LastPooling(Module):
         else:
             lengths = padding_mask.long().sum(dim=0)
 
-        return data[lengths - 1, torch.arange(data.size(0)).long(), :]
+        return data[lengths - 1, torch.arange(data.size(1)).long(), :]
 
 
 class SumPooling(Module):
