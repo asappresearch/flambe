@@ -281,7 +281,7 @@ class Trainer(Component):
                 metric(preds, targets).item(), self._step)  # type: ignore
 
     def run(self) -> bool:
-        """Train until the next checkpoint, and evaluate.
+        """Evaluate and then train until the next checkpoint
 
         Returns
         ------
