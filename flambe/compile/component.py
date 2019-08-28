@@ -376,7 +376,15 @@ class PickledDataLink(Registrable):
         return cls(obj_id=obj_id)
 
 
-class MalformedLinkError(Exception):
+class LinkError(Exception):
+    pass
+
+
+class MalformedLinkError(LinkError):
+    pass
+
+
+class UnpreparedLinkError(LinkError):
     pass
 
 
@@ -519,7 +527,7 @@ class Link(Registrable):
         if self.resolved is not None:
             return self.resolved  # type: ignore
         if self.target is None:
-            raise Exception('Link object was not properly updated')
+            raise UnpreparedLinkError('Link object was not properly updated')
         print(f"schematic={self.schematic_path}, attr={self.attr_path}, target={self.target}")
         current_obj: Any = self.target
 
@@ -527,8 +535,8 @@ class Link(Registrable):
             if isinstance(obj, Link):
                 obj()
                 obj = obj.resolved
-                if isinstance(obj, Component):
-                    obj = obj._schema
+            if isinstance(obj, Component):
+                obj = obj._schema
             return obj
 
         current_obj = auto_resolve_link_and_move_to_schema(current_obj)
@@ -540,9 +548,10 @@ class Link(Registrable):
             if current_obj._compiled is not None:
                 current_obj = current_obj._compiled
             else:
-                raise Exception(f"Cannot resolve link to non-compiled object {current_obj}. "
-                                "Remember only non-parent objects above the link in the config "
-                                " will be compiled when the link is resolved")
+                raise UnpreparedLinkError("Cannot resolve link to non-compiled object "
+                                          f"{current_obj}. Remember only non-parent objects above "
+                                          "the link in the config  will be compiled when the link "
+                                          "is resolved")
         if self.attr_path is not None:
             for attr in self.attr_path:
                 current_obj = getattr(current_obj, attr)
