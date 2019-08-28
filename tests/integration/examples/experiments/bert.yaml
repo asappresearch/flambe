@@ -11,6 +11,7 @@ pipeline:
 
   teacher: !TextClassifier
     embedder: !BertEmbedder
+      alias: 'bert-base-uncased' 
       pool: True
     output_layer: !SoftmaxLayer
       input_size: !@ teacher.embedder.hidden_size
