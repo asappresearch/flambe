@@ -297,6 +297,7 @@ class Trainer(Component):
         self._step += 1
         continue_ = self._step < self.max_steps
         if not continue_:
+            self._eval_step()
             self.model.load_state_dict(self._best_model)
 
         return continue_
