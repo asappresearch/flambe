@@ -345,9 +345,9 @@ top: !A
     bkw2: 'test'
 """
         schema_a = yaml.load(txt)['top']
-        assert schema_a.contains(schema_a)[0]
-        present, updated_path = schema_a.contains(schema_a.akw2)
+        assert schema_a.contains(schema_a, original_link=None)[0]
+        present, updated_path = schema_a.contains(schema_a.akw2, original_link=None)
         print(f"present: {present}, updated_path: {updated_path}")
         assert present
         assert updated_path == ['akw2']
-        assert not schema_a.akw2.contains(schema_a)[0]
+        assert not schema_a.akw2.contains(schema_a, original_link=None)[0]

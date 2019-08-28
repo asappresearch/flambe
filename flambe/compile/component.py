@@ -118,7 +118,7 @@ class Schema(MutableMapping[str, Any]):
             _flambe_stash=stash,
             **newkeywords)
         self._compiled = compiled
-        compiled._schema = self
+        compiled._schema = self  # type: ignore
         compiled._created_with_tag = self._created_with_tag  # type: ignore
         return compiled
 
@@ -173,7 +173,7 @@ class Schema(MutableMapping[str, Any]):
 
         return exts
 
-    def contains(self, schema: 'Schema', original_link: 'Link') -> bool:
+    def contains(self, schema: 'Schema', original_link: 'Link') -> Tuple[bool, List[str]]:
         if self is schema:
             return True, []
 
@@ -188,11 +188,11 @@ class Schema(MutableMapping[str, Any]):
                     if present:
                         return present, temp
                 if isinstance(child, Link) and child is not original_link:
-                    resolved = child._resolved
+                    resolved = child.resolved
                     if hasattr(resolved, '_schema'):
                         # Pass through the link to the original object
                         # TODO enforce links to earlier objects
-                        present, temp = helper(current=child._resolved._schema,
+                        present, temp = helper(current=child.resolved._schema,
                                                schematic_path=new_path)
                         if present:
                             return present, temp
@@ -315,8 +315,7 @@ yaml.representer.add_representer(Schema, Schema.to_yaml)
 
 # Used to contextualize the representation of links during YAML
 # representation
-_link_root_obj = None
-_link_prefix = None
+_link_root_obj: Optional['Component'] = None
 _link_context_active = False
 _link_obj_stash: Dict[str, Any] = {}
 
@@ -333,33 +332,27 @@ class contextualized_linking:
     def __init__(self, root_obj: Any, prefix: str) -> None:
         self.root_obj = root_obj
         self.prefix = prefix
-        self.old_root = None
-        self.old_prefix = None
+        self.old_root: Optional['Component'] = None
         self.old_active = False
         self.old_stash: Dict[str, Any] = {}
 
     def __enter__(self) -> 'contextualized_linking':
         global _link_root_obj
-        global _link_prefix
         global _link_context_active
         global _link_obj_stash
         self.old_root = _link_root_obj
-        self.old_prefix = _link_prefix
         self.old_active = _link_context_active
         self.old_stash = _link_obj_stash
         _link_root_obj = self.root_obj
-        _link_prefix = self.prefix
         _link_context_active = True
         _link_obj_stash = {}
         return self
 
     def __exit__(self, exc_type: Any, exc_value: Any, traceback: Any) -> None:
         global _link_root_obj
-        global _link_prefix
         global _link_context_active
         global _link_obj_stash
         _link_root_obj = self.old_root
-        _link_prefix = self.old_prefix
         _link_context_active = self.old_active
         _link_obj_stash = self.old_stash
 
@@ -444,7 +437,8 @@ def parse_link_str(link_str: str) -> Tuple[Sequence[str], Sequence[str]]:
     return schematic_path, attr_path
 
 
-def create_link_str(schematic_path: Sequence[str], attr_path: Sequence[str]) -> str:
+def create_link_str(schematic_path: Sequence[str],
+                    attr_path: Optional[Sequence[str]] = None) -> str:
     if len(schematic_path) == 0:
         raise MalformedLinkError("Can't create link without schematic path")
     root, schematic_path = schematic_path[0], schematic_path[1:]
@@ -452,7 +446,7 @@ def create_link_str(schematic_path: Sequence[str], attr_path: Sequence[str]) -> 
     attr_str = ''
     if len(schematic_path) > 0:
         schematic_str = '[' + "][".join(schematic_path) + ']'
-    if len(attr_path) > 0:
+    if attr_path is not None and len(attr_path) > 0:
         attr_str = '.' + '.'.join(attr_path)
     return root + schematic_str + attr_str
 
@@ -510,47 +504,49 @@ class Link(Registrable):
         self.schematic_path = schematic_path
         self.attr_path = attr_path
         self.target = target
-        self.target_leaf = None
+        self.target_leaf: Optional[Schema] = None
         self.local = local
+        self.resolved: Optional[Any] = None
 
     @property
     def root_schema(self) -> str:
         return self.schematic_path[0]
 
     def __repr__(self) -> str:
-        return f'link(schematic:{self.schematic_path}, attr:{self.attr_path})'
+        return f'link({create_link_str(self.schematic_path, self.attr_path)})'
 
     def __call__(self) -> Any:
-        if hasattr(self, '_resolved'):
-            return self._resolved  # type: ignore
+        if self.resolved is not None:
+            return self.resolved  # type: ignore
         if self.target is None:
             raise Exception('Link object was not properly updated')
         print(f"schematic={self.schematic_path}, attr={self.attr_path}, target={self.target}")
-        current_obj = self.target
-        if isinstance(current_obj, Link):
-            current_obj()
-            current_obj = current_obj.target_leaf
+        current_obj: Any = self.target
+
+        def auto_resolve_link_and_move_to_schema(obj):
+            if isinstance(obj, Link):
+                obj()
+                obj = obj.resolved
+                if isinstance(obj, Component):
+                    obj = obj._schema
+            return obj
+
+        current_obj = auto_resolve_link_and_move_to_schema(current_obj)
         for schema in self.schematic_path[1:]:
             current_obj = current_obj.keywords[schema]
-            if isinstance(current_obj, Link):
-                current_obj()
-                current_obj = current_obj.target_leaf
+            current_obj = auto_resolve_link_and_move_to_schema(current_obj)
         self.target_leaf = current_obj
         if isinstance(current_obj, Schema):
             if current_obj._compiled is not None:
                 current_obj = current_obj._compiled
             else:
-                if len(self.attr_path) != 0:
-                    raise Exception(f"Cannot access attributes {self.attr_path} on non-compiled "
-                                    f"object {current_obj}. Remember only non-parent objects above"
-                                    " the link in the config will be compiled when a link is "
-                                    "resolved.")
-                warn("Linked schema not compiled")
-                self._resolved = current_obj
-                return current_obj
-        for attr in self.attr_path:
-            current_obj = getattr(current_obj, attr)
-        self._resolved = current_obj
+                raise Exception(f"Cannot resolve link to non-compiled object {current_obj}. "
+                                "Remember only non-parent objects above the link in the config "
+                                " will be compiled when the link is resolved")
+        if self.attr_path is not None:
+            for attr in self.attr_path:
+                current_obj = getattr(current_obj, attr)
+        self.resolved = current_obj
         return current_obj
 
     @classmethod
@@ -575,20 +571,24 @@ class Link(Registrable):
         global _link_context_active
         global _link_obj_stash
         if _link_context_active:
-            present, schematic_path = _link_root_obj._schema.contains(node.target_leaf, node)
+            if _link_root_obj is None:
+                raise Exception("Contextual linking requires root object to be set")
+            present = False
+            if _link_root_obj._schema is not None:
+                present, schematic_path = _link_root_obj._schema.contains(node.target_leaf, node)
             if present:
                 link_str = create_link_str(schematic_path, node.attr_path)
                 return representer.represent_scalar(tag, link_str)
             else:
-                if isinstance(node._resolved, Registrable):
-                    return node._resolved.to_yaml(representer, node._resolved,
-                                                  node._resolved._created_with_tag)  # type: ignore  # noqa: E501
+                if isinstance(node.resolved, Registrable):
+                    return node.resolved.to_yaml(representer, node.resolved,
+                                                 node.resolved._created_with_tag)  # type: ignore  # noqa: E501
                 else:
                     try:
-                        return representer.represent_data(node._resolved)
+                        return representer.represent_data(node.resolved)
                     except RepresenterError:
                         obj_id = str(len(_link_obj_stash.keys()))
-                        _link_obj_stash[obj_id] = node._resolved
+                        _link_obj_stash[obj_id] = node.resolved
                         data_link = PickledDataLink(obj_id=obj_id)
                         return PickledDataLink.to_yaml(representer, data_link, '!$')
         # No contextualization necessary
@@ -600,7 +600,7 @@ class Link(Registrable):
         link_str = constructor.construct_scalar(node)
         schematic_path, attr_path = parse_link_str(link_str)
         kwargs = {'schematic_path': schematic_path, 'attr_path': attr_path}
-        return cls(**kwargs)
+        return cls(**kwargs)  # type: ignore
 
     def convert(self) -> Callable[..., Any]:
         if self.local:
@@ -613,11 +613,11 @@ class FunctionCallLink(Link):
     """Calls the link attribute instead of just accessing it"""
 
     def __call__(self) -> Any:
-        if hasattr(self, '_resolved'):
-            return self._resolved
+        if self.resolved is not None:
+            return self.resolved
         fn = super().__call__()
-        self._resolved = fn()
-        return self._resolved
+        self.resolved = fn()
+        return self.resolved
 
 
 def activate_links(kwargs: Dict[str, Any]) -> Dict[str, Any]:
@@ -723,6 +723,7 @@ class Component(Registrable):
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
+        self._schema: Optional[Schema] = None
         if isinstance(self, torch.nn.Module):
             self._register_state_dict_hook(self._state_dict_hook)
             self._register_load_state_dict_pre_hook(self._load_state_dict_hook)
@@ -896,8 +897,8 @@ class Component(Registrable):
                 global _link_obj_stash
                 if len(_link_obj_stash) > 0:
                     local_metadata[FLAMBE_STASH_KEY] = copy.deepcopy(_link_obj_stash)
-            except AttributeError as ae:
-                raise ae
+            except AttributeError:
+                pass
         # 2 need to recurse on Components
         # Iterating over __dict__ does NOT include pytorch children
         # modules, parameters or buffers

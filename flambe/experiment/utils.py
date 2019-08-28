@@ -92,7 +92,7 @@ def check_search(blocks: Dict[str, Schema],
             raise SearchComponentError(block_id)
 
 
-def convert_tune(blocks: Mapping[str, Schema]):
+def convert_tune(data: Mapping[str, Schema]):
     """Convert the options and links in the block.
 
     Convert Option objects to tune.grid_search or
@@ -105,14 +105,19 @@ def convert_tune(blocks: Mapping[str, Schema]):
     block_id: The block id of the current block
 
     """
-    for k, v in blocks.items():
-        # Convert Options object
-        if isinstance(v, Options) or isinstance(v, Link):
-            blocks[k] = v.convert()
-        # Recurse
-        elif isinstance(v, abc.Mapping):
-            convert_tune(v)  # type: ignore
-    return blocks
+    print(data)
+    if isinstance(data, Options) or isinstance(data, Link):
+        return data.convert()
+    elif isinstance(data, dict):
+        return {k: convert_tune(v) for k, v in data.items()}
+    elif isinstance(data, (tuple, list)):
+        return [convert_tune(el) for el in data]
+    elif isinstance(data, Options):
+        if hasattr(data, 'elements'):  # TODO: Bit hacky, make this better
+            out = copy.deepcopy(data)
+            out.elements = [convert_tune(elm) for elm in data.elements]
+            return out
+    return data
 
 
 def traverse(nested: Mapping[str, Any], path: Optional[List[str]] = None) -> Iterable[Any]:

@@ -292,7 +292,7 @@ class TestState:
         assert obj.get_state() is not None
 
     def test_state_metadata(self, basic_object):
-        state = basic_object(from_config=False).get_state()
+        state = basic_object(from_config=True).get_state()
         assert hasattr(state, '_metadata')
         assert '' in state._metadata
         assert FLAMBE_DIRECTORIES_KEY in state._metadata
