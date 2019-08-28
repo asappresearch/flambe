@@ -289,9 +289,9 @@ class Trainer(Component):
             Whether the computable is not yet complete.
 
         """
+        self._eval_step()
         if self._step < self.max_steps:
             self._train_step()
-        self._eval_step()
 
         # Simple stopping rule, if we exceed the max number of steps
         self._step += 1
