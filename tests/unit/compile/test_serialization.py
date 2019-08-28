@@ -2,16 +2,18 @@ import pytest
 import tempfile
 from collections import abc, OrderedDict
 import os
-import pprint
 
 import torch
 import dill
+import mock
 from ruamel.yaml.compat import StringIO
 from ruamel.yaml import YAML
 
+from typing import Mapping
+
 # from flambe.compile import yaml
 from flambe import Component, save_state_to_file, load_state_from_file, load, save
-from flambe.compile import Registrable, yaml, make_component
+from flambe.compile import Registrable, yaml, make_component, Schema
 from flambe.compile.serialization import _extract_prefix
 
 
@@ -194,7 +196,15 @@ def alternating_nn_module_with_state():
     return create_factory(RootTorch)
 
 
-def complex_builder(from_config):
+def schema_builder():
+    config = """
+!Basic
+"""
+    obj = yaml.load(config)
+    return obj
+
+
+def complex_builder(from_config, schema=False):
     if from_config:
         config = """
 !ComposableTorchStateful
@@ -214,7 +224,9 @@ c: !torch.Linear
   in_features: 2
   out_features: 2
 """
-        obj = yaml.load(config)()
+        obj = yaml.load(config)
+        if not schema:
+            obj = obj()
         return obj
     else:
         a1 = BasicStateful()
@@ -230,7 +242,7 @@ c: !torch.Linear
         return obj
 
 
-def complex_builder_nontorch_root(from_config):
+def complex_builder_nontorch_root(from_config, schema=False):
     if from_config:
         config = """
 !ComposableContainer
@@ -252,7 +264,9 @@ item:
     in_features: 2
     out_features: 2
 """
-        obj = yaml.load(config)()
+        obj = yaml.load(config)
+        if not schema:
+            obj = obj()
         return obj
     else:
         a1 = BasicStateful()
@@ -278,6 +292,9 @@ def complex_multi_layered():
 def complex_multi_layered_nontorch_root():
     return complex_builder_nontorch_root
 
+@pytest.fixture
+def schema():
+    return schema_builder
 
 class TestHelpers:
 
@@ -523,14 +540,11 @@ class TestSerializationIntegration:
             path = os.path.join(root_path, 'savefile.flambe')
             save_state_to_file(state, path, compress_save_file, pickle_only)
             list_files(path)
-            print("\n\nHello world\n\n")
             if pickle_only:
                 path += '.pkl'
             if compress_save_file:
                 path += '.tar.gz'
             state_loaded = load_state_from_file(path)
-            print("original state: ", state)
-            print("loaded state: ", state_loaded)
             check_mapping_equivalence(state, state_loaded)
             check_mapping_equivalence(state._metadata, state_loaded._metadata)
         new_obj = complex_multi_layered_nontorch_root(from_config=True)
@@ -615,3 +629,130 @@ two: !A
             loaded_c = load(path)
         assert loaded_c.one.akw2 is loaded_c.two.akw2
         assert loaded_c.one.akw2.bkw1 == loaded_c.two.akw2.bkw1
+
+
+class TestSerializationExtensions:
+
+    EXTENSIONS = {
+        "ext1": "my_extension_1",
+        "ext2": "my_extension_2",
+        "ext3": "my_extension_3",
+    }
+
+    @pytest.mark.parametrize("pickle_only", [True, False])
+    @pytest.mark.parametrize("compress_save_file", [True, False])
+    @mock.patch('flambe.compile.serialization.is_installed_module')
+    @mock.patch('flambe.compile.serialization.import_modules')
+    @mock.patch('flambe.compile.component.Schema.add_extensions_metadata')
+    def test_save_to_file_and_load_from_file_with_extensions(
+            self, mock_add_extensions,
+            mock_import_module, mock_installed_module,
+            compress_save_file, pickle_only, schema):
+        """Test that extensions are saved to the output config.yaml
+        and they are also added when loading back the object."""
+
+        mock_installed_module.return_value = True
+
+        schema_obj = schema()
+
+        # Add extensions manually because if we use add_extensions_metadata
+        # then no extensions will be added as the schema doesn't container_folder
+        # any prefix.
+        schema_obj._extensions = TestSerializationExtensions.EXTENSIONS
+
+        obj = schema_obj()
+        state = obj.get_state()
+
+        with tempfile.TemporaryDirectory() as root_path:
+            path = os.path.join(root_path, 'savefile.flambe')
+            save_state_to_file(state, path, compress_save_file, pickle_only)
+
+            list_files(path)
+            if pickle_only:
+                path += '.pkl'
+            if compress_save_file:
+                path += '.tar.gz'
+            state_loaded = load_state_from_file(path)
+
+            check_mapping_equivalence(state, state_loaded)
+            check_mapping_equivalence(state._metadata, state_loaded._metadata)
+
+            _ = Basic.load_from_path(path)
+            mock_add_extensions.assert_called_once_with(TestSerializationExtensions.EXTENSIONS)
+
+
+    def test_add_extensions_metadata(self, schema):
+        """Test that add_extensions_metadata doesn't add extensions that are not used"""
+
+        schema_obj = schema()
+        assert schema_obj._extensions == {}
+
+        schema_obj.add_extensions_metadata(TestSerializationExtensions.EXTENSIONS)
+        assert schema_obj._extensions == {}
+
+
+    def test_add_extensions_metadata_2(self):
+        """Test that add_extensions_metadata doesn't add extensions that are not used.
+
+        In this case we will use a config containing torch, but we will make_component
+        on torch so that it can be compiled. After that, we add_extensions_metadata with
+        torch, which is a valid extensions for the config (redundant, but valid).
+        
+        """
+        TORCH_TAG_PREFIX = "torch"
+        make_component(torch.nn.Module, TORCH_TAG_PREFIX, only_module='torch.nn')
+
+        config = """
+        !torch.Linear
+          in_features: 2
+          out_features: 2
+        """
+
+        schema = yaml.load(config)
+        schema.add_extensions_metadata({"torch": "torch"})
+        assert schema._extensions == {"torch": "torch"}
+
+        mixed_ext = TestSerializationExtensions.EXTENSIONS.copy()
+        mixed_ext.update({"torch": "torch"})
+        schema.add_extensions_metadata(mixed_ext)
+        assert schema._extensions == {"torch": "torch"}
+
+
+    def test_add_extensions_metadata_3(self, complex_multi_layered_nontorch_root):
+        """Test that add_extensions_metadata doesn't add extensions that are not used
+
+        In this case we will use a config containing torch, but we will make_component
+        on torch so that it can be compiled. After that, we add_extensions_metadata with
+        torch, which is a valid extensions for the config (redundant, but valid).
+        
+        """
+        TORCH_TAG_PREFIX = "torch"
+        make_component(torch.nn.Module, TORCH_TAG_PREFIX, only_module='torch.nn')
+
+        schema = complex_multi_layered_nontorch_root(from_config=True, schema=True)
+        schema.add_extensions_metadata({"torch": "torch"})
+
+        # This method asserts recursively that torch is added to extensions when
+        # there is a subcomponent that uses torch.
+        # It returns if at least one component with torch was found, that should
+        # always happen based on the complex_multi_layered_nontorch_root.
+        def helper(data):
+            found = False
+            if isinstance(data, Schema):
+                if data.component_subclass.__module__.startswith("torch."):
+                    found = True
+                    assert data._extensions == {"torch": "torch"}
+
+                for val in data.keywords.values():
+                    f = helper(val)
+                    if f:
+                        found = f
+
+            elif isinstance(data, Mapping):
+                for val in data.values():
+                    f = helper(val)
+                    if f:
+                        found = f
+            return found
+
+        assert helper(schema)
