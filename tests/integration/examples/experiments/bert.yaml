@@ -11,10 +11,10 @@ pipeline:
 
   teacher: !TextClassifier
     embedder: !BertEmbedder
-      alias: 'bert-base-uncased' 
+      alias: 'bert-base-uncased'
       pool: True
     output_layer: !SoftmaxLayer
-      input_size: !@ teacher.embedder.hidden_size
+      input_size: !@ teacher[embedder].hidden_size
       output_size: 2
 
   finetune: !Trainer
@@ -27,7 +27,7 @@ pipeline:
     loss_fn: !torch.NLLLoss
     metric_fn: !Accuracy
     optimizer: !AdamW
-      params: !@ finetune.model.trainable_params
+      params: !@ finetune[model].trainable_params
       lr: 0.00005
     max_steps: 1
     iter_per_step: 1

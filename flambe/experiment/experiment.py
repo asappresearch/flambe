@@ -250,7 +250,6 @@ class Experiment(ClusterRunnable):
                     num, tunable_params = trial.experiment_tag.split("_", 1)
                     identifier += tunable_params
                     param_list = [p.split("=") for p in tunable_params.split(",")]
-                    print(tunable_params)
                     hyper_params = {p[0]: p[1] for p in param_list}
                 else:
                     identifier += trial.experiment_tag

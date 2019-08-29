@@ -105,7 +105,6 @@ def convert_tune(data: Mapping[str, Schema]):
     block_id: The block id of the current block
 
     """
-    print(data)
     if isinstance(data, Options) or isinstance(data, Link):
         return data.convert()
     elif isinstance(data, dict):

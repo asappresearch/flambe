@@ -234,7 +234,6 @@ class Schema(MutableMapping[str, Any]):
         else:
             self.__setitem__(key, value)
 
-    # TODO uncomment recursive?
     @recursive_repr()
     def __repr__(self) -> str:
         """Identical to super (schema), but sorts keywords"""
@@ -389,6 +388,42 @@ class UnpreparedLinkError(LinkError):
 
 
 def parse_link_str(link_str: str) -> Tuple[Sequence[str], Sequence[str]]:
+    """Parse link to extract schematic and attribute paths
+
+    Links should be of the format ``obj[key1][key2].attr1.attr2`` where
+    obj is the entry point; in a pipeline, obj would be the stage name,
+    in a single-object config obj would be the target keyword at the
+    top level. The following keys surrounded in brackets traverse
+    the nested dictionary structure that appears in the config; this
+    is intentonally analagous to how you would access properties in the
+    dictionary when loaded into python. Then, you can use the dot
+    notation to access the runtime instance attributes of the object
+    at that location.
+
+    Parameters
+    ----------
+    link_str : str
+        Link to earlier object in the config of the format
+        ``obj[key1][key2].attr1.attr2``
+
+    Returns
+    -------
+    Tuple[Sequence[str], Sequence[str]]
+        Tuple of the schematic and attribute paths respectively
+
+    Raises
+    -------
+    MalformedLinkError
+        If the link is written incorrectly
+
+    Examples
+    -------
+    Examples should be written in doctest format, and
+    should illustrate how to use the function/class.
+    >>> parse_link_str('obj[key1][key2].attr1.attr2')
+    (['obj', 'key1', 'key2'], ['attr1', 'attr2'])
+
+    """
     schematic_path: List[str] = []
     attr_path: List[str] = []
     temp: List[str] = []
@@ -447,6 +482,38 @@ def parse_link_str(link_str: str) -> Tuple[Sequence[str], Sequence[str]]:
 
 def create_link_str(schematic_path: Sequence[str],
                     attr_path: Optional[Sequence[str]] = None) -> str:
+    """Create a string representation of the specified link
+
+    Performs the reverse operation of
+    :func:`~flambe.compile.component.parse_link_str`
+
+    Parameters
+    ----------
+    schematic_path : Sequence[str]
+        List of entries corresponding to dictionary keys in a nested
+        :class:`~flambe.compile.Schema`
+    attr_path : Optional[Sequence[str]]
+        List of attributes to access on the target object
+        (the default is None).
+
+    Returns
+    -------
+    str
+        The string representation of the schematic + attribute paths
+
+    Raises
+    -------
+    MalformedLinkError
+        If the schematic_path is empty
+
+    Examples
+    -------
+    Examples should be written in doctest format, and
+    should illustrate how to use the function/class.
+    >>> create_link_str(['obj', 'key1', 'key2'], ['attr1', 'attr2'])
+    'obj[key1][key2].attr1.attr2'
+
+    """
     if len(schematic_path) == 0:
         raise MalformedLinkError("Can't create link without schematic path")
     root, schematic_path = schematic_path[0], schematic_path[1:]
@@ -508,7 +575,7 @@ class Link(Registrable):
                  schematic_path: Sequence[str],
                  attr_path: Optional[Sequence[str]] = None,
                  target: Optional[Schema] = None,
-                 local: bool = True) -> None:  # TODO FIGURE OUT WHEN THIS WAS CHANGED AND IF
+                 local: bool = True) -> None:
         self.schematic_path = schematic_path
         self.attr_path = attr_path
         self.target = target
@@ -524,11 +591,12 @@ class Link(Registrable):
         return f'link({create_link_str(self.schematic_path, self.attr_path)})'
 
     def __call__(self) -> Any:
+        # Link already resolved once, so return cached result
         if self.resolved is not None:
             return self.resolved  # type: ignore
+        # The relevant root object must be set to resolve the link
         if self.target is None:
             raise UnpreparedLinkError('Link object was not properly updated')
-        print(f"schematic={self.schematic_path}, attr={self.attr_path}, target={self.target}")
         current_obj: Any = self.target
 
         def auto_resolve_link_and_move_to_schema(obj):
@@ -539,11 +607,16 @@ class Link(Registrable):
                 obj = obj._schema
             return obj
 
+        # Traverse the schematic path, automatically resolving
+        # any chained links; only traverse the schema structure
         current_obj = auto_resolve_link_and_move_to_schema(current_obj)
         for schema in self.schematic_path[1:]:
             current_obj = current_obj.keywords[schema]
             current_obj = auto_resolve_link_and_move_to_schema(current_obj)
         self.target_leaf = current_obj
+        # At the end of the schematic path, access the compiled object
+        # If it's not compiled, it's either later in the config
+        # or is a parent of the link, both of which are invalid links
         if isinstance(current_obj, Schema):
             if current_obj._compiled is not None:
                 current_obj = current_obj._compiled
@@ -552,6 +625,7 @@ class Link(Registrable):
                                           f"{current_obj}. Remember only non-parent objects above "
                                           "the link in the config  will be compiled when the link "
                                           "is resolved")
+        # Then access the attributes of the compiled object
         if self.attr_path is not None:
             for attr in self.attr_path:
                 current_obj = getattr(current_obj, attr)
@@ -563,17 +637,13 @@ class Link(Registrable):
         """Build contextualized link based on the root node
 
         If the link refers to something inside of the current object
-        hierarchy (as determined by the global prefix `_link_prefix`)
+        hierarchy (as determined by the schema of ``_link_root_obj``)
         then it will be represented as a link; if the link refers to
         something out-of-scope, i.e. not inside the current object
         hiearchy, then replace the link with the resolved value. If
-        the value cannot be represented throw an exception.
-
-        Raises
-        -------
-        RepresenterError
-            If the link is "out-of-scope" and the value cannot be
-            represented in YAML
+        the value cannot be represented, pickle it and include a
+        reference to its id in the object stash that will be saved
+        alongside the config
 
         """
         global _link_root_obj
