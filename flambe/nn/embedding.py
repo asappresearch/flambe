@@ -80,6 +80,10 @@ class Embeddings(Module):
         """
         super().__init__()
 
+        self.num_embeddings = num_embeddings
+        self.embedding_dim = embedding_dim
+        self.num_positions = positonal_max_length
+
         self.token_embedding = nn.Embedding(num_embeddings,
                                             embedding_dim,
                                             padding_idx,
