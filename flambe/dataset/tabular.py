@@ -4,6 +4,8 @@ from typing import Optional, List, Tuple, Iterable, Dict, Union, Any
 import pandas as pd
 import numpy as np
 
+from sklearn.model_selection import train_test_split
+
 from flambe.dataset import Dataset
 from flambe.compile import registrable_factory
 from flambe.field import Field
@@ -326,6 +328,79 @@ class TabularDataset(Dataset):
             val, _ = cls._load_file(val_path, sep, header, columns, encoding)
         if test_path is not None:
             test, _ = cls._load_file(test_path, sep, header, columns, encoding)
+
+        return cls(train=train, val=val, test=test, transform=transform, named_columns=cols)
+
+    @registrable_factory
+    @classmethod
+    def autogen(cls,
+                data_path: str,
+                test_path: Optional[str] = None,
+                seed: Optional[int] = None,
+                test_ratio: Optional[float] = 0.2,
+                val_ratio: Optional[float] = 0.2,
+                sep: Optional[str] = '\t',
+                header: Optional[str] = 'infer',
+                columns: Optional[Union[List[str], List[int]]] = None,
+                encoding: Optional[str] = 'utf-8',
+                transform: Dict[str, Union[Field, Dict]] = None) -> 'TabularDataset':
+        """Generate a test and validation set from the given file
+        paths, then load a TabularDataset.
+
+        Parameters
+        ----------
+        data_path: str
+            The path to the data
+        test_path: Optional[str]
+            The path to the test data
+        seed: Optional[int]
+            Random seed to be used in test/val generation
+        test_ratio: Optional[float]
+            The ratio of the test dataset in relation to
+            the whole dataset. If `test_path` is specified, this field
+            has no effect.
+        val_ratio: Optional[float]
+            The ratio of the validation dataset in relation to
+            the training dataset (whole - test)
+        sep: str
+            Separator to pass to the `read_csv` method
+        header: Optional[Union[str, int]]
+            Use 0 for first line, None for no headers, and 'infer' to
+            detect it automatically, defaults to 'infer'
+        columns: List[str]
+            List of columns to load, can be used to select a subset
+            of columns, or change their order at loading time
+        encoding: str
+            The encoding format passed to the pandas reader
+        transform: Dict[str, Union[Field, Dict]]
+            The fields to be applied to the columns. Each field is
+            identified with a name for easy linking.
+
+        """
+        if (
+            columns and
+            any(isinstance(c, int) for c in columns) and
+            any(isinstance(c, str) for c in columns)
+        ):
+            raise ValueError("Columns parameters need to be all string or all integers.")
+
+        data, cols = cls._load_file(data_path,
+                                    sep=sep,
+                                    header=header,
+                                    columns=columns,
+                                    encoding=encoding)
+
+        train, val, test = None, None, None
+        if test_path is not None:
+            train, val = train_test_split(data, test_size=val_ratio, random_state=seed)
+            test, _ = cls._load_file(test_path,
+                                     sep=sep,
+                                     header=header,
+                                     columns=columns,
+                                     encoding=encoding)
+        else:
+            train_val, test = train_test_split(data, test_size=test_ratio, random_state=seed)
+            train, val = train_test_split(train_val, test_size=val_ratio, random_state=seed)
 
         return cls(train=train, val=val, test=test, transform=transform, named_columns=cols)
 

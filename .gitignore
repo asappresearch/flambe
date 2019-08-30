@@ -192,10 +192,6 @@ local_settings.py
 db.sqlite3
 db.sqlite3-journal
 
-# Flask stuff:
-instance/
-.webassets-cache
-
 # Scrapy stuff:
 .scrapy
 
@@ -274,24 +270,8 @@ tags
 # Persistent undo
 [._]*.un~
 
-### VirtualEnv ###
-# Virtualenv
-# http://iamzed.com/2009/05/07/a-primer-on-virtualenv/
-[Bb]in
-[Ii]nclude
-[Ll]ib
-[Ll]ib64
-[Ll]ocal
-[Ss]cripts
-pyvenv.cfg
-pip-selfcheck.json
-
 ### VisualStudioCode ###
-.vscode/*
-!.vscode/settings.json
-!.vscode/tasks.json
-!.vscode/launch.json
-!.vscode/extensions.json
+.vscode/
 
 ### VisualStudioCode Patch ###
 # Ignore all local history of files

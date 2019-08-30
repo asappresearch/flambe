@@ -11,6 +11,7 @@ import errno
 import logging
 import configparser
 
+from flambe.compile import Registrable
 from flambe.compile import yaml
 from flambe.runnable import error
 from flambe.runnable.runnable import Runnable
@@ -80,6 +81,7 @@ class SafeExecutionContext:
                    download_ext: bool = True,
                    install_ext: bool = False,
                    import_ext: bool = True,
+                   check_tags: bool = True,
                    **kwargs) -> Tuple[Runnable, Dict[str, str]]:
         """Preprocess the runnable file.
 
@@ -102,6 +104,8 @@ class SafeExecutionContext:
         install_ext: bool
             Whether to import the extensions or not.
             Defaults to True.
+        check_tags: bool
+            Whether to check that all tags are valid. Defaults to True.
 
         Returns
         -------
@@ -128,6 +132,10 @@ class SafeExecutionContext:
 
         if import_ext:
             import_modules(extensions.keys())
+
+        # Check that all tags are valid
+        if check_tags:
+            self.check_tags(content)
 
         # Compile the runnable now that the extensions were imported.
         runnable = self.compile_runnable(content)
@@ -178,6 +186,30 @@ class SafeExecutionContext:
             content = stream.getvalue()
 
         return content, extensions
+
+    def check_tags(self, content: str):
+        """Check that all the tags are valid.
+
+        Parameters
+        ----------
+        content : str
+            The content of the YAML file
+
+        Raises
+        ------
+        TagError
+
+        """
+        # Get all the registered tags, and flatten
+        registered_tags = {t for _, tags in Registrable._yaml_tags.items() for t in tags}
+
+        # Check against tags in this config
+        parsing_events = yaml.parse(content)
+        for event in parsing_events:
+            if hasattr(event, 'tag') and event.tag is not None:
+                if event.tag not in registered_tags:
+                    raise error.TagError(f"Unknown tag: {event.tag}. Make sure the class, \
+                                            or factory was correctly registered.")
 
     def compile_runnable(self, content: str) -> Runnable:
         """Compiles and returns the Runnable.

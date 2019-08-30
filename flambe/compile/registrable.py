@@ -167,6 +167,11 @@ class Registrable(ABC):
 
         registration_helper()
         for factory_name in class_._yaml_registered_factories:
+            # Add factory tag to registry
+            factory_tag_name = f'{tag}.{factory_name}'
+            factory_full_tag = f'{full_tag}.{factory_name}'
+            class_._yaml_tags[factory_tag_name] = [factory_full_tag]
+
             # Every time we register a new tag, make sure that you can
             # use each factory with that new tag
             registration_helper(factory_name)

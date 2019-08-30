@@ -5,10 +5,11 @@
 import boto3
 import botocore
 import logging
+from datetime import datetime, timedelta
 
 from typing import Generator, Dict, Tuple, List, TypeVar, Type, Any, Optional
 
-from flambe.cluster import instance, utils
+from flambe.cluster import instance, const
 from flambe.cluster.cluster import Cluster, FactoryInsT
 from flambe.cluster import errors
 from flambe.logging import coloredlogs as cl
@@ -56,6 +57,16 @@ class AWSCluster(Cluster):
     key: str
         The path to the ssh key used to communicate to all instances.
         IMPORTANT: all instances must be accessible with the same key.
+    volume_type: str
+        The type of volume in AWS to use. Only 'gp2' and 'io1' are
+        currently available. If 'io1' is used, then IOPS will be
+        fixed to 5000. IMPORTANT: 'io1' volumes are significantly
+        more expensive than 'gp2' volumes.
+        Defaults to 'gp2'.
+    region_name: Optional[str]
+        The region name to use. If not specified, it uses the locally
+        configured region name or 'us-east-1' in case it's not
+        configured.
     username: str
         The username of the instances the cluster will handle. Defaults
         to 'ubuntu'.
@@ -111,6 +122,8 @@ class AWSCluster(Cluster):
                  subnet_id: str,
                  creator: str,
                  key: str,
+                 volume_type: str = 'gp2',
+                 region_name: Optional[str] = None,
                  username: str = "ubuntu",
                  tags: Dict[str, str] = None,
                  orchestrator_ami: str = None,
@@ -125,7 +138,12 @@ class AWSCluster(Cluster):
         self.factories_type = factories_type
         self.orchestrator_type = orchestrator_type
 
-        self._load_boto_apis()
+        self.region_name = region_name
+        self.sess = self._get_boto_session(region_name)
+
+        self.ec2_resource = self.sess.resource('ec2')
+        self.ec2_cli = self.sess.client('ec2')
+        self.cloudwatch = self.sess.client('cloudwatch')
 
         self.factory_ami = factory_ami
         self.orchestrator_ami = orchestrator_ami
@@ -146,14 +164,31 @@ class AWSCluster(Cluster):
 
         self.created_instances_ids: List[str] = []
 
-    def _load_boto_apis(self) -> None:
-        """Load the ec2 and cloudwatch apis.
+        if volume_type not in ['gp2', 'io1']:
+            raise ValueError("Only gp2 and io1 drives available.")
+
+        self.volume_type = volume_type
+
+    def _get_boto_session(self, region_name: Optional[str]) -> boto3.Session:
+        """Get the boto3 Session from which the resources
+        and clients will be created.
 
         This method is called by the contructor.
 
+        Parameters
+        ----------
+        region_name: Optional[str]
+            The region to use. If None, boto3 will resolve to the
+            locally configured region_name or 'us-east-1' if not
+            configured.
+
+        Returns
+        -------
+        boto3.Session
+            The boto3 Session to use
+
         """
-        self.ec2 = boto3.resource('ec2')
-        self.cloudwatch = boto3.client('cloudwatch')
+        return boto3.Session(region_name=region_name)
 
     def load_all_instances(self) -> None:
         """Launch all instances for the experiment.
@@ -198,16 +233,22 @@ class AWSCluster(Cluster):
             elif pending_new_factories < 0:
                 logger.info(cl.BL(f"Reusing existing {len(boto_factories)} factories."))
 
-            if future_orch:
-                self.orchestrator = future_orch.result()
-                logger.info(cl.BL(f"New orchestrator created {self.orchestrator.host}"))
+            try:
+                if future_orch:
+                    self.orchestrator = future_orch.result()
+                    logger.info(cl.BL(f"New orchestrator created {self.orchestrator.host}"))
 
-            if future_factories:
-                new_factories = future_factories.result()
-                self.factories.extend(new_factories)
-                logger.info(cl.BL(
-                    f"{pending_new_factories} factories {self.factories_type} created " +
-                    f"({str([f.host for f in new_factories])})."))
+                if future_factories:
+                    new_factories = future_factories.result()
+                    self.factories.extend(new_factories)
+                    logger.info(cl.BL(
+                        f"{pending_new_factories} factories {self.factories_type} created " +
+                        f"({str([f.host for f in new_factories])})."))
+            except botocore.exceptions.ClientError as e:
+                raise errors.ClusterError(
+                    "Error creating the instances. Check that the provided configuration " +
+                    f" is correct. Original error: {e}"
+                )
 
         self.name_hosts()
         self.update_tags()
@@ -252,7 +293,8 @@ class AWSCluster(Cluster):
 
         return orchestrator, factories
 
-    def _get_tags(self, boto_instance: "boto3.resources.factory.ec2.Instance") -> Dict[str, str]:
+    def _get_existing_tags(self,
+                           boto_instance: "boto3.resources.factory.ec2.Instance") -> Dict[str, str]:
         """Gets the tags of a EC2 instances
 
         Parameters
@@ -285,11 +327,11 @@ class AWSCluster(Cluster):
             A tuple with the instance and the name of the EC2 instance.
 
         """
-        boto_instances = self.ec2.instances.filter(
+        boto_instances = self.ec2_resource.instances.filter(
             Filters=[{'Name': 'instance-state-name', 'Values': ['running']}])
 
         for ins in boto_instances:
-            tags = self._get_tags(ins)
+            tags = self._get_existing_tags(ins)
             if all((
                     "creator" in tags and tags["creator"] == self.creator,
                     "Purpose" in tags and tags["Purpose"] == "flambe",
@@ -310,6 +352,23 @@ class AWSCluster(Cluster):
             self.name_instance(self._get_boto_instance_by_host(f.host),
                                f"{self.get_factory_basename()}_{i+1}")
 
+    def _get_all_tags(self) -> Dict[str, str]:
+        """Get user tags + default tags to add to the instances and
+        volumes.
+
+        """
+        ret = {
+            "creator": self.creator,
+            "Purpose": "flambe",
+            "Cluster-Name": self.name,
+        }
+
+        if self.tags:
+            for k, v in self.tags.items():
+                ret[k] = v
+
+        return ret
+
     def update_tags(self) -> None:
         """Update user provided tags to all hosts.
 
@@ -323,19 +382,22 @@ class AWSCluster(Cluster):
         if not self.orchestrator:
             raise errors.ClusterError("Orchestrator instance was not loaded.")
 
-        if self.tags:
-            self._update_tags(self._get_boto_instance_by_host(self.orchestrator.host),
-                              self.tags)
+        tags = self._get_all_tags()
 
-            for i, f in enumerate(self.factories):
-                self._update_tags(self._get_boto_instance_by_host(f.host),
-                                  self.tags)
+        orch_tags = tags.copy()
+        orch_tags['Role'] = 'Orchestrator'
+        self._update_tags(self._get_boto_instance_by_host(self.orchestrator.host), orch_tags)
+
+        factory_tags = tags.copy()
+        factory_tags['Role'] = 'Factory'
+        for i, f in enumerate(self.factories):
+            self._update_tags(self._get_boto_instance_by_host(f.host), factory_tags)
 
     def _update_tags(
             self,
             boto_instance: 'boto3.resources.factory.ec2.Instance',
             tags: Dict[str, str]) -> None:
-        """Create/Overwrite tags on an EC2 instance
+        """Create/Overwrite tags on an EC2 instance and its volumes.
 
         Parameters
         ----------
@@ -345,8 +407,11 @@ class AWSCluster(Cluster):
             The tags to create/overwrite
 
         """
-        ins_tags = [{"Key": k, "Value": v} for k, v in tags.items()]
-        boto_instance.create_tags(Tags=ins_tags)
+        boto_tags = [{"Key": k, "Value": v} for k, v in tags.items()]
+
+        boto_instance.create_tags(Tags=boto_tags)
+        for v in boto_instance.volumes.all():
+            v.create_tags(Tags=boto_tags)
 
     def name_instance(
             self,
@@ -362,7 +427,11 @@ class AWSCluster(Cluster):
             The new name
 
         """
-        boto_instance.create_tags(Tags=[{"Key": "Name", "Value": "{}".format(name)}])
+        name_tag = [{"Key": "Name", "Value": name}]
+        boto_instance.create_tags(Tags=name_tag)
+
+        for v in boto_instance.volumes.all():
+            v.create_tags(Tags=name_tag)
 
     def _create_orchestrator(self) -> instance.OrchestratorInstance:
         """Create a new EC2 instance to be the Orchestrator instance.
@@ -376,7 +445,7 @@ class AWSCluster(Cluster):
 
         """
         if not self.orchestrator_ami:
-            ami = utils._find_default_ami(_type="orchestrator")
+            ami = self._find_default_ami(_type="orchestrator")
             if ami is None:
                 raise errors.ClusterError("Could not find matching AMI for the orchestrator.")
         else:
@@ -406,7 +475,7 @@ class AWSCluster(Cluster):
 
         """
         if not self.factory_ami:
-            ami = utils._find_default_ami(_type="factory")
+            ami = self._find_default_ami(_type="factory")
             if ami is None:
                 raise errors.ClusterError("Could not find matching AMI for the factory.")
         else:
@@ -453,30 +522,33 @@ class AWSCluster(Cluster):
 
         """
         # Set the tags based on the users + custom flambe tags.
-        tags: List[Dict[str, str]] = []
-        if self.tags:
-            tags.extend([{'Key': k, 'Value': v} for k, v in self.tags.items()])
+        tags = self._get_all_tags()
+        tags['Role'] = role
 
-        tags.append({'Key': 'creator', 'Value': self.creator})
-        tags.append({'Key': 'Purpose', 'Value': 'flambe'})
-        tags.append({'Key': 'Cluster-Name', 'Value': self.name})
-        tags.append({'Key': 'Role', 'Value': role})
+        boto_tags: List[Dict[str, str]] = [{'Key': k, 'Value': v} for k, v in tags.items()]
+
+        ebs = {
+            'VolumeSize': self.volume_size,
+            'DeleteOnTermination': True,
+            'VolumeType': self.volume_type,
+        }
+        if self.volume_type == 'io1':
+            ebs['Iops'] = 5000
 
         bdm = [
             {
                 'DeviceName': '/dev/sda1',
-                'Ebs': {
-                    'VolumeSize': self.volume_size,
-                    'DeleteOnTermination': True,
-                    'VolumeType': 'io1',
-                    'Iops': 50 * self.volume_size
-                }
+                'Ebs': ebs,
             }
         ]
         tags_param = [
             {
                 'ResourceType': 'instance',
-                'Tags': tags
+                'Tags': boto_tags
+            },
+            {
+                'ResourceType': 'volume',
+                'Tags': boto_tags
             },
         ]
         placement = {
@@ -488,7 +560,7 @@ class AWSCluster(Cluster):
         # For a list of supported instance types go to:
         # https://aws.amazon.com/ec2/purchasing-options/dedicated-instances/
 
-        boto_instances = self.ec2.create_instances(
+        boto_instances = self.ec2_resource.create_instances(
             ImageId=instance_ami,
             InstanceType=instance_type,
             KeyName=self.key_name,
@@ -523,7 +595,7 @@ class AWSCluster(Cluster):
         """Terminates all instances.
 
         """
-        boto_instances = self.ec2.instances.filter(
+        boto_instances = self.ec2_resource.instances.filter(
             Filters=[{
                 'Name': 'instance-id',
                 'Values': self.created_instances_ids
@@ -601,7 +673,7 @@ class AWSCluster(Cluster):
             The id if found else None
 
         """
-        boto_instances = self.ec2.instances.all()
+        boto_instances = self.ec2_resource.instances.all()
 
         for ins in boto_instances:
             if ins.public_dns_name == public_host or ins.public_ip_address == public_host:
@@ -696,8 +768,12 @@ class AWSCluster(Cluster):
                 f_id = self._get_instance_id_by_host(f.host)
                 if f_id:
                     mins = fact_t * 60 if fact_t > 0 else 5
+                    # Adding fake data for CPU usage to avoid the alarm
+                    # triggering immediately in case the machine was
+                    # already idle
+                    self._put_fake_cloudwatch_data(f_id, value=100, points=10)
                     self._create_cloudwatch_event(f_id, mins=mins, cpu_thresh=0.5)
-                    logger.info(cl.YE(f"{f.host} timeout of {mins} set"))
+                    logger.info(cl.YE(f"{f.host} timeout of {mins} mins set"))
         else:
             logger.info(cl.YE(f"Factories have no timeout"))
 
@@ -707,6 +783,10 @@ class AWSCluster(Cluster):
             orch_t = self.orchestrator_timeout
             if orch_t >= 0:
                 mins = orch_t * 60 if orch_t > 0 else 5
+                # Adding fake data for CPU usage to avoid the alarm
+                # triggering immediately in case the machine was already
+                # idle
+                self._put_fake_cloudwatch_data(orch_id, value=100, points=10)
                 self._create_cloudwatch_event(orch_id, mins=mins, cpu_thresh=4)
                 logger.info(cl.YE(f"{self.orchestrator.host} timeout of {mins} set"))
             else:
@@ -724,6 +804,54 @@ class AWSCluster(Cluster):
 
         except botocore.exceptions.ParamValidationError:
             raise errors.ClusterError(f"Could not delete alarm for {instance_id}")
+
+    def _put_fake_cloudwatch_data(self,
+                                  instance_id: str,
+                                  value: int = 100,
+                                  points: int = 10) -> None:
+        """Put fake CPU Usage metric in an instance.
+
+        This method is useful to avoid triggering alarms when they are
+        created. For example, is an instance was idle for 10 hours and
+        an termination alarm is set for 5 hours, it will be triggered
+        immediately. Adding a fake point will allow the alarms to start
+        the timer from the current moment.
+
+        Parameters
+        ----------
+        instance_id: str
+            The ID of the EC2 instance
+        value: int
+            The CPU percent value to use. Defaults to 100
+        points: int
+            The amount of past minutes from the current time
+            to generate metric points. For example, if points is 10,
+            then 10 data metrics will be generated for the past 10
+            minutes, one per minute.
+
+        """
+        try:
+            for i in range(10):
+                self.cloudwatch.put_metric_data(
+                    Namespace='AWS/EC2',
+                    MetricData=[
+                        {
+                            'MetricName': 'CPUUtilization',
+                            'Dimensions': [
+                                {
+                                    'Name': 'InstanceId',
+                                    'Value': instance_id
+                                },
+                            ],
+                            'Timestamp': datetime.utcnow() - timedelta(minutes=i),
+                            'Value': 100,
+                            'Unit': 'Percent',
+                        },
+                    ]
+                )
+            logger.debug(f"Added fake CPU usage for {instance_id}")
+        except botocore.exceptions.ParamValidationError:
+            raise errors.ClusterError(f"Could not put metric data for {instance_id}")
 
     def _create_cloudwatch_event(self, instance_id: str, mins: int = 60,
                                  cpu_thresh: float = 0.1) -> None:
@@ -758,7 +886,7 @@ class AWSCluster(Cluster):
                 Threshold=cpu_thresh,
                 ActionsEnabled=True,
                 AlarmActions=[
-                    'arn:aws:automate:us-east-1:ec2:terminate'
+                    f'arn:aws:automate:{self.region_name}:ec2:terminate'
                 ],
                 AlarmDescription=f'Terminate when CPU < {cpu_thresh}%',
                 Dimensions=[
@@ -772,3 +900,70 @@ class AWSCluster(Cluster):
             logger.debug(f"Created alarm for id {instance_id}")
         except botocore.exceptions.ParamValidationError:
             raise errors.ClusterError(f"Could not setup cloudwatch for {instance_id}")
+
+    def _get_images(self) -> Dict:
+        """Get the official AWS public AMIs created by Flambe.
+
+        ATTENTION: why not just search the tags? We need to make sure
+        the AMIs we pick were created by the Flambe team. Because of
+        tags values not being unique, anyone can create a public AMI
+        with 'Creator: flambe@asapp.com' as a tag.
+        If we pick that AMI, then we could potentially be Creating
+        instances with unknown AMIs, causing potential security issues.
+        By filtering by our acount id (which can be public), then we can
+        make sure that all AMIs that are being scanned were created
+        by Flambe team.
+
+        Returns
+        -------
+        Dict:
+            The boto3 API response
+
+        """
+        return self.ec2_cli.describe_images(Owners=[const.AWS_FLAMBE_ACCOUNT])
+
+    def _get_ami(self, _type: str, version: str) -> Optional[str]:
+        """Given a type and a version, get the correct Flambe AMI.
+
+
+        IMPORTANT: we keep the version logic in case we add versioned
+        AMIs in the future.
+
+        Parameters
+        ----------
+        _type: str
+            It can be either 'factory' or 'orchestrator'.
+            Note that the type is lowercase in the AMI tag.
+        version: str
+            For example, "0.2.1" or "2.0".
+
+        Returns
+        -------
+        The ImageId if it's found. None if not.
+
+        """
+        images = self._get_images()
+        for i in images['Images']:
+            # Name is for example 'flambe-orchestrator 0.0.0'
+            if i['Name'] == f"flambe-{_type.lower()}-ami {version}":
+                return i['ImageId']
+
+        return None
+
+    def _find_default_ami(self, _type: str) -> Optional[str]:
+        """Returns an AMI with version 0.0.0, which is the default.
+        This means that doesn't contain flambe itself but it has
+        some heavy dependencies already installed (like pytorch).
+
+        Parameters
+        ----------
+        _type: str
+            Wether is "orchestrator" or "factory"
+
+        Returns
+        -------
+        Optional[str]
+            The ImageId or None if not found.
+
+        """
+        return self._get_ami(_type, '0.0.0')

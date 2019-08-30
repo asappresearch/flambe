@@ -81,8 +81,8 @@ class Experiment(ClusterRunnable):
         Contains remote information about the cluster. This object will
         be received in case this Experiment is running remotely.
     max_failures: int
-        number of times to retry running the pipeline if it hits some
-        type of failure, defaults to retrying twice
+        Number of times to retry running the pipeline if it hits some
+        type of failure, defaults to one.
     merge_plot: bool
         Display all tensorboard logs in the same plot (per block type).
         Defaults to True.
@@ -101,7 +101,7 @@ class Experiment(ClusterRunnable):
                  schedulers: OptionalTrialSchedulers = None,
                  reduce: Optional[Dict[str, int]] = None,
                  env: RemoteEnvironment = None,
-                 max_failures: int = 2,
+                 max_failures: int = 1,
                  merge_plot: bool = True) -> None:
         super().__init__(env)
         self.name = name
@@ -393,9 +393,16 @@ class Experiment(ClusterRunnable):
             self.progress_state.checkpoint_end(block_id, checkpoints, success[block_id])
             logger.debug(f"Done running {block_id}")
 
-        # Close ray experiment
+        # Disconnect process from ray cluster
         ray.shutdown()
-        logger.debug("Shutted down ray cluster")
+
+        # Shutdown ray cluster.
+        if self.env:
+            ret = utils.shutdown_ray_node()
+            logger.debug(f"Node shutdown {'successful' if ret == 0 else 'failed'} in Orchestrator")
+            for f in self.env.factories_ips:
+                ret = utils.shutdown_remote_ray_node(f, "ubuntu", self.env.key)
+                logger.debug(f"Node shutdown {'successful' if ret == 0 else 'failed'} in {f}")
 
         self.progress_state.finish()
 

@@ -300,7 +300,7 @@ class Cluster(Runnable):
 
         Raises
         ------
-        RemoteCommandError
+        errors.RemoteCommandError
             If at least one commands is not successful in at
             least one host.
 
@@ -859,42 +859,43 @@ class Cluster(Runnable):
 
         return ret
 
-    def install_extensions_in_factories(self, extensions) -> None:
-        """Install local + pypi extensions in all the factories.
+    def install_extensions_in_orchestrator(self, extensions: Dict[str, str]) -> None:
+        """Install local + pypi extensions in the orchestrator
+
+        Parameters
+        ----------
+        extension: Dict[str, str]
+            The extensions, as a dict from module_name to location
 
         Raises
         ------
-        ClusterError
+        errors.RemoteCommandError
+            If could not install an extension.
+        man_errors.ClusterError
+            If the orchestrator was not loaded.
+
+        """
+        if not self.orchestrator:
+            raise man_errors.ClusterError("Orchestrator instance was not loaded.")
+
+        self.orchestrator.install_extensions(extensions)
+
+    def install_extensions_in_factories(self, extensions: Dict[str, str]) -> None:
+        """Install local + pypi extensions in all the factories.
+
+        Parameters
+        ----------
+        extension: Dict[str, str]
+            The extensions, as a dict from module_name to location
+
+        Raises
+        ------
+        errors.RemoteCommandError
             If could not install an extension
 
         """
-        cmd = ['python3', '-m', 'pip', 'install', '-U', '--user']
         for f in self.factories:
-            for ext, resource in extensions.items():
-                curr_cmd = cmd[:]
-
-                if 'PIP' in self.config:
-                    host = self.config['PIP'].get('HOST', None)
-                    if host:
-                        curr_cmd.extend(["--trusted-host", host])
-
-                    host_url = self.config['PIP'].get('HOST_URL', None)
-                    if host_url:
-                        curr_cmd.extend(["--extra-index-url", host_url])
-
-                if os.path.exists(resource):
-                    # Package is local
-                    if os.sep not in resource:
-                        resource = f"./{resource}"
-                else:
-                    # Package follows pypi notation: "torch>=0.4.1,<1.1"
-                    resource = f"{resource}"
-
-                curr_cmd.append(resource)
-
-                ret = f._run_cmd(" ".join(curr_cmd))
-                if not ret.success:
-                    raise man_errors.ClusterError(f"Could not install package in {resource}")
+            f.install_extensions(extensions)
 
     def get_remote_env(self) -> RemoteEnvironment:
         """Get the RemoteEnvironment for this cluster.
@@ -915,5 +916,7 @@ class Cluster(Runnable):
             key=f"{self.orchestrator.get_home_path()}/{const.PRIVATE_KEY}",
             orchestrator_ip=self.orchestrator.private_host,
             factories_ips=[f.private_host for f in self.factories],
-            user=self.orchestrator.username
+            user=self.orchestrator.username,
+            public_orchestrator_ip=self.orchestrator.host,
+            public_factories_ips=[f.host for f in self.factories]
         )
