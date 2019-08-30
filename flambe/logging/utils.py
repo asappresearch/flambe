@@ -49,8 +49,7 @@ def get_trial_dir() -> str:
         The output path
 
     """
-    logger = _get_context_logger()
-    return logger._log_dir  # type: ignore
+    return logging.root._log_dir  # type: ignore
 
 
 def log(tag: str,
