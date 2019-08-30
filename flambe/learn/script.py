@@ -23,22 +23,25 @@ class Script(Component):
 
         python -m script.py --arg1 value1 --arg2 value2
 
-    Parameters
-    ----------
-    path: str
-        The script module
-    args: Dict[str, Any]
-        Argument dictionary
-    output_dir_arg: str, optional
-        The name of the argument corresponding to the output
-        directory, should there be one.
-
     """
 
     def __init__(self,
                  script: str,
                  args: Dict[str, Any],
                  output_dir_arg: Optional[str] = None) -> None:
+        """Initialize a Script.
+
+        Parameters
+        ----------
+        path: str
+            The script module
+        args: Dict[str, Any]
+            Argument dictionary
+        output_dir_arg: str, optional
+            The name of the argument corresponding to the output
+            directory, should there be one.
+
+        """
         self.script = script
         self.args = args
 
