@@ -154,7 +154,7 @@ a powerful and flexible implementation called :class:`~flambe.learn.Trainer`:
 
 .. tip::
   Additionally we setup some ``Tune`` classes for use with hyperparameter search and scheduling.
-  They can be accessed via ``!tune.ClassName`` tags. More on hyperparameter search and
+  They can be accessed via ``!ray.ClassName`` tags. More on hyperparameter search and
   scheduling in :ref:`understanding-experiments_label`.
 
 

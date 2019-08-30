@@ -108,13 +108,13 @@ class Registrable(ABC):
     @staticmethod
     def register_tag(class_: RT, tag: str, tag_namespace: Optional[str] = None) -> None:
         # Create a tag that includes namespace e.g. `!torch.Adam`
-        global _reg_prefix
-        if _reg_prefix is not None:
-            if tag_namespace is not None:
-                full_tag = f"!{_reg_prefix}.{tag_namespace}.{tag}"
-            else:
-                full_tag = f"!{_reg_prefix}.{tag}"
-        elif tag_namespace is not None:
+        # Override any namespace as module name, now that we no longer
+        # allow user-defined namespaces
+        modules = class_.__module__.split('.')
+        top_level_module_name = modules[0] if len(modules) > 0 else None
+        if top_level_module_name is not None and top_level_module_name != 'flambe':
+            tag_namespace = top_level_module_name
+        if tag_namespace is not None:
             full_tag = f"!{tag_namespace}.{tag}"
         else:
             full_tag = f"!{tag}"

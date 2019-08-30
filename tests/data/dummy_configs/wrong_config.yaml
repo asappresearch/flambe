@@ -5,7 +5,7 @@ name: sst-text-classification-lstm
 save_path: flambe_text_classification
 
 schedulesr:
-  b1: !tune.HyperBandScheduler
+  b1: !ray.HyperBandScheduler
     reward_attr: dev_metric
 
 redcue:

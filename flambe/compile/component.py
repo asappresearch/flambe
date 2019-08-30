@@ -1329,24 +1329,22 @@ def dynamic_component(class_: Type[A],
     if issubclass(class_, Component):
         return class_
 
+    # Copy over class attributes so it still looks like the original
+    # Useful for inspection and debugging purposes
+    _MISSING = object()
+    copied_attrs = {}
+    for k in WRAPPER_ASSIGNMENTS:
+        v = getattr(class_, k, _MISSING)
+        if v is not _MISSING:
+            copied_attrs[k] = v
+
     # Create new subclass of `class_` and `Component`
     # Ignore mypy, extra kwargs are okay in python 3.6+ usage of type
     # and Registrable uses them
     new_component = type(class_.__name__,  # type: ignore
                          (Component, class_),
-                         {},
+                         copied_attrs,
                          tag_override=tag,
                          tag_namespace=tag_namespace)  # type: ignore
-
-    # Copy over class attributes so it still looks like the original
-    # Useful for inspection and debugging purposes
-    _MISSING = object()
-    for k in WRAPPER_ASSIGNMENTS:
-        v = getattr(class_, k, _MISSING)
-        if v is not _MISSING:
-            try:
-                setattr(new_component, k, v)
-            except AttributeError:
-                pass
 
     return new_component
