@@ -40,6 +40,18 @@ def _get_context_logger() -> logging.Logger:
     return logger
 
 
+def get_trial_dir() -> str:
+    """Get the output path used by the currently active trial.
+
+    Returns
+    -------
+    str
+        The output path
+
+    """
+    return logging.root._log_dir  # type: ignore
+
+
 def log(tag: str,
         data: ValueT,
         global_step: int,

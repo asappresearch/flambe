@@ -147,6 +147,7 @@ class TrialLogging:
             return record
 
         logging.setLogRecordFactory(record_factory)
+        logging.root._log_dir = self.log_dir  # type: ignore
 
         self.context_filter = ContextInjection(_console_prefix=self.console_prefix,
                                                _tf_log_dir=self.log_dir,
@@ -156,6 +157,7 @@ class TrialLogging:
         for handler in logger.handlers:
             handler.addFilter(self.context_filter)
         logger.addFilter(self.context_filter)
+
         self.logger = logger
         return logger
 
@@ -168,6 +170,7 @@ class TrialLogging:
             self.logger.removeHandler(handler)
         self.logger.setLevel(self.old_root_log_level)
         logging.setLogRecordFactory(self.old_factory)
+        delattr(logging.root, '_log_dir')
 
 
 class ContextInjection:

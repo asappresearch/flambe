@@ -16,21 +16,6 @@ class Evaluator(Component):
     An `Evaluator` takes as input data, and a model and executes
     the evaluation. This is a single step `Component` object.
 
-    Parameters
-    ----------
-    dataset : Dataset
-        The dataset to run evaluation on
-    eval_sampler : Sampler
-        The sampler to use over validation examples
-    model : Module
-        The model to train
-    metric_fn: Metric
-        The metric to use for evaluation
-    eval_data: str
-        The data split to evaluate on: one of train, val or test
-    device: str, optional
-        The device to use in the computation.
-
     """
 
     def __init__(self,
@@ -40,6 +25,24 @@ class Evaluator(Component):
                  metric_fn: Metric,
                  eval_data: str = 'test',
                  device: Optional[str] = None) -> None:
+        """Initialize the evaluator.
+
+        Parameters
+        ----------
+        dataset : Dataset
+            The dataset to run evaluation on
+        eval_sampler : Sampler
+            The sampler to use over validation examples
+        model : Module
+            The model to train
+        metric_fn: Metric
+            The metric to use for evaluation
+        eval_data: str
+            The data split to evaluate on: one of train, val or test
+        device: str, optional
+            The device to use in the computation.
+
+        """
         self.eval_sampler = eval_sampler
         self.model = model
         self.metric_fn = metric_fn
@@ -64,7 +67,7 @@ class Evaluator(Component):
         Returns
         ------
         bool
-            Whether the computable has completed.
+            Whether the component should continue running.
 
         """
         self.model.to(self.device)
