@@ -202,8 +202,10 @@ class AWSCluster(Cluster):
             future_orch, future_factories = None, None
 
             if boto_orchestrator:
-                self.orchestrator = self.get_orchestrator(boto_orchestrator.public_ip_address,
-                                                          boto_orchestrator.private_ip_address)
+                self.orchestrator = self.get_orchestrator(
+                    self._get_boto_public_host(boto_orchestrator),
+                    self._get_boto_private_host(boto_orchestrator)
+                )
                 logger.info(cl.BL(
                     f"Found existing orchestrator ({boto_orchestrator.instance_type}) " +
                     f"{self.orchestrator.host}"
@@ -213,9 +215,15 @@ class AWSCluster(Cluster):
                 future_orch = executor.submit(self._create_orchestrator)
 
             for f in boto_factories:
-                factory = self.get_factory(f.public_ip_address, f.private_ip_address)
+                factory = self.get_factory(
+                    self._get_boto_public_host(f),
+                    self._get_boto_private_host(f)
+                )
                 if factory.contains_gpu():
-                    factory = self.get_gpu_factory(f.public_ip_address, f.private_ip_address)
+                    factory = self.get_gpu_factory(
+                        self._get_boto_public_host(f),
+                        self._get_boto_private_host(f)
+                    )
                 self.factories.append(factory)
 
             if len(self.factories) > 0:
@@ -582,14 +590,56 @@ class AWSCluster(Cluster):
         for idx, ins in enumerate(boto_instances):
             ins.reload()  # Update instance information now that is running
 
-            ret.append(instance_class(ins.public_ip_address, ins.private_ip_address,
-                                      self.username, self.key, self.config, debug=self.debug))
+            ret.append(instance_class(
+                self._get_boto_public_host(ins),
+                self._get_boto_private_host(ins),
+                self.username, self.key, self.config, debug=self.debug))
 
         if len(boto_instances) < number:
             logger.debug(f"Less {instance_type} instances were created. "
                          f"{len(boto_instances)} out of {number}")
 
         return ret
+
+    def _get_boto_public_host(self, boto_ins: 'boto3.resource.factory.ec2.Instance') -> str:
+        """Return the boto instance IP or DNS that will be used by
+        the local process to reach the current instance.
+
+        This method abstracts the way the local process will access
+        the instances in the case it's not the public IP.
+
+        Parameters
+        ----------
+        boto_ins: 'boto3.resources.factory.ec2.Instance'
+            The boto instance
+
+        Returns
+        -------
+        str
+            The host information.
+
+        """
+        return boto_ins.public_ip_address
+
+    def _get_boto_private_host(self, boto_ins: 'boto3.resource.factory.ec2.Instance') -> str:
+        """Return the boto instance IP or DNS that will be used by
+        the other instances to reach the current instance.
+
+        This method abstracts the way the other instances will access
+        the instance in the case it's not the private IP.
+
+        Parameters
+        ----------
+        boto_ins: 'boto3.resources.factory.ec2.Instance'
+            The boto instance
+
+        Returns
+        -------
+        str
+            The host information.
+
+        """
+        return boto_ins.private_ip_address
 
     def terminate_instances(self) -> None:
         """Terminates all instances.
@@ -662,10 +712,14 @@ class AWSCluster(Cluster):
             public_host: str) -> Optional["boto3.resources.factory.ec2.Instance"]:
         """Returns the instance id given the public host
 
+        This method will use `_get_boto_public_host` to search
+        for the given host.
+
         Parameters
         ----------
         public_host: str
-            The host in IP format of DNS format
+            The host. Depending on how the host was set,
+            it can be an IP or DNS.
 
         Returns
         -------
@@ -676,7 +730,7 @@ class AWSCluster(Cluster):
         boto_instances = self.ec2_resource.instances.all()
 
         for ins in boto_instances:
-            if ins.public_dns_name == public_host or ins.public_ip_address == public_host:
+            if self._get_boto_public_host(ins) == public_host:
                 return ins
 
         return None
@@ -687,7 +741,8 @@ class AWSCluster(Cluster):
         Parameters
         ----------
         public_host: str
-            The host in IP format of DNS format
+            The host. Depending on how the host was set,
+            it can be an IP or DNS.
 
         Returns
         -------
@@ -857,7 +912,7 @@ class AWSCluster(Cluster):
                                  cpu_thresh: float = 0.1) -> None:
         """Create CloudWatch alarm.
 
-        The alrm is used to terminate an instance based on CPU usage.
+        The alarm is used to terminate an instance based on CPU usage.
 
         Parameters
         ----------
