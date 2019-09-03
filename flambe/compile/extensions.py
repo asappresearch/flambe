@@ -13,7 +13,6 @@ import subprocess
 import importlib
 import importlib.util
 from typing import Dict, Optional, Iterable
-from flambe.compile.registrable import registration_context
 from flambe.logging import coloredlogs as cl
 from flambe.compile.utils import _is_url
 
