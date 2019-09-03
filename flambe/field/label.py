@@ -1,4 +1,4 @@
-from typing import Optional, Dict, Sequence
+from typing import Optional, Sequence
 from collections import OrderedDict as odict
 
 import torch
