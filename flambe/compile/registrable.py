@@ -84,7 +84,7 @@ class Registrable(ABC):
     adding a constructor and representer which can be overridden
     """
 
-    _yaml_tags: Dict[Type, List[str]] = defaultdict(list)
+    _yaml_tags: Dict[Any, List[str]] = defaultdict(list)
     _yaml_tag_namespace: Dict[Type, str] = defaultdict(str)
     _yaml_registered_factories: Set[str] = set()
 
