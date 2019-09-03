@@ -25,7 +25,7 @@ class DistillationTrainer(Trainer):
     def __init__(self,
                  dataset: Dataset,
                  train_sampler: Sampler,
-                 dev_sampler: Sampler,
+                 val_sampler: Sampler,
                  teacher_model: Module,
                  student_model: Module,
                  loss_fn: Metric,
@@ -56,7 +56,7 @@ class DistillationTrainer(Trainer):
             student model, and the last N columns for the target.
         train_sampler : Sampler
             The sampler to use over training examples
-        dev_sampler : Sampler
+        val_sampler : Sampler
             The sampler to use over validation examples
         model : Module
             The model to train
@@ -104,7 +104,7 @@ class DistillationTrainer(Trainer):
         """
         super().__init__(dataset,
                          train_sampler,  # type: ignore
-                         dev_sampler,
+                         val_sampler,
                          student_model,
                          loss_fn,
                          metric_fn,

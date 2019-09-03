@@ -324,6 +324,46 @@ def test_launch_cpu_factories(mock_wait, mock_contains_gpu, create_cluster):
 
 @mock.patch('flambe.cluster.instance.instance.CPUFactoryInstance.contains_gpu')
 @mock.patch('flambe.cluster.instance.instance.Instance.wait_until_accessible')
+@mock.patch('flambe.cluster.aws.AWSCluster._get_boto_private_host')
+@mock.patch('flambe.cluster.aws.AWSCluster._get_boto_public_host')
+def test_get_host_abstractions(mock_public_host, mock_private_host,
+                               mock_wait, mock_contains_gpu, create_cluster):
+    """Test that _get_boto_[public|private]_host are being used instead
+    of the boto attributes.
+
+    """
+    mock_contains_gpu.return_value = False
+
+    # Check that the methods are called when creating an instance.
+    cluster = create_cluster()
+    mock_public_host.assert_called()
+    mock_private_host.assert_called()
+
+    mock_public_host.reset_mock()
+    mock_private_host.reset_mock()
+
+    # Check methods are called when it finds an existing cluster.
+    cluster2 = create_cluster()
+
+    boto_orchestrator, boto_factories = cluster2._existing_cluster()
+
+    assert boto_orchestrator is not None
+    assert len(boto_factories) == 2
+
+    mock_public_host.assert_called()
+    mock_private_host.assert_called()
+
+    mock_public_host.reset_mock()
+    mock_private_host.reset_mock()
+
+    # Check behavior when getting an instance by host
+    _ = cluster._get_boto_instance_by_host(cluster.orchestrator.host)
+    mock_public_host.assert_called()
+    mock_private_host.assert_not_called()  # The private host is not required in this case.
+
+
+@mock.patch('flambe.cluster.instance.instance.CPUFactoryInstance.contains_gpu')
+@mock.patch('flambe.cluster.instance.instance.Instance.wait_until_accessible')
 def test_existing_factories(mock_wait, mock_contains_gpu, get_cluster):
     mock_contains_gpu.return_value = False
     ec2 = boto3.resource('ec2')
