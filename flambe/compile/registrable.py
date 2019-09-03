@@ -84,8 +84,8 @@ class Registrable(ABC):
     adding a constructor and representer which can be overridden
     """
 
-    _yaml_tags: Dict[str, List[str]] = defaultdict(list)
-    _yaml_tag_namespace: Dict[str, str] = defaultdict(str)
+    _yaml_tags: Dict[Type, List[str]] = defaultdict(list)
+    _yaml_tag_namespace: Dict[Type, str] = defaultdict(str)
     _yaml_registered_factories: Set[str] = set()
 
     def __init_subclass__(cls: Type[R],
@@ -107,35 +107,42 @@ class Registrable(ABC):
 
     @staticmethod
     def register_tag(class_: RT, tag: str, tag_namespace: Optional[str] = None) -> None:
-        # Create a tag that includes namespace e.g. `!torch.Adam`
-        # Override any namespace as module name, now that we no longer
-        # allow user-defined namespaces
         modules = class_.__module__.split('.')
         top_level_module_name = modules[0] if len(modules) > 0 else None
-        if top_level_module_name is not None and top_level_module_name != 'flambe':
+        global _reg_prefix
+        if _reg_prefix is not None:
+            tag_namespace = _reg_prefix
+        elif tag_namespace is not None:
+            tag_namespace = tag_namespace
+        elif (tag_namespace is None and top_level_module_name is not None) and \
+                (top_level_module_name != 'flambe' and top_level_module_name != 'tests'):
             tag_namespace = top_level_module_name
+        else:
+            tag_namespace = None
+        # Create a tag that includes namespace e.g. `!torch.Adam`
         if tag_namespace is not None:
             full_tag = f"!{tag_namespace}.{tag}"
         else:
             full_tag = f"!{tag}"
         # full_tag = f"!{tag_namespace}.{tag}" if tag_namespace is
         # not None else f"!{tag}"
-        if class_.__name__ in class_._yaml_tag_namespace:
-            if tag_namespace != class_._yaml_tag_namespace[class_.__name__]:
+        if class_ in class_._yaml_tag_namespace:
+            if tag_namespace != class_._yaml_tag_namespace[class_]:
                 # Don't register anything not matching the already set
                 # namespace
                 # Helps limit chance of tag collisions
-                msg = f"You are trying to register class {class_} without namespace" \
-                      + f"{tag_namespace} so ignoring"
+                msg = (f"You are trying to register class {class_} with namespace "
+                       f"{tag_namespace} != {class_._yaml_tag_namespace[class_]} "
+                       "so ignoring")
                 warn(msg)
                 return
         elif tag_namespace is not None:
             # Set namespace so that the above branch can catch
             # accidentally forgetting namespace
-            class_._yaml_tag_namespace[class_.__name__] = tag_namespace
+            class_._yaml_tag_namespace[class_] = tag_namespace
         # Ensure all tags are only associated with that specific class,
         # NOT any subclasses
-        class_._yaml_tags[class_.__name__].append(full_tag)
+        class_._yaml_tags[class_].append(full_tag)
         # Code based on the ruamel.yaml yaml_object decorator
         # Look for to_yaml and from_yaml methods -- if not present
         # default to built in default flow style
@@ -167,11 +174,6 @@ class Registrable(ABC):
 
         registration_helper()
         for factory_name in class_._yaml_registered_factories:
-            # Add factory tag to registry
-            factory_tag_name = f'{tag}.{factory_name}'
-            factory_full_tag = f'{full_tag}.{factory_name}'
-            class_._yaml_tags[factory_tag_name] = [factory_full_tag]
-
             # Every time we register a new tag, make sure that you can
             # use each factory with that new tag
             registration_helper(factory_name)
@@ -184,8 +186,8 @@ class Registrable(ABC):
         be the only one, or the alias if it exists) for use in
         yaml representation
         """
-        if class_.__name__ in class_._yaml_tags:
-            tag = class_._yaml_tags[class_.__name__][-1]
+        if class_ in class_._yaml_tags:
+            tag = class_._yaml_tags[class_][-1]
             if (factory_name is not None) and \
                     (factory_name not in class_._yaml_registered_factories):
                 raise RegistrationError(f"This class has no factory {factory_name}")

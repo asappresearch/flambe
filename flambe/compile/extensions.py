@@ -263,41 +263,38 @@ def import_modules(modules: Iterable[str]) -> None:
 
     """
     for mod_name in modules:
-        with registration_context(mod_name):
-            try:
-                # Importing modules adds undesired handlers to
-                # the root logger.
-                # We will backup the handlers and updates them
-                # after importing
-                backup_handlers = logging.root.handlers[:]
+        try:
+            # Importing modules adds undesired handlers to
+            # the root logger.
+            # We will backup the handlers and updates them
+            # after importing
+            backup_handlers = logging.root.handlers[:]
 
-                importlib.import_module(mod_name)
+            importlib.import_module(mod_name)
 
-                # Remove all existing root handlers and
-                # re-apply the backed up root handlers
-                for x in logging.root.handlers[:]:
-                    logging.root.removeHandler(x)
-                for x in backup_handlers:
-                    logging.root.addHandler(x)
+            # Remove all existing root handlers and
+            # re-apply the backed up root handlers
+            for x in logging.root.handlers[:]:
+                logging.root.removeHandler(x)
+            for x in backup_handlers:
+                logging.root.addHandler(x)
 
-                logger.info(cl.YE(f"Imported extensions {mod_name}"))
-            except ModuleNotFoundError as e:
-                raise ImportError(
-                    f"Error importing {mod_name}: {e}. Please 'pip install' " +
-                    "the package manually or use '-i' flag (only applies when running " +
-                    "flambe as cmd line program)"
-                )
+            logger.info(cl.YE(f"Imported extensions {mod_name}"))
+        except ModuleNotFoundError as e:
+            raise ImportError(
+                f"Error importing {mod_name}: {e}. Please 'pip install' " +
+                "the package manually or use '-i' flag (only applies when running " +
+                "flambe as cmd line program)"
+            )
 
 
 def setup_default_modules():
     from flambe.compile.utils import make_component
     import torch
     import ray
-    TORCH_TAG_PREFIX = "torch"
-    TUNE_TAG_PREFIX = "tune"
-    make_component(torch.nn.Module, TORCH_TAG_PREFIX, only_module='torch.nn')
-    make_component(torch.optim.Optimizer, TORCH_TAG_PREFIX, only_module='torch.optim')
+    make_component(torch.nn.Module, only_module='torch.nn')
+    make_component(torch.optim.Optimizer, only_module='torch.optim')
     make_component(torch.optim.lr_scheduler._LRScheduler,
-                   TORCH_TAG_PREFIX, only_module='torch.optim.lr_scheduler')
-    make_component(ray.tune.schedulers.TrialScheduler, TUNE_TAG_PREFIX)
-    make_component(ray.tune.suggest.SearchAlgorithm, TUNE_TAG_PREFIX)
+                   only_module='torch.optim.lr_scheduler')
+    make_component(ray.tune.schedulers.TrialScheduler)
+    make_component(ray.tune.suggest.SearchAlgorithm)
