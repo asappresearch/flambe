@@ -276,7 +276,7 @@ HyperBand, and soon more complex search algorithms like HyperOpt will be availab
 .. code-block:: yaml
 
     schedulers:
-        b1: !tune.HyperBandScheduler
+        b1: !ray.HyperBandScheduler
 
     pipeline:
         b0: !ext.TCProcessor

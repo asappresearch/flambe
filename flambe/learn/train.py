@@ -286,7 +286,7 @@ class Trainer(Component):
         Returns
         ------
         bool
-            Whether the computable is not yet complete.
+            Whether the component should continue running.
 
         """
         self._eval_step()

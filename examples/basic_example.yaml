@@ -49,4 +49,4 @@ pipeline:
 
 # Define how to schedule variants
 schedulers:
-  train: !tune.HyperBandScheduler
+  train: !ray.HyperBandScheduler

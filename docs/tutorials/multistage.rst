@@ -64,7 +64,7 @@ and a :class:`~flambe.field.LabelField`.
 
 Next we define our model. We use the :class:`~flambe.nlp.classification.TextClassifier`
 object, which takes an :class:`~flambe.nn.Embedder`, and an output layer. Here,
-we use the :class:`~flambe.nlp.transformer.BertEmbedder` 
+we use the :class:`~flambe.nlp.transformer.BertEmbedder`
 
 .. code-block:: yaml
 
@@ -196,6 +196,7 @@ Full configuration
 
     teacher: !TextClassifier
       embedder: !BertEmbedder
+        alias: 'bert-base-uncased'
         pool: True
       output_layer: !SoftmaxLayer
         input_size: !@ teacher.embedder.hidden_size
