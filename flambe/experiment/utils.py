@@ -92,7 +92,7 @@ def check_search(blocks: Dict[str, Schema],
             raise SearchComponentError(block_id)
 
 
-def convert_tune(data: Mapping[str, Schema]):
+def convert_tune(data: Any):
     """Convert the options and links in the block.
 
     Convert Option objects to tune.grid_search or
@@ -100,9 +100,9 @@ def convert_tune(data: Mapping[str, Schema]):
 
     Parameters
     ----------
-    blocks : OrderedDict[str, Schema[Component]]
-        The input blocks
-    block_id: The block id of the current block
+    data : Any
+        Input object that may contain Options objects that should be
+        converted to a Tune-compatible representation
 
     """
     if isinstance(data, Options) or isinstance(data, Link):
@@ -114,7 +114,7 @@ def convert_tune(data: Mapping[str, Schema]):
     elif isinstance(data, Options):
         if hasattr(data, 'elements'):  # TODO: Bit hacky, make this better
             out = copy.deepcopy(data)
-            out.elements = [convert_tune(elm) for elm in data.elements]
+            out.elements = [convert_tune(elm) for elm in data.elements]  # type: ignore
             return out
     return data
 
