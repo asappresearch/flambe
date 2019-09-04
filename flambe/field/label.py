@@ -1,4 +1,4 @@
-from typing import Optional, Dict, Sequence
+from typing import Optional, Sequence
 from collections import OrderedDict as odict
 
 import torch
@@ -46,7 +46,7 @@ class LabelField(Field):
         else:
             self.label_given = False
             self.vocab = odict()
-            self.label_count_dict: Dict[str, int] = dict()
+            self.label_count_dict = dict()
 
         self.register_attrs('vocab')
         self.register_attrs('label_count_dict')
