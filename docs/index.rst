@@ -43,7 +43,7 @@ Visit the github repo: https://github.com/Open-ASAPP/flambe
               rnn_type: sru
               dropout: 0.3
           output_layer: !SoftmaxLayer
-              input_size: !@ model.embedder.encoder.rnn.hidden_size
+              input_size: !@ model[embedder][encoder].rnn.hidden_size
               output_size: !@ dataset.label.vocab_size
 
       # Stage 2 - Train the model on the dataset
@@ -55,7 +55,7 @@ Visit the github repo: https://github.com/Open-ASAPP/flambe
         loss_fn: !torch.NLLLoss
         metric_fn: !Accuracy
         optimizer: !torch.Adam
-          params: !@ train.model.trainable_params
+          params: !@ train[model].trainable_params
         max_steps: 10
         iter_per_step: 100
 
@@ -97,7 +97,7 @@ By defining a cluster:
     orchestrator_type: t3.large
 
     key: '/path/to/ssh/key'
-    
+
     ...
 
 Then the same experiment can be run remotely:
