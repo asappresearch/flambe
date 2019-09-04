@@ -97,7 +97,7 @@ Define an ``Experiment``:
 
     # Define how to schedule variants
     schedulers:
-      train: !tune.HyperBandScheduler
+      train: !ray.HyperBandScheduler
 
 All objects in the ``pipeline`` are subclasses of ``Component``, which
 are automatically registered to be used with YAML. Custom ``Component``
