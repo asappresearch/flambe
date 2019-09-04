@@ -45,7 +45,7 @@ def check_links(blocks: Dict[str, Schema],
         for _, value in block.items():
             # Check link order
             if isinstance(value, Link):
-                target_block_id = value.var_name
+                target_block_id = value.root_schema
                 if target_block_id not in visited:
                     raise LinkError(block_id, target_block_id)
 
@@ -92,7 +92,7 @@ def check_search(blocks: Dict[str, Schema],
             raise SearchComponentError(block_id)
 
 
-def convert_tune(blocks: Mapping[str, Schema]):
+def convert_tune(data: Any):
     """Convert the options and links in the block.
 
     Convert Option objects to tune.grid_search or
@@ -100,19 +100,23 @@ def convert_tune(blocks: Mapping[str, Schema]):
 
     Parameters
     ----------
-    blocks : OrderedDict[str, Schema[Component]]
-        The input blocks
-    block_id: The block id of the current block
+    data : Any
+        Input object that may contain Options objects that should be
+        converted to a Tune-compatible representation
 
     """
-    for k, v in blocks.items():
-        # Convert Options object
-        if isinstance(v, Options) or isinstance(v, Link):
-            blocks[k] = v.convert()
-        # Recurse
-        elif isinstance(v, abc.Mapping):
-            convert_tune(v)  # type: ignore
-    return blocks
+    if isinstance(data, Options) or isinstance(data, Link):
+        return data.convert()
+    elif isinstance(data, dict):
+        return {k: convert_tune(v) for k, v in data.items()}
+    elif isinstance(data, (tuple, list)):
+        return [convert_tune(el) for el in data]
+    elif isinstance(data, Options):
+        if hasattr(data, 'elements'):  # TODO: Bit hacky, make this better
+            out = copy.deepcopy(data)
+            out.elements = [convert_tune(elm) for elm in data.elements]  # type: ignore
+            return out
+    return data
 
 
 def traverse(nested: Mapping[str, Any], path: Optional[List[str]] = None) -> Iterable[Any]:
@@ -369,14 +373,13 @@ def extract_needed_blocks(schemas: Dict[str, Schema],
 
     # Get this block's links
     for _, _, value in traverse(this_block):
-        if isinstance(value, Link) and value.var_name != block_id:
-            # TODO Add new block_id attribute to Link
+        if isinstance(value, Link) and value.root_schema != block_id:
             # Ensure intra-block links are not added to prevent inf loop
-            needed.add(value.var_name)
+            needed.add(value.root_schema)
         elif isinstance(value, Iterable):
             for element in value:
-                if isinstance(element, Link) and element.var_name != block_id:
-                    needed.add(element.var_name)
+                if isinstance(element, Link) and element.root_schema != block_id:
+                    needed.add(element.root_schema)
 
     # Reccurse through the new needed blocks
     for linked_block_id in needed.copy():
@@ -407,10 +410,12 @@ def update_link_refs(schemas: Dict[str, Schema],
     this_block = schemas[block_id]
     for _, _, value in traverse(this_block):
         if isinstance(value, Link):
-            if value.var_name in schemas:
-                value.obj = schemas[value.var_name]
-            elif value.var_name in global_vars:
-                value.obj = global_vars[value.var_name]
+            if value.root_schema in schemas:
+                value.target = schemas[value.root_schema]
+                if isinstance(value.target, Component):
+                    value.target = value.target._schema
+            elif value.root_schema in global_vars:
+                value.target = global_vars[value.root_schema]
                 value.local = False
 
 

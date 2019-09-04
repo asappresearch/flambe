@@ -37,7 +37,7 @@ class LabelField(Field):
         """
         self.one_hot = one_hot
         self.multilabel_sep = multilabel_sep
-        self.tokenizer = LabelTokenizer(self.multilabel_sep)
+        self.tokenizer = LabelTokenizer(multilabel_sep=self.multilabel_sep)
 
         if labels is not None:
             self.label_given = True

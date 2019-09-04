@@ -28,7 +28,7 @@ class SoftmaxLayer(Module):
         """
         super().__init__()
 
-        self.mlp = MLPEncoder(input_size, output_size)
+        self.mlp = MLPEncoder(input_size=input_size, output_size=output_size)
         self.softmax = nn.LogSoftmax(dim=-1) if take_log else nn.Softmax()
 
     def forward(self, data: Tensor) -> Tensor:

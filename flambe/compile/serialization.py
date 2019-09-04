@@ -165,10 +165,7 @@ def _update_link_refs(schema: Mapping) -> None:
     from flambe.compile.component import Link
     for _, _, value in traverse(schema):
         if isinstance(value, Link):
-            value.obj = schema
-            # TODO temporary hack until pipeline + load linking are
-            # unified
-            value.attr = [value.var_name] + value.attr
+            value.target = schema[value.root_schema]
 
 
 # Public Serialization Functions

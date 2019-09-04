@@ -24,7 +24,7 @@ pipeline:
           rnn_type: sru
           dropout: 0.3
       output_layer: !SoftmaxLayer
-          input_size: !@ model.embedder.encoder.rnn.hidden_size # also use inner-links
+          input_size: !@ model[embedder][encoder].rnn.hidden_size # also use inner-links
           output_size: !@ dataset.label.vocab_size
 
   # Stage 2 - Train the model on the dataset
@@ -36,14 +36,14 @@ pipeline:
     loss_fn: !torch.NLLLoss
     metric_fn: !Accuracy
     optimizer: !torch.Adam
-      params: !@ train.model.trainable_params
+      params: !@ train[model].trainable_params
     max_steps: 2
     iter_per_step: 2
 
   # Stage 3 - Eval on the test set
   eval: !Evaluator
     dataset: !@ dataset
-    model: !@ train.model
+    model: !@ train[model]
     metric_fn: !Accuracy
     eval_sampler: !BaseSampler
 
