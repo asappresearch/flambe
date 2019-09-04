@@ -38,14 +38,14 @@ def main(args: argparse.Namespace) -> None:
         print(cl.BL(f"VERSION: {flambe.__version__}\n"))
 
     # Pass original module for ray / pickle
-    make_component(torch.nn.Module, TORCH_TAG_PREFIX, only_module='torch.nn')
+    make_component(torch.nn.Module, only_module='torch.nn')
     # torch.optim.Optimizer exists, ignore mypy
-    make_component(torch.optim.Optimizer, TORCH_TAG_PREFIX,  # type: ignore
+    make_component(torch.optim.Optimizer,  # type: ignore
                    only_module='torch.optim')
     make_component(torch.optim.lr_scheduler._LRScheduler,
-                   TORCH_TAG_PREFIX, only_module='torch.optim.lr_scheduler')
-    make_component(ray.tune.schedulers.TrialScheduler, TUNE_TAG_PREFIX)
-    make_component(ray.tune.suggest.SearchAlgorithm, TUNE_TAG_PREFIX)
+                   only_module='torch.optim.lr_scheduler')
+    make_component(ray.tune.schedulers.TrialScheduler)
+    make_component(ray.tune.suggest.SearchAlgorithm)
 
     # TODO check first if there is cluster as if there is there
     # is no need to install extensions

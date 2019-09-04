@@ -68,7 +68,7 @@ Visit the github repo: https://github.com/Open-ASAPP/flambe
 
     # Define how to schedule variants
     schedulers:
-      train: !tune.HyperBandScheduler
+      train: !ray.HyperBandScheduler
 
 
 The experiment can be executed by running:

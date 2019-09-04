@@ -47,6 +47,6 @@ pipeline: # Define the list of components to execute
     text: !@ 2_evaluate.dataset.text
 
 schedulers: # Define how to schedule variants
-  1_train: !tune.HyperBandScheduler
+  1_train: !ray.HyperBandScheduler
 reduce: # Only use the best variant in subsequent blocks, meaning only the best Trainer will be linked to the Evaluator stage
   1_train: 1
