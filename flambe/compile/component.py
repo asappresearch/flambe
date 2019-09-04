@@ -699,7 +699,10 @@ class FunctionCallLink(Link):
         return self.resolved
 
 
-def activate_links(kwargs: Dict[str, Any]) -> Dict[str, Any]:
+K = TypeVar('K')
+
+
+def activate_links(data: K) -> Any:
     """Iterate through items in dictionary and activate any `Link`s
 
     Parameters
@@ -726,11 +729,19 @@ def activate_links(kwargs: Dict[str, Any]) -> Dict[str, Any]:
     {'kw1': 0, 'kw2': 1}
 
     """
-    return {
-        # Retrieve actual value of link before initializing
-        kw: kwargs[kw]() if isinstance(kwargs[kw], Link) else kwargs[kw]
-        for kw in kwargs
-    }
+    if isinstance(data, Link):
+        return data()
+    elif isinstance(data, Mapping) and not isinstance(data, Schema):
+        out_dict = {}
+        for kw, val in data.items():
+            out_dict[kw] = activate_links(val)
+        return out_dict
+    elif isinstance(data, Sequence) and not isinstance(data, str):
+        out_list = []
+        for val in data:
+            out_list.append(activate_links(val))
+        return out_list
+    return data
 
 
 def activate_stash_refs(kwargs: Dict[str, Any], stash: Dict[str, Any]) -> Dict[str, Any]:

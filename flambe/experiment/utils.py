@@ -374,7 +374,6 @@ def extract_needed_blocks(schemas: Dict[str, Schema],
     # Get this block's links
     for _, _, value in traverse(this_block):
         if isinstance(value, Link) and value.root_schema != block_id:
-            # TODO Add new block_id attribute to Link
             # Ensure intra-block links are not added to prevent inf loop
             needed.add(value.root_schema)
         elif isinstance(value, Iterable):
