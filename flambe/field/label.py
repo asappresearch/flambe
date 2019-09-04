@@ -42,7 +42,7 @@ class LabelField(Field):
         if labels is not None:
             self.label_given = True
             self.vocab = odict((label, i) for i, label in enumerate(labels))
-            self.label_count_dict: Dict[str, int] = {label: 0 for label in self.vocab}
+            self.label_count_dict = {label: 0 for label in self.vocab}
         else:
             self.label_given = False
             self.vocab = odict()
