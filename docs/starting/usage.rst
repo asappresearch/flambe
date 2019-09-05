@@ -26,7 +26,7 @@ One of the processes that Flambé is able to run is an :class:`~flambe.experimen
           label: !LabelField
 
 This :class:`~flambe.experiment.Experiment` just loads the
-`Stanford Sentiment Treebank <https://nlp.stanford.edu/sentiment/treebank.html>`_ 
+`Stanford Sentiment Treebank <https://nlp.stanford.edu/sentiment/treebank.html>`_
 dataset which we will use later.
 
 .. important::
@@ -58,7 +58,7 @@ and train it with this same dataset:
 A Simple Experiment
 -------------------
 
-Lets add a second stage to the ``pipelin`` to declare a text classifier.
+Lets add a second stage to the ``pipeline`` to declare a text classifier.
 We can use Flambé's :class:`~flambe.nlp.classification.TextClassifier`:
 
 .. code-block:: yaml
@@ -84,26 +84,32 @@ We can use Flambé's :class:`~flambe.nlp.classification.TextClassifier`:
             n_layers: !g [2, 3, 4]
             hidden_size: 256
         output_layer: !SoftmaxLayer
-          input_size: !@ model.embedder.encoder.rnn.hidden_size
+          input_size: !@ model[embedder][encoder].rnn.hidden_size
           output_size: !@ dataset.label.vocab_size
 
 By using ``!@`` you can link to attributes of previously defined objects. Note that we take
 ``num_embeddings`` value from the dataset's vocabulary size that it is stored in its ``text`` attribute.
 These are called ``Links`` (read more about them in :ref:`understanding-links_label`).
 
+Links always start from the top-level stage in the pipeline, and can even be self-referential,
+as the second link references the model definition it is a part of:
+
+.. code-block:: yaml
+
+      input_size: !@ model[embedder][encoder].rnn.hidden_size
+
+Note that the path starts from ``model`` and the brackets access the
+embedder and then the encoder in the config file. You can then use dot
+notation to access the runtime instance attributes of the target object, the
+encoder in this example.
+
+Always refer to the documentation of the object you're linking to in order to understand
+what attributes it actually has when the link will be resolved.
+
 .. important::
-    When using ``!@`` you can access attributes starting always 
-    from the top level object. For example:
-
-    .. code-block:: yaml
-
-          input_size: !@ model.embedder.encoder.rnn.hidden_size
-
-    Note that the path starts from ``model`` (even if ``input_size`` is
-    also declared inside the same object being referenced).
-
-    **Always refer to the documentation of the object you're linking to in order to understand
-    what attributes it actually has when the link will be resolved.**
+    You can only link to non-parent objects above the position of the link in the
+    config file, because later objects, and parents of the link, will not be initialized
+    at the time the link is resolved.
 
 
 .. important::
@@ -112,7 +118,7 @@ These are called ``Links`` (read more about them in :ref:`understanding-links_la
     .. code-block:: yaml
 
         n_layers: !g [2, 3, 4]
-    
+
     Above we define 3 variants of the model, each containing different
     amount of ``n_layers`` in the ``encoder``.
 
@@ -131,7 +137,7 @@ a powerful and flexible implementation called :class:`~flambe.learn.Trainer`:
 
 
       # stage 1 - Define the model
-      [...]  # Same as before 
+      [...]  # Same as before
 
       # stage 2 - train the model on the dataset
       train: !Trainer
@@ -143,7 +149,7 @@ a powerful and flexible implementation called :class:`~flambe.learn.Trainer`:
         loss_fn: !torch.NLLLoss  # Use existing PyTorch negative log likelihood
         metric_fn: !Accuracy  # Used for validation set evaluation
         optimizer: !torch.Adam
-          params: !@ train.model.trainable_params
+          params: !@ train[model].trainable_params
         max_steps: 20
         iter_per_step: 50
 
@@ -154,7 +160,7 @@ a powerful and flexible implementation called :class:`~flambe.learn.Trainer`:
 
 .. tip::
   Additionally we setup some ``Tune`` classes for use with hyperparameter search and scheduling.
-  They can be accessed via ``!tune.ClassName`` tags. More on hyperparameter search and
+  They can be accessed via ``!ray.ClassName`` tags. More on hyperparameter search and
   scheduling in :ref:`understanding-experiments_label`.
 
 
@@ -279,7 +285,7 @@ Here is the full config we used in this tutorial:
             n_layers: !g [2, 3, 4]
             hidden_size: 256
         output_layer: !SoftmaxLayer
-          input_size: !@ model.embedder.encoder.rnn.hidden_size
+          input_size: !@ model[embedder][encoder].rnn.hidden_size
           output_size: !@ dataset.label.vocab_size
 
       # stage 2 - train the model on the dataset
@@ -292,7 +298,7 @@ Here is the full config we used in this tutorial:
         loss_fn: !torch.NLLLoss  # Use existing PyTorch negative log likelihood
         metric_fn: !Accuracy  # Used for validation set evaluation
         optimizer: !torch.Adam
-          params: !@ train.model.trainable_params
+          params: !@ train[model].trainable_params
         max_steps: 20
         iter_per_step: 50
 

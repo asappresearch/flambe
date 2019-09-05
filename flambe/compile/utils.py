@@ -24,7 +24,9 @@ def all_subclasses(class_: Type[Any]) -> Set[Type[Any]]:
     return set(class_.__subclasses__()).union(subsubclasses)
 
 
-def make_component(class_: type, tag_namespace: str, only_module: Optional[str] = None) -> None:
+def make_component(class_: type,
+                   tag_namespace: Optional[str] = None,
+                   only_module: Optional[str] = None) -> None:
     """Make class and all its children a `Component`
 
     For example a call to `make_component(torch.optim.Adam, "torch")`

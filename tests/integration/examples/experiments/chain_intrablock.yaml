@@ -20,7 +20,7 @@ pipeline:
         embedding_dim: 300
       encoder: !@ encoder
     output_layer: !SoftmaxLayer
-      input_size: !@ model.embedder.encoder.rnn.hidden_size
+      input_size: !@ model[embedder].encoder.rnn.hidden_size
       output_size: !@ dataset.label.vocab_size
   b1: !Trainer
     dataset: !@ dataset
@@ -30,7 +30,7 @@ pipeline:
     loss_fn: !torch.NLLLoss
     metric_fn: !Accuracy
     optimizer: !torch.Adam
-      params: !@ b1.model.trainable_params
+      params: !@ b1[model].trainable_params
     max_steps: 2
     iter_per_step: 2
   b2: !Trainer
@@ -44,18 +44,18 @@ pipeline:
           embedding_dim: 300
         encoder: !PooledRNNEncoder
           input_size: !g
-            - !@ b2.model.embedder.embedding.embedding_dim
+            - !@ b2[model][embedder][embedding].embedding_dim
             - !@ b1.model.embedder.embedding.embedding_dim
           rnn_type: lstm
           n_layers: !g [2, 3]
-          hidden_size: !@ b2.model.embedder.encoder.input_size
+          hidden_size: !@ b2[model][embedder][encoder][input_size]
       output_layer: !SoftmaxLayer
-        input_size: !@ b2.model.embedder.encoder.rnn.hidden_size
+        input_size: !@ b2[model][embedder][encoder].rnn.hidden_size
         output_size: !@ dataset.label.vocab_size
     loss_fn: !torch.NLLLoss
     metric_fn: !Accuracy
     optimizer: !torch.Adam
-      params: !@ b2.model.trainable_params
+      params: !@ b2[model].trainable_params
     max_steps: 2
     iter_per_step: 2
   b3: !Evaluator
@@ -66,7 +66,7 @@ pipeline:
       batch_size: 512
 
 schedulers: # Define how to schedule variants based on a metric
-  b2: !tune.HyperBandScheduler
+  b2: !ray.HyperBandScheduler
     reward_attr: dev_metric # This should be an attribute on the Trainer class
 reduce: # Only use the best variant in subsequent blocks
   b2: 1

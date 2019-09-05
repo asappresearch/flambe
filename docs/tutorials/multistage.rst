@@ -64,7 +64,7 @@ and a :class:`~flambe.field.LabelField`.
 
 Next we define our model. We use the :class:`~flambe.nlp.classification.TextClassifier`
 object, which takes an :class:`~flambe.nn.Embedder`, and an output layer. Here,
-we use the :class:`~flambe.nlp.transformer.BertEmbedder` 
+we use the :class:`~flambe.nlp.transformer.BertEmbedder`
 
 .. code-block:: yaml
 
@@ -74,10 +74,15 @@ we use the :class:`~flambe.nlp.transformer.BertEmbedder`
         pool: True
 
       output_layer: !SoftmaxLayer
-        input_size: !@ model.embedder.hidden_size
+        input_size: !@ teacher[embedder].hidden_size
         output_size: !@ dataset.label.vocab_size  # We link the to size of the label space
 
 Finally we put all of this in a :class:`~flambe.learn.Trainer` object, which will execute training.
+
+.. note::
+    Recall that you can't link to parent objects because they won't be initialized yet; that's why
+    we link directly to the embedder via bracket notation (it will be initialized because it's
+    above in the config and not a parent), and access the intended ``hidden_size`` attribute
 
 .. tip:: Any component can be specified at the top level in the pipeline or be an argument
         to another :class:`~flambe.compile.Component` objects. A :class:`~flambe.compile.Component`
@@ -86,18 +91,20 @@ Finally we put all of this in a :class:`~flambe.learn.Trainer` object, which wil
         The :class:`~flambe.learn.Trainer`
         however executes training through its run method, and will therefore be both declared and executed.
 
-  finetune: !Trainer
-    dataset: !@ dataset
-    train_sampler: !BaseSampler
-      batch_size: 16
-    val_sampler: !BaseSampler
-      batch_size: 16
-    model: !@ teacher
-    loss_fn: !torch.NLLLoss
-    metric_fn: !Accuracy
-    optimizer: !AdamW
-      params: !@ finetune.model.trainable_params
-      lr: 0.00005
+.. code-block:: yaml
+
+    finetune: !Trainer
+      dataset: !@ dataset
+      train_sampler: !BaseSampler
+        batch_size: 16
+      val_sampler: !BaseSampler
+        batch_size: 16
+      model: !@ teacher
+      loss_fn: !torch.NLLLoss
+      metric_fn: !Accuracy
+      optimizer: !AdamW
+        params: !@ finetune[model].trainable_params
+        lr: 0.00005
 
 
 Second step: Knowledge distillation
@@ -121,7 +128,7 @@ We now introduce a second model, which we will call the student model:
           hidden_size: 256
         pooling: !LastPooling
       output_layer: !SoftmaxLayer
-        input_size: !@ student.embedder.encoder.hidden_size
+        input_size: !@ student[embedder][encoder].hidden_size
         output_size: !@ dataset.label.vocab_size
 
 .. attention::
@@ -135,12 +142,12 @@ may also decide to perform different preprocessing for the student model:
 .. code-block:: yaml
 
     dataset: !SSTDataset
-        transform:
-            teacher_text: !BERTTextField.from_alias
-                alias: 'bert-base-uncased'
-                lower: true
-            label: !LabelField
-            student_text: !TextField
+      transform:
+        teacher_text: !BERTTextField.from_alias
+          alias: 'bert-base-uncased'
+          lower: true
+        label: !LabelField
+        student_text: !TextField
 
 We can now proceed to the final step of our pipeline which is the :class:`~flambe.learn.distillation.DistillationTrainer`.
 The key here is to link to the teacher model that was obtained in the ``finetune`` stage above.
@@ -164,7 +171,7 @@ The key here is to link to the teacher model that was obtained in the ``finetune
       loss_fn: !torch.NLLLoss
       metric_fn: !Accuracy
       optimizer: !torch.Adam
-        params: !@ distill.student_model.trainable_params
+        params: !@ distill[student_model].trainable_params
         lr: 0.00005
       alpha_kl: 0.5
       temperature: 1
@@ -189,16 +196,17 @@ Full configuration
   pipeline:
 
     dataset: !SSTDataset
-        transform:
-            text: !BertTextField
-                alias: 'bert-base-uncased'
-            label: !LabelField
+      transform:
+        text: !BertTextField
+          alias: 'bert-base-uncased'
+        label: !LabelField
 
     teacher: !TextClassifier
       embedder: !BertEmbedder
+        alias: 'bert-base-uncased'
         pool: True
       output_layer: !SoftmaxLayer
-        input_size: !@ teacher.embedder.hidden_size
+        input_size: !@ teacher[embedder].hidden_size
         output_size: !@ dataset.label.vocab_size  # We link the to size of the label space
 
     student: !TextClassifier
@@ -213,7 +221,7 @@ Full configuration
           hidden_size: 256
         pooling: last
       output_layer: !SoftmaxLayer
-        input_size: !@ student.embedder.encoder.hidden_size
+        input_size: !@ student[embedder][encoder].hidden_size
         output_size: !@ dataset.label.vocab_size
 
     finetune: !Trainer
@@ -226,7 +234,7 @@ Full configuration
       loss_fn: !torch.NLLLoss
       metric_fn: !Accuracy
       optimizer: !AdamW
-        params: !@ finetune.model.trainable_params
+        params: !@ finetune[model].trainable_params
         lr: 0.00005
 
     distill: !DistillationTrainer
@@ -240,7 +248,7 @@ Full configuration
       loss_fn: !torch.NLLLoss
       metric_fn: !Accuracy
       optimizer: !torch.Adam
-        params: !@ distill.student_model.trainable_params
+        params: !@ distill[student_model].trainable_params
         lr: 0.00005
       alpha_kl: 0.5
       temperature: 1

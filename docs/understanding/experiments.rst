@@ -164,7 +164,7 @@ This will produce 6 variants (3 ``n_layers`` values times 2 ``hidden_size`` valu
 
 **Variants inheritance**
 
-.. attention:: 
+.. attention::
    **Any object that links to an attribute of an object that describes multiple variants
    will inherit those variants.**
 
@@ -276,7 +276,7 @@ HyperBand, and soon more complex search algorithms like HyperOpt will be availab
 .. code-block:: yaml
 
     schedulers:
-        b1: !tune.HyperBandScheduler
+        b1: !ray.HyperBandScheduler
 
     pipeline:
         b0: !ext.TCProcessor
@@ -383,7 +383,7 @@ For example, if you initialize and use the following object as a part of your ``
         n_layers: 2
         hidden_size: 256
     output_layer: !SoftmaxLayer
-      input_size: !@ b1.model.encoder.encoder.rnn.hidden_size
+      input_size: !@ b1[model][encoder][encoder].rnn.hidden_size
       output_size: !@ b0.label.vocab_size
 
 Then the save directory would look like the following:
@@ -417,7 +417,7 @@ Then the save directory would look like the following:
         └── source.py
 
 Note that each subdirectory is self-contained: if it's possible to load that object
-on its own, you can load from just that subdirectory. 
+on its own, you can load from just that subdirectory.
 
 .. important::
   As seen before, each variant of a :class:`~flambe.compile.Component` will have it's separate output folder.
@@ -496,4 +496,3 @@ of ``MyModel`` it will know to update these attributes.
 If you want more flexibility to manipulate the state_dict or add computed
 properties you can override the :meth:`~flambe.compile.Component._state` and
 :meth:`~flambe.compile.Component._load_state` methods.
-
