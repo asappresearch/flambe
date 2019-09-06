@@ -1012,11 +1012,7 @@ class Component(Registrable):
                 state_dict._metadata[FLAMBE_DIRECTORIES_KEY].add(current_path)
         # Iterate over modules to make sure Component
         # nn.Modules are added to flambe directories
-        if isinstance(self, torch.nn.Module):
-            for name, module in self.named_children():
-                if isinstance(module, Component):
-                    current_path = prefix + name
-                    state_dict._metadata[FLAMBE_DIRECTORIES_KEY].add(current_path)
+        state_dict._metadata[FLAMBE_DIRECTORIES_KEY].add(prefix[:-1])
         state_dict = self._add_registered_attrs(state_dict, prefix)
         state_dict = self._state(state_dict, prefix, local_metadata)
         return state_dict
