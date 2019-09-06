@@ -281,22 +281,23 @@ class Trainer(Component):
                 metric(preds, targets).item(), self._step)  # type: ignore
 
     def run(self) -> bool:
-        """Train until the next checkpoint, and evaluate.
+        """Evaluate and then train until the next checkpoint
 
         Returns
         ------
         bool
-            Whether the computable is not yet complete.
+            Whether the component should continue running.
 
         """
+        self._eval_step()
         if self._step < self.max_steps:
             self._train_step()
-        self._eval_step()
 
         # Simple stopping rule, if we exceed the max number of steps
         self._step += 1
         continue_ = self._step < self.max_steps
         if not continue_:
+            self._eval_step()
             self.model.load_state_dict(self._best_model)
 
         return continue_

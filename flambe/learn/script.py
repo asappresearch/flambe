@@ -1,8 +1,9 @@
-from typing import Any, Dict
+from typing import Any, Dict, Optional
 import sys
 import runpy
 from copy import deepcopy
 
+from flambe.logging import get_trial_dir
 from flambe.compile import Component
 
 
@@ -22,20 +23,30 @@ class Script(Component):
 
         python -m script.py --arg1 value1 --arg2 value2
 
-    Parameters
-    ----------
-    path: str
-        The script module
-    args: Dict[str, Any]
-        Argument dictionary
-
     """
 
     def __init__(self,
                  script: str,
-                 args: Dict[str, Any]) -> None:
+                 args: Dict[str, Any],
+                 output_dir_arg: Optional[str] = None) -> None:
+        """Initialize a Script.
+
+        Parameters
+        ----------
+        path: str
+            The script module
+        args: Dict[str, Any]
+            Argument dictionary
+        output_dir_arg: str, optional
+            The name of the argument corresponding to the output
+            directory, should there be one.
+
+        """
         self.script = script
         self.args = args
+
+        if output_dir_arg is not None:
+            self.args[output_dir_arg] = get_trial_dir()
 
     def run(self) -> bool:
         """Run the evaluation.

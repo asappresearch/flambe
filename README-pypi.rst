@@ -29,7 +29,7 @@ Installation
     pip install flambe  # CPU Version
     # OR
     pip install flambe[cuda]  # With GPU / CUDA support
-   
+
 **From source**:
 
 .. code-block:: bash
@@ -37,8 +37,8 @@ Installation
     git clone git@github.com:Open-ASAPP/flambe.git
     cd flambe
     pip install .
-    
-   
+
+
 Getting started
 ---------------
 
@@ -72,7 +72,7 @@ Define an ``Experiment``:
               rnn_type: sru
               dropout: 0.3
           output_layer: !SoftmaxLayer
-              input_size: !@ model.embedder.encoder.rnn.hidden_size
+              input_size: !@ model[embedder][encoder].rnn.hidden_size
               output_size: !@ dataset.label.vocab_size
 
       # Stage 2 - Train the model on the dataset
@@ -84,7 +84,7 @@ Define an ``Experiment``:
         loss_fn: !torch.NLLLoss
         metric_fn: !Accuracy
         optimizer: !torch.Adam
-          params: !@ train.model.trainable_params
+          params: !@ train[model].trainable_params
         max_steps: 10
         iter_per_step: 100
 
@@ -97,7 +97,7 @@ Define an ``Experiment``:
 
     # Define how to schedule variants
     schedulers:
-      train: !tune.HyperBandScheduler
+      train: !ray.HyperBandScheduler
 
 All objects in the ``pipeline`` are subclasses of ``Component``, which
 are automatically registered to be used with YAML. Custom ``Component``
@@ -107,7 +107,7 @@ Now just execute:
 
 .. code-block:: bash
 
-    flambe example.yaml 
+    flambe example.yaml
 
 Note that defining objects like model and dataset ahead of time is optional; it's useful if you want to reference the same model architecture multiple times later in the pipeline.
 
@@ -130,4 +130,3 @@ Full documentation, tutorials and much more in https://flambe.ai
 Contact
 -------
 You can reach us at flambe@asapp.com
-

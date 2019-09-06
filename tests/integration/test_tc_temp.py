@@ -23,7 +23,7 @@ pipeline:
     model: !TextClassifier
       embedder: !Embedder
         embedding: !torch.Embedding
-          num_embeddings: !@ b1.dataset.text.vocab_size
+          num_embeddings: !@ b1[dataset].text.vocab_size
           embedding_dim: 300
         encoder: !PooledRNNEncoder
           input_size: 300
@@ -31,12 +31,12 @@ pipeline:
           n_layers: 2
           hidden_size: 256
       output_layer: !SoftmaxLayer
-        input_size: !@ b1.model.embedder.encoder.rnn.hidden_size
-        output_size: !@ b1.dataset.label.vocab_size
+        input_size: !@ b1[model][embedder][encoder].rnn.hidden_size
+        output_size: !@ b1[dataset].label.vocab_size
     loss_fn: !torch.NLLLoss
     metric_fn: !Accuracy
     optimizer: !torch.Adam
-      params: !@ b1.model.trainable_params
+      params: !@ b1[model].trainable_params
     max_steps: 1
     iter_per_step: 1
 """

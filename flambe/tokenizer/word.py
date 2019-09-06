@@ -14,7 +14,7 @@ class WordTokenizer(Tokenizer):
        nltk.tokenize.word_tokenize """
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-        nltk.download('punkt')
+        nltk.download('punkt', quiet=True)
 
     def tokenize(self, example: str) -> List[str]:
         """Tokenize an input example.
@@ -83,10 +83,10 @@ class NGramsTokenizer(Tokenizer):
         if self.exclude_stopwords:
             self.stop_words = stop_words
             if self.stop_words is None:
-                nltk.download('stopwords')
+                nltk.download('stopwords', quiet=True)
                 self.stop_words = stopwords.words('english')
 
-        nltk.download('punkt')
+        nltk.download('punkt', quiet=True)
 
     @staticmethod
     def _tokenize(example: str, n: int) -> List[str]:

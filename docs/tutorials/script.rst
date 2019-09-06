@@ -72,11 +72,11 @@ Once you have done the above step, you can use your script in Flambé as follows
     !Experiment
 
     pipeline:
-        stage_0: !Script
-            script: my_project.train  # my_project is the name of the module
-            args:
-                arg1: !g [1, 5]  # Run a grid search over any arguments to your script
-                arg2: 'foo'
+      stage_0: !Script
+        script: my_project.train  # my_project is the name of the module
+        args:
+          arg1: !g [1, 5]  # Run a grid search over any arguments to your script
+          arg2: 'foo'
 
 That's it! You can now execute this configuration file, with the regular command:
 
@@ -87,4 +87,3 @@ In order to see tensorboard logs, simply import the logger, and use it anywhere 
 
 .. code-block:: bash
     from flambe import log
-
