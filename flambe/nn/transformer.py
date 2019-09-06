@@ -26,6 +26,7 @@ class Transformer(Module):
     """
 
     def __init__(self,
+                 input_size: int = 512,
                  d_model: int = 512,
                  nhead: int = 8,
                  num_encoder_layers: int = 6,
@@ -36,6 +37,9 @@ class Transformer(Module):
 
         Parameters
         ----------
+        input_size : int
+            dimension of embeddings (default=512). if different from d_model,
+            then a linear layer is added to project from input_size to d_model.
         d_model : int, optional
             the number of expected features in the
             encoder/decoder inputs (default=512).
@@ -57,13 +61,15 @@ class Transformer(Module):
         """
         super().__init__()
 
-        self.encoder = TransformerEncoder(d_model,
+        self.encoder = TransformerEncoder(input_size,
+                                          d_model,
                                           nhead,
                                           dim_feedforward,
                                           num_encoder_layers,
                                           dropout)
 
-        self.decoder = TransformerDecoder(d_model,
+        self.decoder = TransformerDecoder(input_size,
+                                          d_model,
                                           nhead,
                                           dim_feedforward,
                                           num_encoder_layers,
@@ -154,6 +160,7 @@ class TransformerEncoder(Module):
     """TransformerEncoder is a stack of N encoder layers."""
 
     def __init__(self,
+                 input_size: int = 512,
                  d_model: int = 512,
                  nhead: int = 8,
                  num_layers: int = 6,
@@ -163,6 +170,9 @@ class TransformerEncoder(Module):
 
         Parameters
         ---------
+        input_size : int
+            The embedding dimension of the model.  If different from d_model,
+            a linear projection layer is added.
         d_model : int
             the number of expected features in encoder/decoder inputs.
             Default ``512``.
@@ -180,7 +190,8 @@ class TransformerEncoder(Module):
         """
         super().__init__()
 
-        layer = TransformerEncoderLayer(d_model,
+        layer = TransformerEncoderLayer(input_size,
+                                        d_model,
                                         nhead,
                                         dim_feedforward,
                                         dropout)
@@ -232,6 +243,7 @@ class TransformerDecoder(Module):
     """TransformerDecoder is a stack of N decoder layers"""
 
     def __init__(self,
+                 input_size: int,
                  d_model: int,
                  nhead: int,
                  num_layers: int,
@@ -241,6 +253,9 @@ class TransformerDecoder(Module):
 
         Parameters
         ---------
+        input_size : int
+            The embedding dimension of the model.  If different from d_model,
+            a linear projection layer is added.
         d_model : int
             The number of expected features in encoder/decoder inputs.
         nhead : int, optional
@@ -255,7 +270,8 @@ class TransformerDecoder(Module):
         """
         super().__init__()
 
-        layer = TransformerDecoderLayer(d_model,
+        layer = TransformerDecoderLayer(input_size,
+                                        d_model,
                                         nhead,
                                         dim_feedforward,
                                         dropout)
@@ -328,6 +344,7 @@ class TransformerEncoderLayer(Module):
     """
 
     def __init__(self,
+                 input_size: int,
                  d_model: int,
                  nhead: int,
                  dim_feedforward: int = 2048,
@@ -336,6 +353,9 @@ class TransformerEncoderLayer(Module):
 
         Parameters
         ----------
+        input_size : int
+            The embedding dimension of the model.  If different from d_model,
+            a linear projection layer is added.
         d_model : int
             The number of expected features in the input.
         n_head : int
@@ -347,6 +367,12 @@ class TransformerEncoderLayer(Module):
 
         """
         super().__init__()
+
+        self.input_size = input_size
+        self.d_model = d_model
+
+        if input_size != d_model:
+            self.proj = nn.Linear(input_size, d_model)
 
         self.self_attn = nn.MultiheadAttention(d_model, nhead, dropout=dropout)
 
@@ -389,6 +415,9 @@ class TransformerEncoderLayer(Module):
         if padding_mask is not None:
             padding_mask = (-padding_mask + 1).t()
 
+        if self.input_size != self.d_model:
+            src = self.proj(src)
+
         src2 = self.self_attn(src, src, src, attn_mask=src_mask,
                               key_padding_mask=padding_mask)[0]
         src = src + self.dropout1(src2)
@@ -414,6 +443,7 @@ class TransformerDecoderLayer(Module):
     """
 
     def __init__(self,
+                 input_size: int,
                  d_model: int,
                  nhead: int,
                  dim_feedforward: int = 2048,
@@ -422,6 +452,9 @@ class TransformerDecoderLayer(Module):
 
         Parameters
         ----------
+        input_size : int
+            The embedding dimension of the model.  If different from d_model,
+            a linear projection layer is added.
         d_model : int
             The number of expected features in the input.
         n_head : int
@@ -433,6 +466,12 @@ class TransformerDecoderLayer(Module):
 
         """
         super().__init__()
+
+        self.input_size = input_size
+        self.d_model = d_model
+
+        if input_size != d_model:
+            self.proj = nn.Linear(input_size, d_model)
 
         self.self_attn = nn.MultiheadAttention(d_model, nhead, dropout=dropout)
         self.multihead_attn = nn.MultiheadAttention(d_model, nhead, dropout=dropout)
@@ -483,6 +522,9 @@ class TransformerDecoderLayer(Module):
         # Transpose anr reverse
         if padding_mask is not None:
             padding_mask = (-padding_mask + 1).t()
+
+        if self.input_size != self.d_model:
+            tgt = self.proj(tgt)
 
         tgt2 = self.self_attn(tgt, tgt, tgt, attn_mask=tgt_mask,
                               key_padding_mask=padding_mask)[0]
