@@ -320,10 +320,6 @@ class Trainer(Component):
         state_dict[prefix + 'optimizer'] = self.optimizer.state_dict()
         if self.scheduler is not None:
             state_dict[prefix + 'scheduler'] = self.scheduler.state_dict()
-        if '_schema' in state_dict[prefix + 'scheduler']:
-            del state_dict[prefix + 'scheduler']['_schema']
-            del state_dict[prefix + 'scheduler']['_saved_kwargs']
-            del state_dict[prefix + 'scheduler']['_extensions']
         return state_dict
 
     def _load_state(self,

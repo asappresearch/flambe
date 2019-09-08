@@ -4,6 +4,7 @@ from flambe.nn.mos import MixtureOfSoftmax
 from flambe.nn.embedding import Embeddings, Embedder
 from flambe.nn.mlp import MLPEncoder
 from flambe.nn.rnn import RNNEncoder, PooledRNNEncoder
+from flambe.nn.scheduler import LRScheduler
 from flambe.nn.cnn import CNNEncoder
 from flambe.nn.sequential import Sequential
 from flambe.nn.pooling import FirstPooling, LastPooling, SumPooling, AvgPooling
@@ -16,4 +17,5 @@ __all__ = ['Module', 'Embeddings', 'Embedder', 'RNNEncoder',
            'SoftmaxLayer', 'MixtureOfSoftmax', 'Sequential',
            'Transformer', 'TransformerEncoder', 'TransformerDecoder',
            'TransformerSRU', 'TransformerSRUEncoder', 'TransformerSRUDecoder',
-           'FirstPooling', 'LastPooling', 'SumPooling', 'AvgPooling']
+           'FirstPooling', 'LastPooling', 'SumPooling', 'AvgPooling',
+           'LRScheduler']
