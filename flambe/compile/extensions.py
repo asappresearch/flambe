@@ -289,7 +289,7 @@ def import_modules(modules: Iterable[str]) -> None:
 
 def setup_default_modules():
     from flambe.compile.utils import make_component
-    from flambe.nn import LRScheduler
+    from flambe.optim import LRScheduler
     import torch
     import ray
     make_component(torch.nn.Module, only_module='torch.nn')

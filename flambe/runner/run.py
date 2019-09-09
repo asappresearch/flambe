@@ -11,7 +11,7 @@ import os
 from flambe.const import FLAMBE_GLOBAL_FOLDER
 from flambe.compile import make_component
 from flambe.compile.extensions import download_extensions
-from flambe.nn import LRScheduler
+from flambe.optim import LRScheduler
 from flambe.runnable.utils import is_dev_mode, get_flambe_repo_location
 from flambe.logging import setup_global_logging
 from flambe.logging import coloredlogs as cl
