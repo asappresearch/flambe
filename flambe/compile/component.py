@@ -1480,7 +1480,8 @@ class Component(Registrable):
 
 def dynamic_component(class_: Type[A],
                       tag: str,
-                      tag_namespace: Optional[str] = None) -> Type[Component]:
+                      tag_namespace: Optional[str] = None,
+                      parent_component_class: Type[Component] = Component) -> Type[Component]:
     """Decorate given class, creating a dynamic `Component`
 
     Creates a dynamic subclass of `class_` that inherits from
@@ -1505,7 +1506,9 @@ def dynamic_component(class_: Type[A],
         New subclass of `_class` and `Component`
 
     """
-    if issubclass(class_, Component):
+    if not issubclass(parent_component_class, Component):
+        raise Exception("Only a subclass of Component should be used for 'parent_component_class'")
+    if issubclass(class_, parent_component_class):
         return class_
 
     # Copy over class attributes so it still looks like the original
@@ -1521,7 +1524,7 @@ def dynamic_component(class_: Type[A],
     # Ignore mypy, extra kwargs are okay in python 3.6+ usage of type
     # and Registrable uses them
     new_component = type(class_.__name__,  # type: ignore
-                         (Component, class_),
+                         (parent_component_class, class_),
                          copied_attrs,
                          tag_override=tag,
                          tag_namespace=tag_namespace)  # type: ignore
