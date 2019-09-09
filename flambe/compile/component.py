@@ -1506,8 +1506,8 @@ def dynamic_component(class_: Type[A],
         New subclass of `_class` and `Component`
 
     """
-    if parent_component_class is None:
-        parent_component_class = Component
+    if not issubclass(parent_component_class, Component):
+        raise Exception("Only a subclass of Component should be used for 'parent_component_class'")
     if issubclass(class_, parent_component_class):
         return class_
 
