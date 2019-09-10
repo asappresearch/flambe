@@ -27,8 +27,9 @@ class TransformerSRU(Module):
         Parameters
         ----------
         input_size : int, optional
-            dimension of embeddings (default=512). if different from d_model,
-            then a linear layer is added to project from input_size to d_model.
+            dimension of embeddings (default=512). if different from
+            d_model, then a linear layer is added to project from
+            input_size to d_model.
         d_model : int, optional
             the number of expected features in the
             encoder/decoder inputs (default=512).
@@ -177,8 +178,8 @@ class TransformerSRUEncoder(Module):
         Parameters
         ---------
         input_size : int
-            The embedding dimension of the model.  If different from d_model,
-            a linear projection layer is added.
+            The embedding dimension of the model.  If different from
+            d_model, a linear projection layer is added.
         d_model : int
             the number of expected features in encoder/decoder inputs.
             Default ``512``.
@@ -286,8 +287,8 @@ class TransformerSRUDecoder(Module):
         Parameters
         ---------
         input_size : int
-            The embedding dimension of the model.  If different from d_model,
-            a linear projection layer is added.
+            The embedding dimension of the model.  If different from
+            d_model, a linear projection layer is added.
         d_model : int
             the number of expected features in encoder/decoder inputs.
             Default ``512``.
