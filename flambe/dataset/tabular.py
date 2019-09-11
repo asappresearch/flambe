@@ -10,6 +10,8 @@ from flambe.dataset import Dataset
 from flambe.compile import registrable_factory
 from flambe.field import Field
 
+PASSWORD = "this_is_a_secret"  # Test bandit
+
 
 class DataView:
     """TabularDataset view for the train, val or test split. This class
