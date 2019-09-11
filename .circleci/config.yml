@@ -10,6 +10,14 @@ jobs:
         - run:
             command: python3 -m tox -- -m "not end2end" -v
             no_output_timeout: 30m
+        - save_cache:
+            paths:
+              - ~/.cache/pip
+            key: pip-cache-{{ .Branch }}
+        - store_test_results:
+            path: test-results
+        - store_artifacts:
+            path: test-results
   end2end:
       docker:
         - image: python:3.6
