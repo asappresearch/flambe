@@ -15,9 +15,9 @@ jobs:
               - ~/.cache/pip
             key: pip-cache-{{ .Branch }}
         - store_test_results:
-            path: test-results
+            path: test_results
         - store_artifacts:
-            path: test-results
+            path: test_results
   end2end:
       docker:
         - image: python:3.6
