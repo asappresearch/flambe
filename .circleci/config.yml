@@ -18,7 +18,6 @@ jobs:
         - save_cache:
             paths:
               - ~/.cache/pip
-              - .tox
             key: flambe-cache-{{ .Branch }}
         - store_test_results:
             path: test_results
