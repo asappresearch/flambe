@@ -11,7 +11,6 @@ from flambe.compile import registrable_factory
 from flambe.field import Field
 
 
-
 class DataView:
     """TabularDataset view for the train, val or test split. This class
     must be used only internally in the TabularDataset class.
