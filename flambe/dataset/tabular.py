@@ -25,7 +25,8 @@ class DataView:
 
     """
     def __init__(self,
-                 data: np.ndarray,
+                 # data: np.ndarray,
+                 data: str,
                  transform_hooks: List[Tuple[Field, Union[int, List[int]]]],
                  cache: bool) -> None:
         """
