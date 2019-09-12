@@ -296,6 +296,7 @@ class Embedder(Module):
         embedded = self.embedding(data)
         embedded = self.dropout(embedded)
 
+        padding_mask: Optional[Tensor]
         if self.padding_idx is not None:
             padding_mask = (data != self.padding_idx).byte()
             encoding = self.encoder(embedded, padding_mask=padding_mask)
