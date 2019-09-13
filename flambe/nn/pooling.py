@@ -16,9 +16,9 @@ class FirstPooling(Module):
         Parameters
         ----------
         data : torch.Tensor
-            The input data, as a tensor of shape [S x B x H]
+            The input data, as a tensor of shape [B x S x H]
         padding_mask: torch.Tensor
-            The input mask, as a tensor of shape [S X B]
+            The input mask, as a tensor of shape [B X S]
 
         Returns
         ----------
@@ -40,9 +40,9 @@ class LastPooling(Module):
         Parameters
         ----------
         data : torch.Tensor
-            The input data, as a tensor of shape [S x B x H]
+            The input data, as a tensor of shape [B x S x H]
         padding_mask: torch.Tensor
-            The input mask, as a tensor of shape [S X B]
+            The input mask, as a tensor of shape [B X S]
 
         Returns
         ----------
@@ -52,11 +52,11 @@ class LastPooling(Module):
         """
         # Compute lengths
         if padding_mask is None:
-            lengths = torch.tensor([data.size(0)] * data.size(1)).long()
+            lengths = torch.tensor([data.size(1)] * data.size(0)).long()
         else:
             lengths = padding_mask.long().sum(dim=1)
 
-        return data[torch.arange(data.size(1)).long(), lengths - 1, :]
+        return data[torch.arange(data.size(0)).long(), lengths - 1, :]
 
 
 class SumPooling(Module):
