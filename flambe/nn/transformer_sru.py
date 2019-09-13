@@ -93,10 +93,10 @@ class TransformerSRU(Module):
         ----------
         src: torch.Tensor
             the sequence to the encoder (required).
-            shape: :math:`(S, N, E)`.
+            shape: :math:`(N, S, E)`.
         tgt: torch.Tensor
             the sequence to the decoder (required).
-            shape: :math:`(T, N, E)`.
+            shape: :math:`(N, T, E)`.
         src_mask: torch.Tensor, optional
             the additive mask for the src sequence (optional).
             shape: :math:`(S, S)`.
@@ -246,7 +246,7 @@ class TransformerSRUEncoder(Module):
             for padding tokens.
 
         """
-        output = src
+        output = src.transpose(0, 1)
 
         if self.input_size != self.d_model:
             output = self.proj(output)
@@ -261,7 +261,7 @@ class TransformerSRUEncoder(Module):
             new_states.append(new_state)
 
         new_states = torch.stack(new_states, dim=0)
-        return output, new_states
+        return output.transpose(0, 1), new_states
 
     def _reset_parameters(self):
         """Initiate parameters in the transformer model."""
@@ -364,7 +364,7 @@ class TransformerSRUDecoder(Module):
         torch.Tensor
 
         """
-        output = tgt
+        output = tgt.transpose(0, 1)
         state = state or [None] * self.num_layers
 
         if self.input_size != self.d_model:
@@ -379,7 +379,7 @@ class TransformerSRUDecoder(Module):
                                     padding_mask=padding_mask,
                                     memory_key_padding_mask=memory_key_padding_mask)
 
-        return output
+        return output.transpose(0, 1)
 
     def _reset_parameters(self):
         """Initiate parameters in the transformer model."""
@@ -471,7 +471,7 @@ class TransformerSRUEncoderLayer(Module):
         # Transpose and reverse
         reversed_mask = None
         if padding_mask is not None:
-            reversed_mask = (-padding_mask + 1).t()
+            reversed_mask = (-padding_mask + 1)
 
         src2 = self.self_attn(src, src, src, attn_mask=src_mask,
                               key_padding_mask=reversed_mask)[0]
@@ -571,7 +571,7 @@ class TransformerSRUDecoderLayer(Module):
         # Transpose and reverse
         reversed_mask = None
         if padding_mask is not None:
-            reversed_mask = (-padding_mask + 1).t()
+            reversed_mask = (-padding_mask + 1)
 
         tgt2 = self.self_attn(tgt, tgt, tgt, attn_mask=tgt_mask,
                               key_padding_mask=reversed_mask)[0]
