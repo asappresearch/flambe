@@ -8,6 +8,31 @@ from flambe.nn import pooling
 NUMERIC_PRECISION = 1e-2
 
 
+TENSOR = Tensor(
+    [
+        [
+            [1, 2, 3, 4],
+            [5, 6, 7, 8],
+            [9, 10, 11, 12],
+            [13, 14, 15, 16]
+        ],
+        [
+            [1, 2, 3, 4],
+            [5, 6, 7, 8],
+            [9, 10, 11, 12],
+            [13, 14, 15, 16]
+        ]
+    ]
+)
+
+MASK = Tensor(
+    [
+        [1, 1, 0, 0],
+        [1, 1, 1, 0],
+    ]
+)
+
+
 @pytest.mark.parametrize("size", [(10, 20, 30),
                                   (10, 10, 10),
                                   (30, 20, 10),
@@ -51,32 +76,8 @@ def test_invalid_mask(pooling_cls, mask):
 
 
 def test_last_pooling_with_mask():
-    t = Tensor(
-        [
-            [
-                [1, 2, 3, 4],
-                [5, 6, 7, 8],
-                [9, 10, 11, 12],
-                [13, 14, 15, 16]
-            ],
-            [
-                [1, 2, 3, 4],
-                [5, 6, 7, 8],
-                [9, 10, 11, 12],
-                [13, 14, 15, 16]
-            ]
-        ]
-    )
-
-    mask = Tensor(
-        [
-            [1, 1, 0, 0],
-            [1, 1, 1, 0],
-        ]
-    )
-
     lp = pooling.LastPooling()
-    out = lp(t, padding_mask=mask)
+    out = lp(TENSOR, padding_mask=MASK)
 
     assert out.size() == torch.Size([2, 4])
 
@@ -84,6 +85,51 @@ def test_last_pooling_with_mask():
         [
             [5, 6, 7, 8],
             [9, 10, 11, 12]
+        ]
+    )
+    torch.testing.assert_allclose(out, expected)
+
+
+def test_first_pooling_with_mask():
+    lp = pooling.FirstPooling()
+    out = lp(TENSOR, padding_mask=MASK)
+
+    assert out.size() == torch.Size([2, 4])
+
+    expected = Tensor(
+        [
+            [1, 2, 3, 4],
+            [1, 2, 3, 4]
+        ]
+    )
+    torch.testing.assert_allclose(out, expected)
+
+
+def test_sum_pooling_with_mask():
+    lp = pooling.SumPooling()
+    out = lp(TENSOR, padding_mask=MASK)
+
+    assert out.size() == torch.Size([2, 4])
+
+    expected = Tensor(
+        [
+            [6, 8, 10, 12],
+            [15, 18, 21, 24]
+        ]
+    )
+    torch.testing.assert_allclose(out, expected)
+
+
+def test_avg_pooling_with_mask():
+    lp = pooling.AvgPooling()
+    out = lp(TENSOR, padding_mask=MASK)
+
+    assert out.size() == torch.Size([2, 4])
+
+    expected = Tensor(
+        [
+            [3, 4, 5, 6],
+            [5, 6, 7, 8]
         ]
     )
     torch.testing.assert_allclose(out, expected)

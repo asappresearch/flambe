@@ -20,7 +20,7 @@ def is_mask_valid(padding_mask: torch.Tensor) -> bool:
 
     """
     # TODO -> add check to see if mask contains first 1s and trailing 0s
-    return torch.all((padding_mask == 0).byte() | (padding_mask == 1).byte())
+    return bool(torch.all((padding_mask == 0).byte() | (padding_mask == 1).byte()))
 
 
 class FirstPooling(Module):
