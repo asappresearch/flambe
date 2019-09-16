@@ -26,12 +26,28 @@ def test_last_pooling(pooling_cls, size):
     assert out.size() == torch.Size([_in.size(0), _in.size(-1)])
 
 
-def test_invalid_last_pooling():
+@pytest.mark.parametrize("pooling_cls", [pooling.LastPooling, pooling.FirstPooling,
+                                         pooling.AvgPooling, pooling.SumPooling])
+def test_invalid_pooling(pooling_cls):
     """Test that last pooling fails where there is no sequence"""
     _in = torch.rand(10, 0, 20)
-    lp = pooling.LastPooling()
+    p = pooling_cls()
     with pytest.raises(ValueError):
-        _ = lp(_in)
+        _ = p(_in)
+
+
+@pytest.mark.parametrize("mask", [[0.5, 0, 1],
+                                  [2, 3, 1],
+                                  [0, 0, -1]])
+@pytest.mark.parametrize("pooling_cls", [pooling.LastPooling, pooling.FirstPooling,
+                                         pooling.AvgPooling, pooling.SumPooling])
+def test_invalid_mask(pooling_cls, mask):
+    t = torch.rand(1, 2, 4)
+    mask = Tensor([mask])
+
+    p = pooling_cls()
+    with pytest.raises(ValueError):
+        _ = p(t, padding_mask=mask)
 
 
 def test_last_pooling_with_mask():
@@ -71,15 +87,3 @@ def test_last_pooling_with_mask():
         ]
     )
     torch.testing.assert_allclose(out, expected)
-
-
-@pytest.mark.parametrize("mask", [[0.5, 0, 1],
-                                  [2, 3, 1],
-                                  [0, 0, -1]])
-def test_invalid_mask(mask):
-    t = torch.rand(1, 2, 4)
-    mask = Tensor([mask])
-
-    lp = pooling.LastPooling()
-    with pytest.raises(ValueError):
-        _ = lp(t, padding_mask=mask)

@@ -47,6 +47,10 @@ class FirstPooling(Module):
         if data.size(1) == 0:
             raise ValueError("Can't pool value from empty sequence")
 
+        if padding_mask is not None and not is_mask_valid(padding_mask):
+            raise ValueError(f"Padding mask is not valid. It should contain only 1s and " +
+                             "trailing 0s, but instead it received {padding_mask}")
+
         return data[:, 0, :]
 
 
