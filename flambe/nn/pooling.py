@@ -5,22 +5,32 @@ import torch
 from flambe.nn import Module
 
 
-def is_mask_valid(padding_mask: torch.Tensor) -> bool:
+def is_mask_valid(padding_mask: torch.Tensor, data_size: torch.Size) -> bool:
     """Return if a mask is valid.
 
     Parameters
     ----------
     padding_mask: torch.Tensor
         The padding mask.
+    data_size: torch.Size
+        The data size where the mask will be applied.
 
     Returns
     -------
     bool
-        If the mask is valid
+        If the mask is valid.
 
     """
+    # Check that mask is all 0s and 1s
+    if not bool(torch.all((padding_mask == 0).byte() | (padding_mask == 1).byte())):
+        return False
+
+    # Check that mask size match the data size
+    if padding_mask.size() != data_size[0:2]:
+        return False
+
     # TODO -> add check to see if mask contains first 1s and trailing 0s
-    return bool(torch.all((padding_mask == 0).byte() | (padding_mask == 1).byte()))
+    return True
 
 
 class FirstPooling(Module):
@@ -47,7 +57,7 @@ class FirstPooling(Module):
         if data.size(1) == 0:
             raise ValueError("Can't pool value from empty sequence")
 
-        if padding_mask is not None and not is_mask_valid(padding_mask):
+        if padding_mask is not None and not is_mask_valid(padding_mask, data.size()):
             raise ValueError(f"Padding mask is not valid. It should contain only 1s and " +
                              "trailing 0s, but instead it received {padding_mask}")
 
@@ -82,7 +92,7 @@ class LastPooling(Module):
         if padding_mask is None:
             lengths = torch.tensor([data.size(1)] * data.size(0)).long()
         else:
-            if not is_mask_valid(padding_mask):
+            if not is_mask_valid(padding_mask, data.size()):
                 raise ValueError(f"Padding mask is not valid. It should contain only 1s and " +
                                  "trailing 0s, but instead it received {padding_mask}")
 
@@ -119,7 +129,7 @@ class SumPooling(Module):
         if padding_mask is None:
             padding_mask = torch.ones((data.size(0), data.size(1))).to(data)
 
-        if not is_mask_valid(padding_mask):
+        if not is_mask_valid(padding_mask, data.size()):
             raise ValueError(f"Padding mask is not valid. It should contain only 1s and " +
                              "trailing 0s, but instead it received {padding_mask}")
 
@@ -154,7 +164,7 @@ class AvgPooling(Module):
         if padding_mask is None:
             padding_mask = torch.ones((data.size(0), data.size(1))).to(data)
 
-        if not is_mask_valid(padding_mask):
+        if not is_mask_valid(padding_mask, data.size()):
             raise ValueError(f"Padding mask is not valid. It should contain only 1s and " +
                              "trailing 0s, but instead it received {padding_mask}")
 

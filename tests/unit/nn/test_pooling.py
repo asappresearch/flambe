@@ -5,8 +5,6 @@ import torch.testing
 from torch import Tensor
 from flambe.nn import pooling
 
-NUMERIC_PRECISION = 1e-2
-
 
 TENSOR = Tensor(
     [
@@ -24,6 +22,7 @@ TENSOR = Tensor(
         ]
     ]
 )
+
 
 MASK = Tensor(
     [
@@ -66,13 +65,24 @@ def test_invalid_pooling(pooling_cls):
                                   [0, 0, -1]])
 @pytest.mark.parametrize("pooling_cls", [pooling.LastPooling, pooling.FirstPooling,
                                          pooling.AvgPooling, pooling.SumPooling])
-def test_invalid_mask(pooling_cls, mask):
+def test_invalid_mask_1(pooling_cls, mask):
     t = torch.rand(1, 2, 4)
     mask = Tensor([mask])
 
     p = pooling_cls()
     with pytest.raises(ValueError):
         _ = p(t, padding_mask=mask)
+
+
+@pytest.mark.parametrize("mask", [torch.ones(10, 30), torch.ones(20, 30)])
+@pytest.mark.parametrize("pooling_cls", [pooling.LastPooling, pooling.FirstPooling,
+                                         pooling.AvgPooling, pooling.SumPooling])
+def test_invalid_mask_2(pooling_cls, mask):
+    """Test that last pooling fails where there is no sequence"""
+    _in = torch.rand(10, 20, 30)
+    p = pooling_cls()
+    with pytest.raises(ValueError):
+        _ = p(_in, padding_mask=mask)
 
 
 def test_last_pooling_with_mask():
