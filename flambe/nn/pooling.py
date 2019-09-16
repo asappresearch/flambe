@@ -22,7 +22,7 @@ def is_mask_valid(padding_mask: torch.Tensor, data_size: torch.Size) -> bool:
 
     """
     # Check that mask is all 0s and 1s
-    if not bool(torch.all((padding_mask == 0).byte() | (padding_mask == 1).byte())):
+    if not torch.all((padding_mask == 0).byte() | (padding_mask == 1).byte()):
         return False
 
     # Check that mask size match the data size
