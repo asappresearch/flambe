@@ -47,7 +47,6 @@ class PrototypicalTextClassifier(Module):
         self.distance_module = get_distance_module(distance)
         self.mean_module = get_mean_module(distance)
         self.detach_mean = detach_mean
-        self.prototypes = None
 
     def compute_prototypes(self, support: Tensor, label: Tensor) -> Tensor:
         """Set the current prototypes used for classification.
@@ -83,7 +82,9 @@ class PrototypicalTextClassifier(Module):
                 query: Tensor,
                 query_label: Optional[Tensor] = None,
                 support: Optional[Tensor] = None,
-                support_label: Optional[Tensor] = None) -> Union[Tensor, Tuple[Tensor, Tensor]]:
+                support_label: Optional[Tensor] = None,
+                prototypes: Optional[Tensor] = None) -> Union[Tensor, Tuple[Tensor, Tensor]]:
+
         """Run a forward pass through the network.
 
         Parameters
@@ -101,7 +102,9 @@ class PrototypicalTextClassifier(Module):
         if isinstance(query_encoding, tuple):  # RNN
             query_encoding = query_encoding[0]
 
-        if support is not None and support_label is not None:
+        if prototypes is not None:
+            prototypes = prototypes
+        elif support is not None and support_label is not None:
             if self.detach_mean:
                 support = support.detach()
                 support_label = support_label.detach()  # type: ignore
@@ -112,10 +115,6 @@ class PrototypicalTextClassifier(Module):
 
             # Compute prototypes
             prototypes = self.compute_prototypes(support_encoding, support_label)
-        elif self.prototypes is not None:
-            # This is useful when setting prototypes inside a Trainer
-            # Can be ignored in regular use of this class
-            prototypes = self.prototypes
         else:
             raise ValueError("No prototypes set or provided")
 
