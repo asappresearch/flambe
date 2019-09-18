@@ -359,14 +359,23 @@ class contextualized_linking:
 @alias('$')
 class PickledDataLink(Registrable):
 
-    def __init__(self, obj_id: str):
+    def __init__(self, obj_id: str, value: Any = None):
         self.obj_id = obj_id
+        self.obj_value = value
 
     def __call__(self, stash: Dict[str, Any]) -> Any:
-        return stash[self.obj_id]  # TODO maybe load here for performance reasons
+        if self.obj_value is not None:
+            if self.obj_value != stash[self.obj_id]:
+                warn("PickledDataLink called second time with different stash")
+            return self.obj_value
+        self.obj_value = stash[self.obj_id]
+        return self.obj_value
 
     @classmethod
     def to_yaml(cls, representer: Any, node: Any, tag: str) -> Any:
+        global _link_obj_stash
+        obj_id = str(len(_link_obj_stash.keys()))
+        _link_obj_stash[obj_id] = node.obj_value
         return representer.represent_scalar(tag, node.obj_id)
 
     @classmethod
@@ -666,9 +675,7 @@ class Link(Registrable):
                     try:
                         return representer.represent_data(node.resolved)
                     except RepresenterError:
-                        obj_id = str(len(_link_obj_stash.keys()))
-                        _link_obj_stash[obj_id] = node.resolved
-                        data_link = PickledDataLink(obj_id=obj_id)
+                        data_link = PickledDataLink(obj_id=0, value=node._resolved)
                         return PickledDataLink.to_yaml(representer, data_link, '!$')
         # No contextualization necessary
         link_str = create_link_str(node.schematic_path, node.attr_path)
