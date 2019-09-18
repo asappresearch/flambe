@@ -675,7 +675,7 @@ class Link(Registrable):
                     try:
                         return representer.represent_data(node.resolved)
                     except RepresenterError:
-                        data_link = PickledDataLink(obj_id=0, value=node._resolved)
+                        data_link = PickledDataLink(obj_id='0', value=node.resolved)
                         return PickledDataLink.to_yaml(representer, data_link, '!$')
         # No contextualization necessary
         link_str = create_link_str(node.schematic_path, node.attr_path)
