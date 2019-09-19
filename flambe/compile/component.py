@@ -376,7 +376,7 @@ class PickledDataLink(Registrable):
         global _link_obj_stash
         obj_id = str(len(_link_obj_stash.keys()))
         _link_obj_stash[obj_id] = node.obj_value
-        return representer.represent_scalar(tag, node.obj_id)
+        return representer.represent_scalar(tag, obj_id)
 
     @classmethod
     def from_yaml(cls, constructor: Any, node: Any, factory_name: str) -> 'PickledDataLink':
