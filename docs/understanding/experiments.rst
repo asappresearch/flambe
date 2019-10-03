@@ -21,7 +21,7 @@ The implementation of :class:`~flambe.experiment.Experiment` and its `pipeline``
 Pipeline
 --------
 
-A ``pipeline`` is defined as a list of ``Components`` that will be executed **sequentiall**.
+A ``pipeline`` is defined as a list of ``Components`` that will be executed **sequentially**.
 Each :class:`~flambe.compile.Component`
 is identified by a **key that can be used for later linking**.
 
