@@ -44,7 +44,7 @@ class Wiki103(TabularDataset):
     WIKI_URL = "https://s3.amazonaws.com/research.metamind.io/wikitext/wikitext-103-v1.zip"
 
     def __init__(self,
-                 word_wrap: int = 128,
+                 unroll_size: int = 128,
                  end_of_line_token: str = '</s>',
                  cache: bool = False,
                  transform: Dict[str, Union[Field, Dict]] = None) -> None:
@@ -52,7 +52,7 @@ class Wiki103(TabularDataset):
 
         Parameters
         ----------
-        word_wrap: int, Optional
+        unroll_size: int, Optional
             Make every sequence of this length. Default ``128``.
         end_of_line_token: str, Optional
             Token added at the end of every line.
@@ -60,7 +60,7 @@ class Wiki103(TabularDataset):
         see TabularDataset for other arguments.
 
         """
-        self.word_wrap = word_wrap
+        self.unroll_size = unroll_size
         self.eol = end_of_line_token
         response = requests.get(self.WIKI_URL, stream=True)
         with ZipFile(BytesIO(response.content), 'r') as z:
@@ -72,6 +72,6 @@ class Wiki103(TabularDataset):
 
     def _process(self, file) -> List[str]:
         split = file.decode('utf-8').replace('\\n', self.eol).split()
-        steps = range(0, len(split) - self.word_wrap, self.word_wrap)
-        text = [" ".join(split[i:i + self.word_wrap]) for i in steps]
+        steps = range(0, len(split) - self.unroll_size, self.unroll_size)
+        text = [" ".join(split[i:i + self.unroll_size]) for i in steps]
         return text
