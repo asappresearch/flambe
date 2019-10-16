@@ -9,7 +9,32 @@ class BPETokenizer(Tokenizer):
        byte pair encoding """
 
     def __init__(self, codes_path: str) -> None:
+        """ Initialize the NGramsTokenizer
+
+        Parameters
+        ----------
+        codes_path : str
+            Path to codes file created using
+            fastBPE.
+
+        Returns
+        -------
+        None
+            [description]
+        """
         self.bpe = fastBPE.fastBPE(codes_path)
 
     def tokenize(self, example: str) -> List[str]:
+        """Tokenize an input example.
+
+        Parameters
+        ----------
+        example : str
+            The input example, as a string
+
+        Returns
+        -------
+        List[str]
+            The output subword tokens, as a list of strings
+        """
         return self.bpe.apply([example])[0].split(" ")
