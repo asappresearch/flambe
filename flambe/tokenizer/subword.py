@@ -3,6 +3,7 @@ from typing import List
 from flambe.tokenizer import Tokenizer
 import fastBPE
 
+
 class BPETokenizer(Tokenizer):
     """Implement a subword level tokenizer using
        byte pair encoding """
