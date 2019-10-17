@@ -47,7 +47,7 @@ class Wiki103(TabularDataset):
 
     def __init__(self,
                  split_by_sentence: bool = False,
-                 end_of_line_token: str = '</s>',
+                 end_of_line_token: str = '</s>',  #nosec
                  unroll_size: int = 128,
                  cache: bool = False,
                  transform: Dict[str, Union[Field, Dict]] = None) -> None:
