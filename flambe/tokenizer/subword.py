@@ -6,10 +6,14 @@ import fastBPE
 
 class BPETokenizer(Tokenizer):
     """Implement a subword level tokenizer using
-       byte pair encoding """
+       byte pair encoding.  Tokenization is done using
+       fastBPE (https://github.com/glample/fastBPE) and
+       requires a fastBPE codes file.
+
+    """
 
     def __init__(self, codes_path: str) -> None:
-        """ Initialize the NGramsTokenizer
+        """Initialize the tokenizer.
 
         Parameters
         ----------
@@ -17,10 +21,6 @@ class BPETokenizer(Tokenizer):
             Path to codes file created using
             fastBPE.
 
-        Returns
-        -------
-        None
-            [description]
         """
         self.bpe = fastBPE.fastBPE(codes_path)
 
@@ -36,5 +36,6 @@ class BPETokenizer(Tokenizer):
         -------
         List[str]
             The output subword tokens, as a list of strings
+
         """
         return self.bpe.apply([example])[0].split(" ")
