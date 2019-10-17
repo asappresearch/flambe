@@ -45,9 +45,9 @@ class Wiki103(TabularDataset):
 
     WIKI_URL = "https://s3.amazonaws.com/research.metamind.io/wikitext/wikitext-103-v1.zip"
 
-    def __init__(self,
+    def __init__(self,  # nosec
                  split_by_sentence: bool = False,
-                 end_of_line_token: str = '</s>',  #nosec
+                 end_of_line_token: str = '</s>',
                  unroll_size: int = 128,
                  cache: bool = False,
                  transform: Dict[str, Union[Field, Dict]] = None) -> None:
