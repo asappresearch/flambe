@@ -36,11 +36,11 @@ class EpisodicSampler(Sampler):
         n_classes : int, optional
             The number of classes to sample per episode, defaults to all
         pad_index : int, optional
-            The padding index used on sequences
+            The padding index used on sequences.
         balance_query : bool, optional
             If True, the same number of query points are sampled per
             class, otherwise query points are sampled uniformly
-            from the input data
+            from the input data.
 
         """
         self.pad = pad_index
