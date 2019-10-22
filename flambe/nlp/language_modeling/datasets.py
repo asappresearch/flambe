@@ -1,4 +1,4 @@
-from typing import List, Tuple, Optional, Union, Dict
+from typing import List, Tuple, Optional, Union, Dict, Sequence
 from zipfile import ZipFile
 from io import BytesIO
 import requests
@@ -47,8 +47,7 @@ class Wiki103(TabularDataset):
 
     def __init__(self,  # nosec
                  split_by_sentence: bool = False,
-                 end_of_line_token: str = '</s>',
-                 unroll_size: int = 128,
+                 end_of_line_token: Optional[str] = '</s>',
                  cache: bool = False,
                  transform: Dict[str, Union[Field, Dict]] = None) -> None:
         """Initialize the Wiki103 built-in.
@@ -57,9 +56,6 @@ class Wiki103(TabularDataset):
         ----------
         split_by_sentence: bool, Optional
             If true, tokenizes per sentence. Default ``False``.
-        unroll_size: int, Optional
-            Make every sequence of this length. Default ``128``.
-            Only used if split_be_sentence is False
         end_of_line_token: str, Optional
             Token added at the end of every line.
 
@@ -69,7 +65,6 @@ class Wiki103(TabularDataset):
         nltk.download('punkt', quiet=True)
 
         self.split_by_sentence = split_by_sentence
-        self.unroll_size = unroll_size
         self.eol = end_of_line_token
         response = requests.get(self.WIKI_URL, stream=True)
         with ZipFile(BytesIO(response.content), 'r') as z:
@@ -96,14 +91,71 @@ class Wiki103(TabularDataset):
         """
         decoded_text = file.decode('utf-8')
         # Replace end of line tokens
-        if self.eol is not None:
+        if self.eol is not None and not self.split_by_sentence:
             decoded_text = decoded_text.replace('\n', self.eol)
 
         # Split by sentence or unroll
         if self.split_by_sentence:
             text = [(sent.strip(),) for sent in nltk.tokenize.sent_tokenize(decoded_text)]
         else:
-            steps = range(0, len(decoded_text) - self.unroll_size, self.unroll_size)
-            text = [(" ".join(decoded_text[i:i + self.unroll_size]),) for i in steps]
+            text = [(decoded_text,)]
 
         return text
+
+
+class Enwiki8(TabularDataset):
+    """The official WikiText103 dataset."""
+
+    ENWIKI_URL = "http://mattmahoney.net/dc/enwik8.zip"
+
+    def __init__(self,
+                 num_eval_symbols: int = 5000000,
+                 remove_end_of_line: bool = True,
+                 cache: bool = False,
+                 transform: Dict[str, Union[Field, Dict]] = None) -> None:
+        """Initialize the Wiki103 built-in.
+
+        Parameters
+        ----------.
+        num_eval_symbols: int, optional
+            The number of symbols to use for seach of validation,
+            and testing. Default ``5000000``.
+        remove_end_of_line: bool, optional
+            If True, remove end of line tokens. Default ``True``.
+
+        see TabularDataset for other arguments.
+
+        """
+        self.num_eval_symbols = num_eval_symbols
+        self.remove_end_of_line = remove_end_of_line
+        response = requests.get(self.ENWIKI_URL, stream=True)
+        with ZipFile(BytesIO(response.content), 'r') as z:
+            train, val, test = self._process(z.read('enwik8'))
+
+        super().__init__(train, val, test, cache=cache, transform=transform)
+
+    def _process(self, file: bytes) -> Sequence[List[Tuple[str]]]:
+        """Process the input file.
+
+        Parameters
+        ----------
+        file: bytes
+            The input file, as a byte string
+
+        Returns
+        -------
+        List[Tuple[str]]
+            List of examples, where each example is a single
+            element tuple containing the text.
+
+        """
+        train_data = file[: -2 * self.num_eval_symbols]
+        val_data = file[-2 * self.num_eval_symbols: -self.num_eval_symbols]
+        test_data = file[-self.num_eval_symbols:]
+
+        symbol = '' if self.remove_end_of_line else str(ord('\n'))
+        train = ' '.join([str(c) if c != ord('\n') else symbol for c in train_data])
+        val = ' '.join([str(c) if c != ord('\n') else symbol for c in val_data])
+        test = ' '.join([str(c) if c != ord('\n') else symbol for c in test_data])
+
+        return [(train,)], [(val,)], [(test,)]
