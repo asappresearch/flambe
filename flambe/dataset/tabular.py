@@ -60,7 +60,7 @@ class DataView:
         if self.data is None:
             raise IndexError()
 
-        if index in self.cached_data:
+        if self.cache and index in self.cached_data:
             return self.cached_data[index]
 
         ex = self.data[index]
@@ -81,7 +81,9 @@ class DataView:
         else:
             ret = tuple(ex)
 
-        self.cached_data[index] = ret
+        if self.cache:
+            self.cached_data[index] = ret
+
         return ret
 
     def is_empty(self) -> bool:

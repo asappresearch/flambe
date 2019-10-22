@@ -204,8 +204,6 @@ class BaseSampler(Sampler):
 
         Parameters
         ----------
-        data: List[Tuple[torch.Tensor, ...]],
-            The input data
         batch_size : int
             The batch size to use
         shuffle : bool, optional
