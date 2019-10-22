@@ -109,28 +109,24 @@ class Enwiki8(TabularDataset):
     ENWIKI_URL = "http://mattmahoney.net/dc/enwik8.zip"
 
     def __init__(self,
-                 unroll_size: Optional[int] = 100,
-                 num_test_symbols: int = 5000000,
+                 num_eval_symbols: int = 5000000,
                  remove_end_of_line: bool = True,
                  cache: bool = False,
                  transform: Dict[str, Union[Field, Dict]] = None) -> None:
         """Initialize the Wiki103 built-in.
 
         Parameters
-        ----------
-        split_by_sentence: bool, Optional
-            If true, tokenizes per sentence. Default ``False``.
-        unroll_size: int, Optional
-            Make every sequence of this length. Default ``128``.
-            Only used if split_be_sentence is False
-        end_of_line_token: str, Optional
-            Token added at the end of every line.
+        ----------.
+        num_eval_symbols: int, optional
+            The number of symbols to use for seach of validation,
+            and testing. Default ``5000000``.
+        remove_end_of_line: bool, optional
+            If True, remove end of line tokens. Default ``True``.
 
         see TabularDataset for other arguments.
 
         """
-        self.unroll_size = unroll_size
-        self.num_test_symbols = num_test_symbols
+        self.num_eval_symbols = num_eval_symbols
         self.remove_end_of_line = remove_end_of_line
         response = requests.get(self.ENWIKI_URL, stream=True)
         with ZipFile(BytesIO(response.content), 'r') as z:
@@ -153,9 +149,9 @@ class Enwiki8(TabularDataset):
             element tuple containing the text.
 
         """
-        train_data = file[: -2 * self.num_test_symbols]
-        val_data = file[-2 * self.num_test_symbols: -self.num_test_symbols]
-        test_data = file[-self.num_test_symbols:]
+        train_data = file[: -2 * self.num_eval_symbols]
+        val_data = file[-2 * self.num_eval_symbols: -self.num_eval_symbols]
+        test_data = file[-self.num_eval_symbols:]
 
         symbol = '' if self.remove_end_of_line else str(ord('\n'))
         train = ' '.join([str(c) if c != ord('\n') else symbol for c in train_data])

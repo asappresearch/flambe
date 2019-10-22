@@ -2,6 +2,7 @@ from typing import Optional, Sequence, Tuple, Iterator
 import math
 
 import torch
+from torch import Tensor
 from torch.utils.data import DataLoader
 
 from flambe.sampler.sampler import Sampler
@@ -10,33 +11,32 @@ from flambe.sampler.sampler import Sampler
 class CorpusSampler(Sampler):
     """Implement a CorpusSampler object.
 
-    This object is useful in ietrating over a large corpus of
-    text in an ordered manner. It takes as input a dataset with
-    a single example containing the full text.
+    This object is useful for iteration over a large corpus of
+    text in an ordered way. It takes as input a dataset with
+    a single example containing the sequence of tokens.
 
     """
 
     def __init__(self,
                  batch_size: int = 128,
-                 unroll_size: int = 100,
+                 unroll_size: int = 128,
                  n_workers: int = 0,
                  pin_memory: bool = False,
-                 seed: Optional[int] = None,
                  downsample: Optional[float] = None,
                  drop_last: bool = True) -> None:
-        """Initialize the BaseSampler object.
+        """Initialize the CorpusSampler object.
 
         Parameters
         ----------
-        batch_size : int
-            The batch size to use
+        batch_size : int, optional
+            The batch size to use. Default ``128``.
+        unroll_size: int, optional
+            Make every sequence this length. Default ``128``.
         n_workers : int, optional
             Number of workers to pass to the DataLoader
             (the default is 0, which means the main process)
         pin_memory : bool, optional
             Pin the memory when using cuda (the default is False)
-        seed: int, optional
-            Optional seed for the sampler
         downsample: float, optional
             Percentage of the data to downsample to
         drop_last: bool, optional
@@ -53,18 +53,31 @@ class CorpusSampler(Sampler):
         self.downsample = downsample
 
     @staticmethod
-    def collate_fn(data):
+    def collate_fn(data: Sequence[Tuple[Tensor, Tensor]]) -> Tuple[Tensor, Tensor]:
+        """Create a batch from data.
+
+        Parameters
+        ----------
+        data : Sequence[Tuple[Tensor, Tensor]]
+            List of (source, target) tuples.
+
+        Returns
+        -------
+        Tuple[Tensor, Tensor]
+            Source and target Tensors.
+
+        """
         x, y = zip(*data)
         return torch.stack(x).t(), torch.stack(y).t()
 
     def sample(self,
-               data: Sequence[Sequence[torch.Tensor]],
-               n_epochs: int = 1) -> Iterator[Tuple[torch.Tensor, ...]]:
+               data: Sequence[Sequence[Tensor]],
+               n_epochs: int = 1) -> Iterator[Tuple[Tensor, ...]]:
         """Sample from the list of features and yields batches.
 
         Parameters
         ----------
-        data: Sequence[Sequence[torch.Tensor, ...]]
+        data: Sequence[Sequence[Tensor, ...]]
             The input data to sample from
         n_epochs: int, optional
             The number of epochs to run in the output iterator.
@@ -81,17 +94,17 @@ class CorpusSampler(Sampler):
         elif len(data) > 1:
             raise ValueError("Expected a single input example")
 
-        data = data[0][0]  # First example, first column
+        tensor = data[0][0]  # First example, first column
 
         if self.downsample:
             if not (0 < self.downsample <= 1):
                 raise ValueError("Downsample value should be in the range (0, 1]")
-            data = data[:int(self.downsample * len(data))]
+            tensor = tensor[:int(self.downsample * tensor.size(0))]
 
         # Organize batch-wise
-        final_length = (len(data) - 1) // self.batch_size * self.batch_size
-        x = torch.reshape(data[:final_length], (self.batch_size, -1)).t()
-        y = torch.reshape(data[1:final_length + 1], (self.batch_size, -1)).t()
+        final_length = (tensor.size(0) - 1) // self.batch_size * self.batch_size
+        x = torch.reshape(tensor[:final_length], (self.batch_size, -1)).t()
+        y = torch.reshape(tensor[1:final_length + 1], (self.batch_size, -1)).t()
 
         loader = DataLoader(dataset=torch.utils.data.TensorDataset(x, y),
                             collate_fn=self.collate_fn,
@@ -122,8 +135,8 @@ class CorpusSampler(Sampler):
             The number of batches that would be created per epoch
 
         """
-        data = data[0][0]
+        tensor = data[0][0]
         if self.drop_last:
-            return ((len(data) - 1) // self.batch_size) // self.unroll_size
+            return ((tensor.size(0) - 1) // self.batch_size) // self.unroll_size
         else:
-            return math.ceil(((len(data) - 1) // self.batch_size) / self.unroll_size)
+            return math.ceil(((tensor.size(0) - 1) // self.batch_size) / self.unroll_size)
