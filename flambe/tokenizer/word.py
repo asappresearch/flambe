@@ -72,10 +72,6 @@ class NGramsTokenizer(Tokenizer):
         stop_words: Optional[List]
             [description], by default None
 
-        Returns
-        -------
-        None
-            [description]
         """
         self.ngrams = ngrams
         self.exclude_stopwords = exclude_stopwords

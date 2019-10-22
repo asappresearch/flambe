@@ -70,7 +70,7 @@ workflows:
       - publish-test:
           context: flambe-publisher
           requires:
-            - end2end
+            - test
           filters:
             tags:
               only:
