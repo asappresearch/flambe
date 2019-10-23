@@ -36,6 +36,7 @@ class Trainer(Component):
                  metric_fn: Metric,
                  optimizer: Optimizer,
                  scheduler: Optional[_LRScheduler] = None,
+                 iter_scheduler: Optional[_LRScheduler] = None,
                  device: Optional[str] = None,
                  max_steps: int = 10,
                  epoch_per_step: float = 1.0,
@@ -64,7 +65,9 @@ class Trainer(Component):
         optimizer : torch.optim.Optimizer
             The optimizer to use
         scheduler : torch.optim.lr_scheduler._LRScheduler, optional
-            An optional learning rate scheduler
+            An optional learning rate scheduler to run after each step
+        iter_scheduler : torch.optim.lr_scheduler._LRScheduler, optional
+            An optional learning rate scheduler to run after each iter
         device: str, optional
             The device to use in the computation.
         max_steps : int, optional
@@ -103,6 +106,7 @@ class Trainer(Component):
         self.metric_fn = metric_fn
         self.optimizer = optimizer
         self.scheduler = scheduler
+        self.iter_scheduler = iter_scheduler
         self.lower_is_better = lower_is_better
         self.max_grad_norm = max_grad_norm
         self.max_grad_abs_val = max_grad_abs_val
@@ -212,6 +216,17 @@ class Trainer(Component):
 
                 # Optimize
                 self.optimizer.step()
+
+                # Update iter scheduler
+                if self.iter_scheduler is not None:
+                    log(f'{tb_prefix}Training/LR', self.iter_scheduler.get_lr()[0], global_step)
+                    if isinstance(self.iter_scheduler, ReduceLROnPlateau):
+                        self.iter_scheduler.step(val_loss)
+                    else:
+                        # torch's _LRScheduler.step DOES have a default value
+                        # so passing in no args is fine; it will automatically
+                        # compute the current epoch
+                        self.iter_scheduler.step()  # type: ignore
 
             # Zero the gradients when exiting a train step
             self.optimizer.zero_grad()
