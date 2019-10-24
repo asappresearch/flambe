@@ -3,15 +3,15 @@ import torch
 from flambe.metric import Metric
 
 
-class Perplexity(Metric):
-    """Token level perplexity, computed a exp(cross_entropy)."""
+class BPC(Metric):
+    """Bits per character. Computed as log_2(perplexity)"""
 
     def __init__(self):
-        """Initalizes the Perplexity metrc."""
+        """Initalizes the Metric."""
         self.entropy = torch.nn.CrossEntropyLoss()
 
     def compute(self, pred: torch.Tensor, target: torch.Tensor) -> torch.Tensor:
-        """Compute the preplexity given the input and target.
+        """Compute the bits per character given the input and target.
 
         Parameters
         ----------
@@ -27,4 +27,4 @@ class Perplexity(Metric):
 
         """
         entropy = self.entropy(pred, target).mean()
-        return torch.exp(entropy)
+        return torch.log2(torch.exp(entropy))

@@ -14,30 +14,64 @@ class PTBDataset(TabularDataset):
 
     PTB_URL = "https://raw.githubusercontent.com/yoonkim/lstm-char-cnn/master/data/ptb/"
 
-    def __init__(self,
+    def __init__(self,  # nosec
+                 split_by_sentence: bool = False,
+                 end_of_line_token: Optional[str] = '<eol>',  # nosec
                  cache: bool = False,
                  transform: Dict[str, Union[Field, Dict]] = None) -> None:
-        """Initialize the PTBDataset builtin."""
+        """Initialize the PTBDataset builtin.
+
+        Parameters
+        ----------
+        split_by_sentence: bool, Optional
+            If true, tokenizes per sentence. Default ``False``.
+        end_of_line_token: str, Optional
+            Token added at the end of every line.
+
+        see TabularDataset for other arguments.
+
+        """
+        self.split_by_sentence = split_by_sentence
+        self.eol = end_of_line_token
+
         train_path = self.PTB_URL + "train.txt"
         val_path = self.PTB_URL + "valid.txt"
         test_path = self.PTB_URL + "test.txt"
 
-        train, _ = self._load_file(train_path)
-        val, _ = self._load_file(val_path)
-        test, _ = self._load_file(test_path)
+        train = self._process(requests.get(train_path).content)
+        val = self._process(requests.get(val_path).content)
+        test = self._process(requests.get(test_path).content)
 
         super().__init__(train, val, test, cache=cache, transform=transform)
 
-    @classmethod
-    def _load_file(cls,
-                   path: str,
-                   sep: Optional[str] = '\t',
-                   header: Optional[str] = None,
-                   columns: Optional[Union[List[str], List[int]]] = None,
-                   encoding: Optional[str] = 'utf-8') -> Tuple[List[Tuple], Optional[List[str]]]:
-        """Load data from the given path."""
-        data, named_cols = super()._load_file(path, sep, header, columns)
-        return [(d[0][:],) for d in data], named_cols
+    def _process(self, file: bytes) -> List[Tuple[str]]:
+        """Process the input file.
+
+        Parameters
+        ----------
+        field: str
+            The input file, as bytes
+
+        Returns
+        -------
+        List[Tuple[str]]
+            List of examples, where each example is a single
+            element tuple containing the text.
+
+        """
+        decoded_text = file.decode('utf-8')
+        # Replace end of line tokens
+        if self.eol is not None and not self.split_by_sentence:
+            decoded_text = decoded_text.replace('\n', self.eol)
+
+        # Split by sentence or unroll
+        if self.split_by_sentence:
+            nltk.download('punkt', quiet=True)
+            text = [(sent.strip(),) for sent in nltk.tokenize.sent_tokenize(decoded_text)]
+        else:
+            text = [(decoded_text,)]
+
+        return text
 
 
 class Wiki103(TabularDataset):
@@ -47,7 +81,7 @@ class Wiki103(TabularDataset):
 
     def __init__(self,  # nosec
                  split_by_sentence: bool = False,
-                 end_of_line_token: Optional[str] = '</s>',
+                 end_of_line_token: Optional[str] = '<eol>',  # nosec
                  cache: bool = False,
                  transform: Dict[str, Union[Field, Dict]] = None) -> None:
         """Initialize the Wiki103 built-in.
@@ -62,8 +96,6 @@ class Wiki103(TabularDataset):
         see TabularDataset for other arguments.
 
         """
-        nltk.download('punkt', quiet=True)
-
         self.split_by_sentence = split_by_sentence
         self.eol = end_of_line_token
         response = requests.get(self.WIKI_URL, stream=True)
@@ -96,6 +128,7 @@ class Wiki103(TabularDataset):
 
         # Split by sentence or unroll
         if self.split_by_sentence:
+            nltk.download('punkt', quiet=True)
             text = [(sent.strip(),) for sent in nltk.tokenize.sent_tokenize(decoded_text)]
         else:
             text = [(decoded_text,)]
@@ -110,7 +143,7 @@ class Enwiki8(TabularDataset):
 
     def __init__(self,
                  num_eval_symbols: int = 5000000,
-                 remove_end_of_line: bool = True,
+                 remove_end_of_line: bool = False,
                  cache: bool = False,
                  transform: Dict[str, Union[Field, Dict]] = None) -> None:
         """Initialize the Wiki103 built-in.
