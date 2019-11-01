@@ -3,6 +3,7 @@ import os
 from collections import OrderedDict
 from typing import Dict, Any, Iterable, Tuple, Optional, Sequence, NamedTuple, List, Mapping
 import tarfile
+import tempfile
 import shutil
 
 import dill
@@ -208,12 +209,25 @@ def save_state_to_file(state: State,
         default is 2).
 
     """
+    if compress:
+        original_path = path
+        temp = tempfile.TemporaryDirectory()
+        path = os.path.join(temp.name, os.path.basename(original_path))
+        print("original: ", original_path)
+        print("path: ", path)
     if pickle_only:
         head, tail = os.path.split(path)
         if tail == '':
             path = head + '.pkl'
         else:
             path = path + '.pkl'
+        if compress:
+            orig_head, orig_tail = os.path.split(original_path)
+            if orig_tail == '':
+                original_path = orig_head + '.pkl'
+            else:
+                original_path = original_path + '.pkl'
+        print(f"head: {head}, tail: {tail}, path: {path}")
         with open(path, 'wb') as f_pkl:
             pickle_module.dump(state, f_pkl, protocol=pickle_protocol)
     else:
@@ -238,13 +252,13 @@ def save_state_to_file(state: State,
             with open(os.path.join(current_path, STASH_FILE_NAME), 'wb') as f_stash:
                 torch.save(node.object_stash, f_stash, pickle_module, pickle_protocol)
     if compress:
-        compressed_file_name = path + '.tar.gz'
+        compressed_file_name = original_path + '.tar.gz'  # TODO GZ COMPRESSION
+        # shutil.make_archive(path, "gztar", compressed_file_name)
         with tarfile.open(name=compressed_file_name, mode='w:gz') as tar_gz:
-            tar_gz.add(path)
-        if os.path.isdir(path):
-            shutil.rmtree(path)
-        else:
-            os.remove(path)
+            print(f"path: {path}, basename: {os.path.basename(path)}")
+            tar_gz.add(path, arcname=os.path.basename(path))
+        print('written to compress: ', compressed_file_name)
+        temp.cleanup()
 
 
 # TODO fix type of object to be Component without circular dependency
@@ -318,14 +332,14 @@ def load_state_from_file(path: str,
     with download_manager(path) as path:
         state = State()
         state._metadata = OrderedDict({FLAMBE_DIRECTORIES_KEY: set()})
-        should_cleanup_file = False
+        temp = None
         try:
             if not os.path.isdir(path) and tarfile.is_tarfile(path):
-                should_cleanup_file = True
+                temp = tempfile.TemporaryDirectory()
                 with tarfile.open(path, 'r:gz') as tar_gz:
-                    tar_gz.extractall()
+                    tar_gz.extractall(path=temp.name)
                     expected_name = tar_gz.getnames()[0]
-                path = expected_name
+                path = os.path.join(temp.name, expected_name)
             if os.path.isdir(path):
                 for current_dir, subdirs, files in os.walk(path):
                     prefix = _extract_prefix(path, current_dir)
@@ -364,11 +378,8 @@ def load_state_from_file(path: str,
         except Exception as e:
             raise e
         finally:
-            if should_cleanup_file:
-                if os.path.isdir(expected_name):
-                    shutil.rmtree(expected_name)
-                else:
-                    os.remove(expected_name)
+            if temp is not None:
+                temp.cleanup()
         return state
 
 
