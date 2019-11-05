@@ -195,7 +195,12 @@ def save_state_to_file(state: State,
         The state_dict as defined by PyTorch; a flat dictionary
         with compound keys separated by '.'
     path : str
-        Location to save the file / save directory to
+        Location to save the file / save directory to; This should be a
+        new non-existent path; if the path is an existing directory
+        and it contains files an exception will be raised. This is
+        because the path includes the final name of the save file (if
+        using pickle or compress) or the final name of the save
+        directory.
     compress : bool
         Whether to compress the save file / directory via tar + gz
     pickle_only : bool
@@ -208,13 +213,20 @@ def save_state_to_file(state: State,
         Pickle protocol to use; see pickle for more details (the
         default is 2).
 
+    Raises
+    ------
+    ValueError
+        If the given path exists, is a directory, and already contains
+        some files.
+
     """
+    if os.path.exists(path) and os.path.isdir(path) and len(os.listdir(path)) == 0:
+        raise ValueError('The given path points to an existing directory containing files. '
+                         'Please use a new path, or an existing directory without files.')
     if compress:
         original_path = path
         temp = tempfile.TemporaryDirectory()
         path = os.path.join(temp.name, os.path.basename(original_path))
-        print("original: ", original_path)
-        print("path: ", path)
     if pickle_only:
         head, tail = os.path.split(path)
         if tail == '':
@@ -227,7 +239,6 @@ def save_state_to_file(state: State,
                 original_path = orig_head + '.pkl'
             else:
                 original_path = original_path + '.pkl'
-        print(f"head: {head}, tail: {tail}, path: {path}")
         with open(path, 'wb') as f_pkl:
             pickle_module.dump(state, f_pkl, protocol=pickle_protocol)
     else:
@@ -252,12 +263,9 @@ def save_state_to_file(state: State,
             with open(os.path.join(current_path, STASH_FILE_NAME), 'wb') as f_stash:
                 torch.save(node.object_stash, f_stash, pickle_module, pickle_protocol)
     if compress:
-        compressed_file_name = original_path + '.tar.gz'  # TODO GZ COMPRESSION
-        # shutil.make_archive(path, "gztar", compressed_file_name)
+        compressed_file_name = original_path + '.tar.gz'
         with tarfile.open(name=compressed_file_name, mode='w:gz') as tar_gz:
-            print(f"path: {path}, basename: {os.path.basename(path)}")
             tar_gz.add(path, arcname=os.path.basename(path))
-        print('written to compress: ', compressed_file_name)
         temp.cleanup()
 
 
