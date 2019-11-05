@@ -4,7 +4,6 @@ from collections import OrderedDict
 from typing import Dict, Any, Iterable, Tuple, Optional, Sequence, NamedTuple, List, Mapping
 import tarfile
 import tempfile
-import shutil
 
 import dill
 import torch
