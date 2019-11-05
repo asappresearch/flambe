@@ -219,9 +219,12 @@ def save_state_to_file(state: State,
         some files.
 
     """
-    if os.path.exists(path) and os.path.isdir(path) and len(os.listdir(path)) == 0:
-        raise ValueError('The given path points to an existing directory containing files. '
-                         'Please use a new path, or an existing directory without files.')
+    if os.path.exists(path) and os.path.isdir(path):
+        dir_contents = os.listdir(path)
+        if len(dir_contents) != 0:
+            raise ValueError('The given path points to an existing directory containing files:\n'
+                             f'{dir_contents}\n'
+                             'Please use a new path, or an existing directory without files.')
     if compress:
         original_path = path
         temp = tempfile.TemporaryDirectory()
