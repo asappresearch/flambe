@@ -417,7 +417,7 @@ class TestLoadState:
         obj = complex_multi_layered(False)
         state = obj.state_dict()
         with pytest.raises(RuntimeError) as excinfo:
-            obj.load_state_dict(state)
+            obj.load_state_dict(state, strict=True)
         assert "Unexpected key(s)" in str(excinfo.value)
         obj.load_state_dict(state, strict=False)
 
