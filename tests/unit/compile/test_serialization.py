@@ -413,6 +413,14 @@ class TestLoadState:
         check_mapping_equivalence(new_obj.get_state(), obj.get_state())
         check_mapping_equivalence(obj.get_state(), new_obj.get_state())
 
+    def test_custom_attrs_load(self, complex_multi_layered):
+        obj = complex_multi_layered(False)
+        state = obj.state_dict()
+        with pytest.raises(RuntimeError) as excinfo:
+            obj.load_state_dict(state, strict=True)
+        assert "Unexpected key(s)" in str(excinfo.value)
+        obj.load_state_dict(state, strict=False)
+
 
 class TestClassSave:
 

@@ -307,7 +307,7 @@ class Trainer(Component):
         continue_ = self._step < self.max_steps
         if not continue_:
             self._eval_step()
-            self.model.load_state_dict(self._best_model)
+            self.model.load_state_dict(self._best_model, strict=False)
 
         return continue_
 
@@ -345,7 +345,7 @@ class Trainer(Component):
         # Useful when loading the model after training
         done = self._step >= self.max_steps
         if done:
-            self.model.load_state_dict(self._best_model)
+            self.model.load_state_dict(self._best_model, strict=False)
 
     @classmethod
     def precompile(cls, **kwargs):
