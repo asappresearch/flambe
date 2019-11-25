@@ -362,7 +362,6 @@ class Trainer(Component):
 
         def move_to_device(obj: Any):
             if isinstance(obj, torch.nn.Module):
-                print(f"Moving {obj} to {device}!")
                 obj.to(device)
 
         # Compile all objects and push Modules to the device
