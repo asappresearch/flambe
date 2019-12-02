@@ -82,6 +82,7 @@ class SafeExecutionContext:
                    install_ext: bool = False,
                    import_ext: bool = True,
                    check_tags: bool = True,
+                   debug: bool = False,
                    **kwargs) -> Tuple[Runnable, Dict[str, str]]:
         """Preprocess the runnable file.
 
@@ -145,6 +146,9 @@ class SafeExecutionContext:
 
         if extensions:
             runnable.inject_extensions(extensions)
+
+        if debug:
+            runnable.debug = True
 
         runnable.parse()
 
