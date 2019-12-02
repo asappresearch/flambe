@@ -107,6 +107,8 @@ class SafeExecutionContext:
             Defaults to True.
         check_tags: bool
             Whether to check that all tags are valid. Defaults to True.
+        debug: bool
+            Whether the command line option debug was given, overriding the config setting
 
         Returns
         -------
