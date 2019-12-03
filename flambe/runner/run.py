@@ -61,9 +61,8 @@ def main(args: argparse.Namespace) -> None:
                                                    install_ext=args.install_extensions)
                 runnable, extensions = ex.preprocess(import_ext=False,
                                                      check_tags=False,
-                                                     secrets=args.secrets,
-                                                     debug=args.debug)
-                cluster.run(force=args.force)
+                                                     secrets=args.secrets)
+                cluster.run(force=args.force, debug=args.debug)
                 if isinstance(runnable, ClusterRunnable):
                     cluster = cast(Cluster, cluster)
 
@@ -97,8 +96,8 @@ def main(args: argparse.Namespace) -> None:
                 else:
                     raise ValueError("Only ClusterRunnables can be executed in a cluster.")
         else:
-            runnable, _ = ex.preprocess(secrets=args.secrets, install_ext=args.install_extensions, debug=args.debug)
-            runnable.run(force=args.force, verbose=args.verbose)
+            runnable, _ = ex.preprocess(secrets=args.secrets, install_ext=args.install_extensions)
+            runnable.run(force=args.force, verbose=args.verbose, debug=args.debug)
 
 
 if __name__ == '__main__':
