@@ -18,7 +18,7 @@ from flambe.logging import coloredlogs as cl
 from flambe.runnable.environment import RemoteEnvironment
 from concurrent.futures import ThreadPoolExecutor
 
-from typing import Optional, Type, List, TypeVar, Union, Dict
+from typing import Optional, Type, List, TypeVar, Union, Dict, Callable
 from types import TracebackType
 
 import logging
@@ -548,7 +548,7 @@ class Cluster(Runnable):
         Parameters
         ----------
         content: Dict[str, str]
-            The dict of key -> name
+            The dict of resources key -> local path
         dest: str
             The orchestator's destination folder
         all_hosts: bool
@@ -578,7 +578,7 @@ class Cluster(Runnable):
                 elif os.path.isfile(c):
                     base = os.path.basename(c)
 
-                new_c = os.path.join(dest, base)
+                new_c = os.path.join(dest, f"{k}__{base}")
                 self.orchestrator.send_rsync(c, new_c)
                 logger.debug(f"Content {k}: {c} sent to cluster")
 
@@ -897,7 +897,7 @@ class Cluster(Runnable):
         for f in self.factories:
             f.install_extensions(extensions)
 
-    def get_remote_env(self) -> RemoteEnvironment:
+    def get_remote_env(self, user_provider: Callable[[], str]) -> RemoteEnvironment:
         """Get the RemoteEnvironment for this cluster.
 
         The IPs stored will be the private IPs
@@ -917,6 +917,7 @@ class Cluster(Runnable):
             orchestrator_ip=self.orchestrator.private_host,
             factories_ips=[f.private_host for f in self.factories],
             user=self.orchestrator.username,
+            local_user=user_provider(),
             public_orchestrator_ip=self.orchestrator.host,
             public_factories_ips=[f.host for f in self.factories]
         )

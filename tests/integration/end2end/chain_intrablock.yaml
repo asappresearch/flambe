@@ -1,7 +1,6 @@
 !Experiment
 
 name: basic-example
-save_path: .
 
 pipeline:
   encoder: !PooledRNNEncoder
@@ -9,7 +8,11 @@ pipeline:
     rnn_type: lstm
     n_layers: 2
     hidden_size: 256
-  dataset: !SSTDataset
+  dataset: !TabularDataset.from_path
+    train_path: {top_level}/tests/data/dummy_tabular/train.csv
+    val_path: {top_level}/tests/data/dummy_tabular/val.csv
+    test_path: {top_level}/tests/data/dummy_tabular/test.csv
+    sep: ','
     transform:
       text: !TextField
       label: !LabelField
@@ -43,9 +46,10 @@ pipeline:
           num_embeddings: !@ b1.model.embedder.embedding.num_embeddings
           embedding_dim: 300
         encoder: !PooledRNNEncoder
-          input_size: !g
-            - !@ b2[model][embedder][embedding].embedding_dim
-            - !@ b1.model.embedder.embedding.embedding_dim
+          input_size: !@ b2[model][embedder][embedding].embedding_dim
+          # input_size: !g
+            # - !@ b2[model][embedder][embedding].embedding_dim
+            # - !@ b1.model.embedder.embedding.embedding_dim
           rnn_type: lstm
           n_layers: !g [2, 3]
           hidden_size: !@ b2[model][embedder][encoder][input_size]

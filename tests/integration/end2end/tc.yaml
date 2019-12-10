@@ -5,7 +5,10 @@ save_path: .
 
 pipeline:
   b1: !Trainer
-    dataset: !SSTDataset
+    dataset: !TabularDataset.from_path
+      train_path: {top_level}/tests/data/dummy_tabular/train.csv
+      val_path: {top_level}/tests/data/dummy_tabular/val.csv
+      sep: ','
       transform:
         text: !TextField
         label: !LabelField
@@ -19,7 +22,7 @@ pipeline:
         encoder: !PooledRNNEncoder
           input_size: 300
           rnn_type: lstm
-          n_layers: !s [1, 5, 2]
+          n_layers: 2
           hidden_size: 256
       output_layer: !SoftmaxLayer
         input_size: !@ b1[model][embedder].encoder.rnn.hidden_size
@@ -28,5 +31,8 @@ pipeline:
     metric_fn: !Accuracy
     optimizer: !torch.Adam
       params: !@ b1[model].trainable_params
-    max_steps: 2
+    max_steps: 1
     iter_per_step: 1
+    extra_validation_metrics:
+      - !@ b1[metric_fn]
+      - !@ b1[metric_fn]
