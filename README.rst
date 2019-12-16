@@ -13,7 +13,7 @@
 .. image:: https://github.com/asappresearch/flambe/workflows/test_suite/badge.svg
     :target: https://github.com/asappresearch/flambe/actions
 
-.. image:: https://github.com/asappresearch/flambe/workflows/examples_test/badge.svg
+.. image:: https://github.com/asappresearch/flambe/workflows/examples_tests/badge.svg
     :target: https://github.com/asappresearch/flambe/actions
 
 .. image:: https://readthedocs.org/projects/flambe/badge/?version=latest
