@@ -1,8 +1,12 @@
 name: examples_tests
 
 on:
-  schedule:
-    - cron: '0 0 * * *'
+  push:
+    branches:    
+      - master
+    tags:    
+      - v*
+
  
 jobs:
   examples:
