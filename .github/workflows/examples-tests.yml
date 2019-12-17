@@ -1,12 +1,11 @@
 name: examples_tests
 
 on:
-  push
-#   push:
-#     branches:    
-#       - master
-#     tags:    
-#       - v*
+  push:
+    branches:    
+      - master
+    tags:    
+      - v*
 
  
 jobs:
