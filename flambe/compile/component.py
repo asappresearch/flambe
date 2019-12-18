@@ -624,7 +624,10 @@ class Link(Registrable):
         # any chained links; only traverse the schema structure
         current_obj = auto_resolve_link_and_move_to_schema(current_obj)
         for schema in self.schematic_path[1:]:
-            current_obj = current_obj.keywords[schema]
+            try:
+                current_obj = current_obj.keywords[schema]
+            except KeyError:
+                raise KeyError(f'Could not resolve link {schema}. (Check all !@ entries.)')
             current_obj = auto_resolve_link_and_move_to_schema(current_obj)
         self.target_leaf = current_obj
         # At the end of the schematic path, access the compiled object
