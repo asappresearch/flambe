@@ -2,7 +2,7 @@ from typing import List, Any, Optional
 from flambe.compile import Registrable
 
 
-class RemoteEnvironment(Registrable):
+class Environment(Registrable):
     """This objects contains information about the cluster
 
     This object will be available on the remote execution of
@@ -34,14 +34,13 @@ class RemoteEnvironment(Registrable):
     """
 
     def __init__(self,
-                 key: str,
+                 remote: bool = False,
                  orchestrator_ip: str,
                  factories_ips: List[str],
                  user: str,
-                 local_user: str,
-                 public_orchestrator_ip: Optional[str] = None,
-                 public_factories_ips: Optional[List[str]] = None,
+                 local_user: str,,
                  **kwargs) -> None:
+        """Initialize the environment."""
         self.key = key
         self.orchestrator_ip = orchestrator_ip
         self.factories_ips = factories_ips
