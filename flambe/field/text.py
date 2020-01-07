@@ -1,4 +1,4 @@
-from typing import Optional, Dict, Set
+from typing import Optional, Dict, Set, Union, List
 from collections import OrderedDict as odict
 
 import torch
@@ -44,7 +44,8 @@ class TextField(Field):
                  unk_init_all: bool = False,
                  drop_unknown: bool = False,
                  max_seq_len: Optional[int] = None,
-                 truncate_end: bool = False) -> None:
+                 truncate_end: bool = False,
+                 vocabulary: Optional[Union[List[str], str]] = None) -> None:
         """Initialize the TextField.
 
         Parameters
@@ -85,6 +86,10 @@ class TextField(Field):
             Whether to drop tokens that don't have embeddings
             associated. Defaults to True.
             Important: this flag will only work when using embeddings.
+        vocabulary: Union[List[str], str], optional
+            Can be either a list of tokens or a file with a token on
+            each line. If given, one can choose to allow expandion of
+            the vocabulary or to freeze it.
 
         """
         self.tokenizer = tokenizer or WordTokenizer()
@@ -106,15 +111,36 @@ class TextField(Field):
 
         self.unk_numericals: Set[int] = set()
 
-        self.vocab: Dict = odict()
+        # Load vocabulary if given
+        if vocabulary is None:
+            self.vocab: Dict = odict()
+        elif isinstance(vocabulary, str):
+            with open(vocabulary, 'r') as f:
+                self.vocab = odict((tok, i) for i, tok in enumerate(f.read().splitlines()))
+        else:
+            self.vocab = odict((tok, i) for i, tok in enumerate(vocabulary))
+
         specials = [pad_token, unk_token, sos_token, eos_token]
         self.specials = [special for special in specials if special is not None]
 
-        index = -1
+        index = len(self.vocab) - 1
         for token in self.specials:
-            self.vocab[token] = index = index + 1
+            if token not in self.vocab:
+                self.vocab[token] = index = index + 1
 
         self.register_attrs('vocab')
+
+    @property
+    def vocab_list(self) -> List[str]:
+        """Get the list of tokens in the vocabulary.
+
+        Returns
+        -------
+        List[str]
+            The list of tokens in the vocabulary, ordered.
+
+        """
+        return list(self.vocab.keys())
 
     @property
     def vocab_size(self) -> int:

@@ -1,4 +1,4 @@
-from typing import Optional, Sequence
+from typing import Optional, Union, List
 from collections import OrderedDict as odict
 
 import torch
@@ -17,7 +17,7 @@ class LabelField(Field):
     def __init__(self,
                  one_hot: bool = False,
                  multilabel_sep: Optional[str] = None,
-                 labels: Optional[Sequence[str]] = None) -> None:
+                 labels: Optional[Union[List[str], str]] = None) -> None:
         """Initializes the LabelFetaurizer.
 
         Parameters
@@ -27,12 +27,13 @@ class LabelField(Field):
         multilabel_sep : str, optional
             If given, splits the input label into multiple labels
             using the given separator, defaults to None.
-        labels: Sequence[str], optional
+        labels: Union[str, List[str]], optional
             If given, sets the labels and the ordering is used to map
             the labels to indices. That means the first item in this
             list will have label id 0, the next one id 1, etc..
             When not provided, indices are assigned as labels are
-            encountered during preprocessing.
+            encountered during preprocessing. The list can also be
+            provided as a file with a label on each line.
 
         """
         self.one_hot = one_hot
@@ -40,8 +41,15 @@ class LabelField(Field):
         self.tokenizer = LabelTokenizer(multilabel_sep=self.multilabel_sep)
 
         if labels is not None:
+            if isinstance(labels, str):
+                # Labels if a file
+                with open(labels, 'r') as f:
+                    label_list: List[str] = f.read().splitlines()
+            else:
+                label_list = labels
+
             self.label_given = True
-            self.vocab = odict((label, i) for i, label in enumerate(labels))
+            self.vocab = odict((label, i) for i, label in enumerate(label_list))
             self.label_count_dict = {label: 0 for label in self.vocab}
         else:
             self.label_given = False
@@ -110,6 +118,18 @@ class LabelField(Field):
             out = torch.tensor(out).long()  # Back to Tensor
 
         return out.squeeze()
+
+    @property
+    def vocab_list(self) -> List[str]:
+        """Get the list of tokens in the vocabulary.
+
+        Returns
+        -------
+        List[str]
+            The list of tokens in the vocabulary, ordered.
+
+        """
+        return list(self.vocab.keys())
 
     @property
     def vocab_size(self) -> int:
