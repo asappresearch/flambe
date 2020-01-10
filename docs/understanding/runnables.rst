@@ -105,10 +105,10 @@ We can execute:
 
   flambe s3pusher.yaml --secrets secret.ini
 
-.. _understanding-automatic-install_label: 
+.. _understanding-extensions-install_label: 
 
-Automatic extensions installation
----------------------------------
+Extensions installation
+-----------------------
 
 .. important::
     To understand this section you should be familiar with extensions. For information about
@@ -126,20 +126,13 @@ When executing a :class:`~flambe.runnable.Runnable`, it's possible that extensio
         ...
         param: !other_ext.CustomComponent
 
-Flambé provides a ``-i / --install-extensions`` flag to automatically "pip" installs the extensions:
-
-.. code:: bash
-
-  flambe custom_runnable.yaml -i
-
-
-By default, this is **not** activated and the user needs to install the extensions
-beforehand.
+These extensions need to be installed in order to run the ``Runnable``. Users can easily do this using ``pip``, as the
+extensions are just python packages.
 
 .. warning::
-   **Installing extensions automatically could possibly update libraries in the your
-   environment because of a version reequirement.** Flambé will output all libraries that
-   are being updated.
+   The extensions section (as seen in the example above) contains a dictionary where the key is the module name
+   and the value is the package. **The package is the one that the user needs to ``pip`` install.
+   are being updated.**
 
 Other flags
 -----------
