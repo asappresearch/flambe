@@ -180,61 +180,6 @@ def _download_svn(svn_url: str, location: str,
         raise ImportError(f"Could not download folder through svn {svn_url}")
 
 
-def install_extensions(extensions: Dict[str, str],
-                       user_flag: bool = False) -> None:
-    """Install extensions.
-
-    At this point, all extensions must be either local paths or
-    valid pypi packages.
-
-    Remote extensions hosted in Github must have been download first.
-
-    Parameters
-    ----------
-    extensions: Dict[str, str]
-        Dictionary of extensions
-    user_flag: bool
-        Use --user flag when running pip install
-
-    """
-    cmd = ['python3', '-m', 'pip', 'install', '-U']
-    if user_flag:
-        cmd.append('--user')
-    for ext, resource in extensions.items():
-        curr_cmd = cmd[:]
-
-        try:
-            if os.path.exists(resource):
-                # Package is local
-                if os.sep not in resource:
-                    resource = f"./{resource}"
-            else:
-                # Package follows pypi notation: "torch>=0.4.1,<1.1"
-                resource = f"{resource}"
-
-            curr_cmd.append(resource)
-
-            output: Union[bytes, str]
-            output = subprocess.check_output(
-                curr_cmd,
-                stderr=subprocess.DEVNULL
-            )
-
-            output = output.decode("utf-8")
-
-            for l in output.splitlines():
-                logger.debug(l)
-                r = re.search(r'Successfully uninstalled (?P<pkg_name>\D*)-(?P<version>.*)', l)
-                if r and 'pkg_name' in r.groupdict():
-                    logger.info(cl.RE(f"WARNING: While installing {ext}, " +
-                                      f"existing {r.groupdict()['pkg_name']}-" +
-                                      f"{r.groupdict()['version']} was uninstalled."))
-        except subprocess.CalledProcessError:
-            raise ImportError(f"Could not install package in {resource}")
-
-        logger.info(cl.GR(f"Successfully installed {ext}"))
-
-
 def is_installed_module(module_name: str) -> bool:
     """Whether the module is installed.
 
@@ -280,11 +225,10 @@ def import_modules(modules: Iterable[str]) -> None:
                 logging.root.addHandler(x)
 
             logger.info(cl.YE(f"Imported extensions {mod_name}"))
-        except ModuleNotFoundError as e:
-            raise ImportError(
-                f"Error importing {mod_name}: {e}. Please 'pip install' " +
-                "the package manually or use '-i' flag (only applies when running " +
-                "flambe as cmd line program)"
+        except ModuleNotFoundError:
+            raise ModuleNotFoundError(
+                f"Flambe failed to find required module {mod_name} " +
+                "Please 'pip install' the module's package manually"
             )
 
 

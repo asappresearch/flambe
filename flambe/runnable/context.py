@@ -1,6 +1,6 @@
 # from __future__ import annotations
 import os
-from typing import Optional, List, Type, Any, Dict, cast, Tuple
+from typing import Optional, Type, Any, Dict, cast, Tuple
 from types import TracebackType
 
 from io import StringIO
@@ -15,9 +15,7 @@ from flambe.compile import Registrable
 from flambe.compile import yaml
 from flambe.runnable import error
 from flambe.runnable.runnable import Runnable
-from flambe.compile.extensions import download_extensions
-from flambe.compile.extensions import install_extensions, import_modules
-from flambe.const import FLAMBE_GLOBAL_FOLDER
+from flambe.compile.extensions import import_modules
 from flambe.logging import coloredlogs as cl
 
 logger = logging.getLogger(__name__)
@@ -33,7 +31,6 @@ class SafeExecutionContext:
 
     """
     def __init__(self, yaml_file: str) -> None:
-        self.to_remove: List[str] = []
         self.yaml_file = yaml_file
         self.content: str = ""
 
@@ -79,8 +76,6 @@ class SafeExecutionContext:
     def preprocess(self,
                    secrets: Optional[str] = None,
                    download_ext: bool = True,
-                   install_ext: bool = False,
-                   import_ext: bool = True,
                    check_tags: bool = True,
                    **kwargs) -> Tuple[Runnable, Dict[str, str]]:
         """Preprocess the runnable file.
@@ -97,13 +92,6 @@ class SafeExecutionContext:
         ----------
         secrets: Optional[str]
             Optional path to the secrets file
-        install_ext: bool
-            Whether to install the extensions or not.
-            This process also downloads the remote extensions.
-            Defaults to False
-        install_ext: bool
-            Whether to import the extensions or not.
-            Defaults to True.
         check_tags: bool
             Whether to check that all tags are valid. Defaults to True.
 
@@ -125,13 +113,7 @@ class SafeExecutionContext:
         if secrets:
             config.read(secrets)
 
-        if install_ext:
-            t = os.path.join(FLAMBE_GLOBAL_FOLDER, "extensions")
-            extensions = download_extensions(extensions, t)
-            install_extensions(extensions, user_flag=False)
-
-        if import_ext:
-            import_modules(extensions.keys())
+        import_modules(extensions.keys())
 
         # Check that all tags are valid
         if check_tags:
@@ -169,10 +151,14 @@ class SafeExecutionContext:
         try:
             yamls = list(yaml.load_all(content))
         except TypeError as e:
-            raise error.ParsingRunnableError(f"Syntax error compiling the runnable: {str(e)}")
+            raise error.ParsingRunnableError(
+                f"Syntax error compiling the runnable: {str(e)}. This may be related to a syntax " +
+                "error on the YAML or to a required module using an incorrect version. " +
+                "Double check your extensions are correctly installed.")
 
         if len(yamls) > 2:
-            raise ValueError(f"{self.yaml_file} should contain an (optional) extensions sections" +
+            raise ValueError(f"{self.yaml_file} contains more sections than allowed. " +
+                             "It should contain an (optional) extensions section" +
                              " and the main runnable object.")
 
         extensions: Dict[str, str] = {}

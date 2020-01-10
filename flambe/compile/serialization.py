@@ -10,8 +10,7 @@ import torch
 
 from flambe.compile.registrable import yaml
 from flambe.compile.downloader import download_manager
-from flambe.compile.extensions import import_modules, is_installed_module, install_extensions, \
-    setup_default_modules
+from flambe.compile.extensions import import_modules, is_installed_module, setup_default_modules
 
 # Constants used for state representation & serialization
 from flambe.compile.const import STATE_DICT_DELIMETER, FLAMBE_SOURCE_KEY, FLAMBE_CLASS_KEY, \
@@ -409,7 +408,6 @@ def load_state_from_file(path: str,
 
 def load(path: str,
          map_location=None,
-         auto_install=False,
          pickle_module=dill,
          **pickle_load_args):
     """Load object with state from the given path
@@ -427,8 +425,6 @@ def load(path: str,
         Location (device) where items will be moved. ONLY used when the
         directory save format is used. See torch.load documentation for
         more details (the default is None).
-    auto_install : bool
-        If True, automatically installs extensions as needed.
     pickle_module : type
         Pickle module that has load and dump methods; dump should
         accept a pickle_protocol parameter (the default is dill).
@@ -468,20 +464,13 @@ def load(path: str,
     if len(yamls) == 2:
         if yamls[0] is not None:
             extensions = dict(yamls[0])
-            custom_modules = extensions.keys()
-            for x in custom_modules:
+            for x, pkg in extensions.items():
                 if not is_installed_module(x):
-                    if auto_install:
-                        logger.warn(f"auto_install==True, installing missing Module "
-                                    f"{x}: {extensions[x]}")
-                        install_extensions({x: extensions[x]})
-                        logger.debug(f"Installed module {x} from {extensions[x]}")
-                    else:
-                        raise ImportError(
-                            f"Module {x} is required and not installed. Please 'pip install'"
-                            "the package containing the module or set auto_install flag"
-                            " to True."
-                        )
+                    raise ModuleNotFoundError(
+                        f"Module {x}(from: {pkg}) is required and not installed."
+                        "Please 'pip install'"
+                        "the module's package"
+                    )
                 import_modules([x])
                 logger.debug(f"Automatically imported {x}")
 
@@ -514,7 +503,6 @@ def load(path: str,
     except TypeError:
         raise LoadError(f"Loaded object is not callable - likely because an extension is not "
                         f"installed. Check if {os.path.join(path, CONFIG_FILE_NAME)} has an "
-                        f"extensions section at the top and install as necessary. Alternatively "
-                        f"set auto_install=True")
+                        f"extensions section at the top and install as necessary.")
     instance.load_state(state)
     return instance

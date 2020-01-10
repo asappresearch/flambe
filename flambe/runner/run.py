@@ -60,10 +60,8 @@ def main(args: argparse.Namespace) -> None:
     with SafeExecutionContext(args.config) as ex:
         if args.cluster is not None:
             with SafeExecutionContext(args.cluster) as ex_cluster:
-                cluster, _ = ex_cluster.preprocess(secrets=args.secrets,
-                                                   install_ext=args.install_extensions)
-                runnable, extensions = ex.preprocess(import_ext=False,
-                                                     check_tags=False,
+                cluster, cluster_extensions = ex_cluster.preprocess(secrets=args.secrets)
+                runnable, extensions = ex.preprocess(check_tags=False,
                                                      secrets=args.secrets)
                 cluster.run(force=args.force, debug=args.debug)
                 if isinstance(runnable, ClusterRunnable):
@@ -86,7 +84,6 @@ def main(args: argparse.Namespace) -> None:
                     new_secrets = cluster.send_secrets()
 
                     # Installing the extensions is crutial as flambe
-                    # will execute without '-i' flag and therefore
                     # will assume that the extensions are installed
                     # in the orchestrator.
                     cluster.install_extensions_in_orchestrator(new_extensions)
@@ -99,8 +96,7 @@ def main(args: argparse.Namespace) -> None:
                 else:
                     raise ValueError("Only ClusterRunnables can be executed in a cluster.")
         else:
-            runnable, _ = ex.preprocess(secrets=args.secrets,
-                                        install_ext=args.install_extensions)
+            runnable, _ = ex.preprocess(secrets=args.secrets)
             runnable.run(force=args.force, verbose=args.verbose, debug=args.debug)
 
 
@@ -110,9 +106,6 @@ if __name__ == '__main__':
 
     parser = argparse.ArgumentParser(description='Run a flambé!')
     parser.add_argument('config', type=str, help='Path to config file')
-    parser.add_argument('-i', '--install-extensions', action='store_true', default=False,
-                        help='Install extensions automatically using pip. WARNING: ' +
-                             'This could potentially override already installed packages.')
     parser.add_argument('-c', '--cluster', type=str, default=None,
                         help='Specify the cluster that will run the experiment. This option ' +
                              'works if the main config is an Experiment')
