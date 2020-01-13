@@ -1,4 +1,4 @@
-from typing import Optional, Tuple, List
+from typing import Optional, Tuple, Dict
 
 import torch
 import torch.nn.functional as F
@@ -41,7 +41,7 @@ class DistillationTrainer(Trainer):
                  lower_is_better: bool = False,
                  max_grad_norm: Optional[float] = None,
                  max_grad_abs_val: Optional[float] = None,
-                 extra_validation_metrics: Optional[List[Metric]] = None,
+                 extra_validation_metrics: Optional[Dict[str, Metric]] = None,
                  teacher_columns: Optional[Tuple[int, ...]] = None,
                  student_columns: Optional[Tuple[int, ...]] = None,
                  alpha_kl: float = 0.5,
@@ -165,11 +165,15 @@ class DistillationTrainer(Trainer):
         teacher_batch = [batch[i].detach() for i in teacher_columns]
 
         student_logits, student_target = self.student_model(*student_batch)
-        teacher_logits, _ = self.teacher_model(*teacher_batch)
 
-        # Compute losses
+        with torch.no_grad():
+            teacher_logits, _ = self.teacher_model(*teacher_batch)
+
+        loss = torch.tensor(0.).to(self.device)
         student_pred = F.log_softmax(student_logits, dim=-1)
-        loss = (1 - self.alpha_kl) * self.loss_fn(student_pred, student_target)
+
+        if self.alpha_kl < 1.0:
+            loss += (1 - self.alpha_kl) * self.loss_fn(student_pred, student_target)
 
         # Add unlabelled batch
         if self.unlabel_sampler is not None:
