@@ -102,7 +102,7 @@ class AWSCluster(Cluster):
                 'KeyName': key_name,
                 'InstanceType': head_node_type,
                 'ImageId': head_node_ami,
-                'SubnetIds': subnet_id,
+                'SubnetId': subnet_id,
                 'SecurityGroupIds': security_group,
                 'IamInstanceProfile': {
                     'Name': iam_profile
@@ -124,7 +124,7 @@ class AWSCluster(Cluster):
                 'IamInstanceProfile': {
                     'Name': iam_profile
                 },
-                'SubnetIds': subnet_id,
+                'SubnetId': subnet_id,
                 'SecurityGroupIds': security_group,
                 'BlockDeviceMappings': [
                     {
@@ -149,11 +149,11 @@ class AWSCluster(Cluster):
                     "Tags": tag_list
                 }
             ]
-            config['head_node']['TagSpecifications'] = tag_specification
-            config['worker_nodes']['TagSpecifications'] = tag_specification
+            config['head_node']['TagSpecifications'] = tag_specification  # type: ignore
+            config['worker_nodes']['TagSpecifications'] = tag_specification  # type: ignore
 
         if availability_zone:
-            config['provider']['availability_zone'] = ','.join(availability_zone)
+            config['provider']['availability_zone'] = ','.join(availability_zone)  # type: ignore
 
         if use_spot:
             spot = {
@@ -165,8 +165,8 @@ class AWSCluster(Cluster):
                 spot_options = {
                     'MaxPrice': spot_max_price
                 }
-                spot['InstanceMarketOptions']['SpotOptions'] = spot_options
+                spot['InstanceMarketOptions']['SpotOptions'] = spot_options  # type: ignore
 
-            config['worker_nodes']['InstanceMarketOptions'] = spot
+            config['worker_nodes']['InstanceMarketOptions'] = spot  # type: ignore
 
         self.config.update(config)

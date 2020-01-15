@@ -1,9 +1,11 @@
 from typing import Optional, Dict, List
 from ruamel.yaml import YAML
+import subprocess
+import tempfile
 
 from ray.autoscaler.commands import get_head_node_ip, get_worker_node_ips
 
-from flambe import Runnable
+from flambe.runner import Runnable
 from flambe.compile import Registrable
 
 
@@ -97,10 +99,10 @@ class Cluster(Registrable):
             yaml.dump(self.config, fp)
             subprocess.run(f"ray submit {fp.name}")
 
-    def get_head_node_ip(self) -> str:
+    def head_node_ip(self) -> str:
         """Get the head node ip address"""
         return get_head_node_ip()
 
-    def get_worker_node_ips(self) -> List[str]:
+    def worker_node_ips(self) -> List[str]:
         """Get the worker node ip addresses."""
         return get_worker_node_ips()

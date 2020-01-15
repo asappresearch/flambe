@@ -85,7 +85,7 @@ class GCPCluster(Cluster):
                 'machineType': head_node_type,
                 'disks': [
                     {
-                        'boot': true,
+                        'boot': True,
                         'autoDelete': True,
                         'type': 'PERSISTENT',
                         'initializeParams': {
@@ -106,7 +106,7 @@ class GCPCluster(Cluster):
                 'machineType': worker_node_type,
                 'disks': [
                     {
-                        'boot': true,
+                        'boot': True,
                         'autoDelete': True,
                         'type': 'PERSISTENT',
                         'initializeParams': {
@@ -127,11 +127,11 @@ class GCPCluster(Cluster):
         }
 
         if preemptible:
-            config['worker_node']['scheduling'] = [{
+            config['worker_node']['scheduling'] = [{  # type: ignore
                 'preemptible': True
             }]
 
         if availability_zone:
-            config['provider']['availability_zone'] = availability_zone
+            config['provider']['availability_zone'] = availability_zone  # type: ignore
 
         self.config.update(config)

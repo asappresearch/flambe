@@ -76,15 +76,3 @@ def print_useful_metrics_only_info() -> None:
     logger.info("You specified 'debug' to True and therefore, after experiment is done, " +
                 "all data will be lost!")
     logger.info(Style.RESET_ALL)
-
-
-def print_extensions_cache_size_warning(location, limit) -> None:
-    """Print message when the extensions cache folder is getting big.
-
-    """
-    logger.info(Fore.YELLOW)
-    logger.info(
-        f"Be aware that your extensions cache for github extensions located in {location}) " +
-        f"is increasing its size (it's currently bigger than {limit} MB).")
-    logger.info("Please remove unused extensions from that location.")
-    logger.info(Style.RESET_ALL)

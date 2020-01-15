@@ -291,7 +291,7 @@ class Schema(MutableMapping[str, Any]):
                  fn: Optional[Callable] = None,
                  yield_schema: Optional[str] = None) -> Iterable[Tuple[str, Any]]:
         current_path = current_path or tuple()
-        fn = fn or lambda x: x
+        fn = fn or (lambda x: x)
         if isinstance(obj, Link):
             yield (current_path, obj)
         elif isinstance(obj, Schema):

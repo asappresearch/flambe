@@ -7,12 +7,13 @@ import ray
 
 import flambe as fl
 from flambe.compile import Schema
+from flambe.runner import Runnable, Environment
 from flambe.search.trial import Trial
 from flambe.search.algorithm import Algorithm
 from flambe.search.distribution import Grid
 
 
-class Task(object):
+class Task(Runnable):
     """Temporary dummy."""
 
     def step(self) -> bool:
@@ -20,6 +21,12 @@ class Task(object):
 
     def metric(self) -> float:
         pass
+
+    def run(self) -> float:
+        _continue = True
+        while _continue:
+            _continue = self.step()
+        return self.metric()
 
 
 class TaskAdapter:
@@ -89,10 +96,10 @@ class Checkpointer(object):
         self.path = os.path.join(path, '')
         self.remote = f"{host}:{self.path}"
 
-    def get_checkpoint(self) -> Optional[Task]:
+    def get_checkpoint(self) -> Task:
         if self.memory:
             if self.object_id is None:
-                return None
+                raise ValueError("No object ID, could not find checkpoint.")
             return ray.get(self.object_id)
         else:
             if not os.path.exists(self.path):
@@ -109,7 +116,7 @@ class Checkpointer(object):
             subprocess.run(f'rsync -a {self.path} {self.remote}')
 
 
-class Search(object):
+class Search(Runnable):
     """Implement a hyperparameter search over any schema.
 
     Use a Search to construct a hyperparameter search over any
@@ -129,8 +136,9 @@ class Search(object):
                  algorithm: Algorithm,
                  cpus_per_trial: int = 1,
                  gpus_per_trial: int = 0,
-                 ouput_dir: Optional[str] = None,
-                 refresh_waitime: float = 1.0) -> None:
+                 ouput_dir: str = 'flambe__output',
+                 refresh_waitime: float = 1.0,
+                 use_object_store: bool = False) -> None:
         """Initialize a hyperparameter search.
 
         Parameters
@@ -146,9 +154,13 @@ class Search(object):
         refresh_waitime : float, optional
             The minimum amount of time to wait before a refresh.
             Defaults ``10`` seconds.
+        use_object_store: bool, optional
+            Whether to use the plasma object store to move objects
+            between workers. See Ray documentation for more details.
+            Default ``False``.
 
         """
-        self.output_dir = ouput_dir
+        self.env = Environment(ouput_dir)
         self.n_cpus = cpus_per_trial
         self.n_gpus = gpus_per_trial
         self.refresh_waitime = refresh_waitime
@@ -173,7 +185,7 @@ class Search(object):
         else:
             raise ValueError("Only functions and Task objects supported.")
 
-    def run(self) -> List[Trial]:
+    def run(self, environment: Optional[Environment] = None) -> List[Trial]:
         """Execute the search.
 
         Returns
@@ -181,6 +193,7 @@ class Search(object):
         List[Trial]
 
         """
+        env = environment or self.env
         self.algorithm.initialize(self.schema.search_space())
 
         running: List[int] = []
