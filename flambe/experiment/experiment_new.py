@@ -1,7 +1,6 @@
 import logging
 from copy import deepcopy
-from collections import namedtuple
-from typing import Optional, Dict, Sequence, Union, Callable, List
+from typing import Optional, Dict, Sequence, Union, Callable, List, NamedTuple
 
 import ray
 
@@ -12,15 +11,37 @@ from flambe.search import Algorithm, Search, Trial
 logger = logging.getLogger(__name__)
 
 
-Reduction = namedtuple('Reduction', ['source', 'k'])
+class Reduction(NamedTuple):
+    """A reduction of the variants for source stage to k variants"""
+
+    source: str
+    k: int
 
 
-class Pipeline(object):
+class Pipeline(Schema):
     # move this to its own file if it gets big
 
-    def __init__(self, **tasks: Dict[str, Task]):
+    def __init__(self, tasks: Dict[str, Task]):
         self.tasks = tasks
         self.task = list(tasks.keys())[-1]
+
+    def sub_pipeline(self, stage_name):
+        """Return subset of the pipeline stages ending in stage_name
+
+        The subset of pipeline stages will include all dependencies
+        needed for stage the given stage and all their dependencies
+        and so on.
+        """
+        # TODO actually prune not-needed deps
+        sub_stages = {}
+        for k, v in self.tasks:
+            sub_stages[k] = v
+            if k == stage_name:
+                break
+        return Pipeline(sub_stages)
+
+    def dependencies(self):
+        return self.keys()[:-1]
 
     def step(self):
         return self.task.step()
@@ -36,13 +57,14 @@ class Stage(object):
 
     def __init__(self,
                  name: str,
-                 schema: Schema,
+                 full_pipeline_id: int,
                  algorithm: Algorithm,
                  cpus_per_trial: int,
                  gpus_per_trial: int,
                  dependencies: List[List[Trial]],
                  reductions: List[Tuple[str, int]]):
-        self.schema = schema
+        self.name = name
+        self.full_pipeline_id = full_pipeline_id
         self.algorithm = algorithm
         self.cpus_per_trial = cpus_per_trial
         self.gpus_per_trial = gpus_per_trial
@@ -50,41 +72,37 @@ class Stage(object):
         self.reductions = reductions
 
     def run(self):
+        # Get full pipeline
+        pipeline = ray.get(self.full_pipeline_id)
         # Fetch dependencies
         results = ray.get(self.dependencies)
-
-        # Mask out failed trials and apply reductions
-        successful = []
-        for trials in results:
-            # Filter errors out
-            trials = filter(lambda t: not t.is_error(), trials)
-            # Select topk
-            filtered = [r for r in self.reductions if r.source == result.stage_name]
-            if filtered:
-                min_reduction = min(r.k for r in filtered)
-                trials = sorted(trials, key=lambda x: trials.best_metric(), reverse=True)[:k]
-                successful.append(result.topk(min_reduction))
-            else:
-                successful.append(result)
-
-        # Perform merging for conditional dependencies
-        for result in successful:
-            pass
-
+        # Take an intersection with the other sub-pipelines
+        pipeline.merge_intersect(*results)
+        # Mask out failures
+        pipeline.remove(trial_to_failure)
+        # Reduce
+        pipeline.sort_options(trial_to_metric)
+        pipeline.reduce()
         # Run remaining searches in parallel
-        out_ids = []
-        for pipeline in successful:
+        result_ids = []
+        for variant in pipeline.iter_variants():
             # Construct and execute the search
-            search = ray.remote(Search)(pipeline,
-                                        self.algorithm,
-                                        self.cpus_per_trial,
-                                        self.gpus_per_trial)
-            result = search.remote().run()
-
-            # Upload results
-            result_id = ray.put(result)
-            out_ids.append(result_id)
-        return out_ids
+            search = Search.remote(variant,
+                                   self.algorithm,
+                                   self.cpus_per_trial,
+                                   self.gpus_per_trial)
+            sampled_variants_id = search.run.remote()
+            # Remote run will return id mapping to list of variants
+            result_ids.append(sampled_variants_id)
+        # Each id maps to list of variant schemas
+        list_of_variants = ray.get(result_ids)
+        # Flatten list of lists of variants
+        all_variant_schemas = [item for sublist in list_of_variants for item in sublist]
+        # Merge all together into parallel options
+        pipeline.merge_union(*all_variant_schemas)
+        # Put final merged pipeline in ray and return result id
+        final_result_id = ray.put(pipeline)
+        return final_result_id
 
 
 class Experiment(object):
@@ -108,7 +126,7 @@ class Experiment(object):
         self.save_path = save_path
         self.requirements = requirements or []
 
-        self.pipeline = pipeline or dict()
+        self.pipeline = Pipeline(pipeline or dict())
         self.algorithms = algorithms
         self.reduce = reduce
 
@@ -127,15 +145,18 @@ class Experiment(object):
     def run(self, resume: bool = False) -> None:
         logger.info('Experiment started.')
         stage_to_result: Dict[str, int] = {}
+        full_pipeline_id = ray.put(self.pipeline)
 
         for name in self.pipeline:
             # Get dependencies as a list of result object ids
-            depedencies = [stage_to_result[d] for d in self.pipeline[name].dependencies()]
+            pipeline = self.pipeline.sub_pipeline(name)
+            depedency_ids = [stage_to_result[d] for d in pipeline.dependencies()]
 
-            stage = ray.remote(Stage).remote(self.pipeline[name],
+            stage = ray.remote(Stage).remote(name,
+                                             full_pipeline_id,
                                              self.reduce[name],
                                              self.resources[name],
-                                             dependencies=depedencies,
+                                             dependencies=depedency_ids,
                                              resume=resume)
             result = stage.run.remote()
             stage_to_result[name] = result
