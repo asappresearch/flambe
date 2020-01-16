@@ -199,14 +199,15 @@ class Link(Registrable, tag_override="@"):
             schematic_path, attr_path = parse_link_str(link_str)
         if schematic_path is None:
             raise ValueError()
-        self.schematic_path = schematic_path
-        self.attr_path = attr_path
+        self.schematic_path = tuple(schematic_path)
+        self.attr_path = tuple(attr_path)
 
     def resolve(self, cache: Dict[str, Any]) -> Any:
         try:
             obj = cache[self.schematic_path]
         except KeyError:
-            raise MalformedLinkError('Link does not point to an object that has been initialized. '
+            raise MalformedLinkError(f'Link for schema at {self.schematic_path} does not point to '
+                                     'an object that has been initialized. '
                                      'Make sure the link points to a non-parent above the link '
                                      'in the config.')
         if self.attr_path is not None:
@@ -266,8 +267,8 @@ class Schema(MutableMapping[str, Any]):
             if not isinstance(self.callable, type):
                 raise ValueError(f'Cannot specify factory name on non-class callable {callable}')
             self.factory_method = getattr(self.callable, factory_name)
-        args = args or []
-        kwargs = kwargs or {}
+        args = args if args is not None else []
+        kwargs = kwargs if kwargs is not None else {}
         s = inspect.signature(self.factory_method)
         self.bound_arguments = s.bind(*args, **kwargs)
         self.bound_arguments.apply_defaults()
@@ -283,19 +284,19 @@ class Schema(MutableMapping[str, Any]):
         self.created_with_tag = tag
 
     def __setitem__(self, key: str, value: Any) -> None:
-        self.kwargs[key] = value
+        self.bound_arguments.arguments[key] = value
 
     def __getitem__(self, key: str) -> Any:
-        return self.kwargs[key]
+        return self.bound_arguments.arguments[key]
 
     def __delitem__(self, key: str) -> None:
-        del self.kwargs[key]
+        del self.bound_arguments.arguments[key]
 
     def __iter__(self) -> Iterable[str]:
-        yield from self.kwargs
+        yield from self.bound_arguments.arguments
 
     def __len__(self) -> int:
-        return len(self.kwargs)
+        return len(self.bound_arguments.arguments)
 
     def __call__(self,
                  path: Optional[List[str]] = None,
@@ -334,8 +335,8 @@ class Schema(MutableMapping[str, Any]):
                  current_path: Optional[List[str]] = None,
                  fn: Optional[Callable] = None,
                  yield_schema: Optional[str] = None) -> Iterable[Tuple[str, Any]]:
-        current_path = current_path or tuple()
-        fn = fn or (lambda x: x)
+        current_path = current_path if current_path is not None else tuple()
+        fn = fn if fn is not None else (lambda x: x)
         if isinstance(obj, Link):
             yield (current_path, obj)
         elif isinstance(obj, Schema):
@@ -380,17 +381,20 @@ class Schema(MutableMapping[str, Any]):
     def initialize(self,
                    path: Optional[Tuple[str]] = None,
                    cache: Optional[Dict[str, Any]] = None) -> Any:
-        cache = cache or {}
-        path = path or tuple()
+        cache = cache if cache is not None else {}
+        path = path if path is not None else tuple()
         if path in cache:
             return cache[path]
-
         initialized = copy.deepcopy(self)
-        for path, obj in self.traverse(self.bound_arguments, yield_schema='only'):
+        for current_path, obj in self.traverse(self.bound_arguments, current_path=path, yield_schema='only'):
             if isinstance(obj, Link):
-                initialized.set_param(path, obj(cache))
+                new_value = obj(cache=cache)
+                cache[current_path] = new_value
+                initialized.set_param(current_path, new_value)
             elif isinstance(obj, Schema):
-                initialized.set_param(path, obj(path, cache))
+                new_value = obj(path=current_path, cache=cache)
+                cache[current_path] = new_value
+                initialized.set_param(current_path, new_value)
         initialized_arguments = initialized.bound_arguments
 
         for k, v in initialized_arguments.arguments.items():
@@ -399,6 +403,7 @@ class Schema(MutableMapping[str, Any]):
                 msg += f"This could be because of a typo or the class is not registered properly"
                 warn(msg)
         try:
+            # TODO make sure redundant cache update is really redundant
             cache[path] = self.factory_method(*initialized_arguments.args,
                                               **initialized_arguments.kwargs)
         except TypeError as te:
