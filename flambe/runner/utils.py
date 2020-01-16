@@ -1,14 +1,17 @@
 import os
 import logging
+import colorama
 
-from flambe.const import FLAMBE_GLOBAL_FOLDER
-from flambe.experiment.wording import print_extensions_cache_size_warning
+try:
+    from pip._internal.operations import freeze
+except ImportError:  # pip < 10.0
+    from pip.operations import freeze
+
+import flambe
+from flambe.const import FLAMBE_GLOBAL_FOLDER, MB, WARN_LIMIT_MB
+
 
 logger = logging.getLogger(__name__)
-
-
-MB = 2**20
-WARN_LIMIT_MB = 100
 
 
 def get_size_MB(path: str) -> float:
@@ -54,4 +57,52 @@ def check_system_reqs() -> None:
     # Check if extensions folder is getting big
     extensions_folder = os.path.join(FLAMBE_GLOBAL_FOLDER, "extensions")
     if os.path.exists(extensions_folder) and get_size_MB(extensions_folder) > WARN_LIMIT_MB:
-        print_extensions_cache_size_warning(extensions_folder, WARN_LIMIT_MB)
+        logger.info(colorama.Fore.YELLOW)
+        logger.info(
+            f"Be aware that your extensions cache for github extensions \
+              located in {extensions_folder} is increasing its size \
+              (it's currently bigger than {WARN_LIMIT_MB} MB).")
+        logger.info("Please remove unused extensions from that location.")
+        logger.info(colorama.Style.RESET_ALL)
+
+
+def is_dev_mode() -> bool:
+    """Detects if flambe was installed in editable mode.
+
+    For more information:
+    https://pip.pypa.io/en/latest/reference/pip_install/#editable-installs
+
+    Returns
+    -------
+    bool
+
+    """
+    x = freeze.freeze()
+    for pkg in x:
+        if pkg.startswith("-e") and pkg.endswith("egg=flambe"):
+            return True
+
+    return False
+
+
+def get_flambe_repo_location() -> str:
+    """Return where flambe repository is located
+
+    Returns
+    -------
+    str
+        The local path where flambe is located
+
+    Raises
+    ------
+    ValueError
+        If flambe was not installed in editable mode
+
+    """
+    if not is_dev_mode():
+        raise ValueError("Flambe repo can't be located as it was not \
+                          installed in editable mode")
+
+    # Go form the top level __init__.py to the flambe repo
+    repo_location = os.path.join(flambe.__file__, os.pardir, os.pardir)
+    return os.path.abspath(repo_location)

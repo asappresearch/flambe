@@ -1,5 +1,6 @@
 from typing import Callable, Optional, Any, Union, TextIO, Dict
 import functools
+import os
 from warnings import warn
 
 import ruamel.yaml
@@ -261,7 +262,7 @@ def load_config(yaml_config: Union[TextIO, str]) -> Any:
     import_modules(extensions.keys())
     registry = get_registry()
     with synced_yaml(registry) as yaml:
-        _check_tags(yaml, yaml_config, registry, strict=True)
+        check_tags(yaml, yaml_config, registry, strict=True)
         result = list(yaml.load_all(yaml_config))[-1]
     return result
 

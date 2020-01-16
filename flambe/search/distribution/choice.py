@@ -1,11 +1,9 @@
 import numpy as np
 
-from flambe.compile import alias
 from flambe.search.distribution.distribution import Distribution
 
 
-@alias("~c")
-class Choice(Distribution):
+class Choice(Distribution, tag_override="~c"):
 
     var_type = 'choice'
     is_numerical = False

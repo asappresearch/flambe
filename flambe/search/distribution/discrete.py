@@ -1,6 +1,5 @@
 import numpy as np
 
-from flamb.compile import alias
 from flambe.search.distribution.numerical import Numerical
 
 
@@ -37,8 +36,7 @@ class Discrete(Numerical):
         return np.random.choice(self.options, p=self.probs)
 
 
-@alias("~qu")
-class QUniform(Discrete):
+class QUniform(Discrete, tag_override="~q"):
     '''
     Quantized uniform variable class.
     '''

@@ -1,10 +1,10 @@
 from abc import abstractmethod
 from typing import Any, Sequence, Dict
 
-from flambe.compile import Registrable
+from flambe.compile.schema import Options
 
 
-class Distribution(Registrable):
+class Distribution(Options):
 
     var_type: str
 
