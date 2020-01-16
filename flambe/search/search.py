@@ -1,115 +1,106 @@
-
 from typing import Tuple, Optional, Callable, Dict, List, Any
 import os
 import subprocess
+import copy
 
 import ray
 
 import flambe as fl
-from flambe.compile import Schema
+from flambe.runner import Runnable, Environment
+from flambe.compile.schema import Schema, Variants
 from flambe.search.trial import Trial
+from flambe.search.searchable import Searchable
 from flambe.search.algorithm import Algorithm
-from flambe.search.distribution import Grid
 
 
-class Task(object):
-    """Temporary dummy."""
-
-    def step(self) -> bool:
-        pass
-
-    def metric(self) -> float:
-        pass
-
-
-class TaskAdapter:
-
+class SearchableAdapter:
     """Perform computation of a task."""
 
     def __init__(self, schema: Schema) -> None:
-        """Initialize the Trial.
-
-        Parameters
-        ----------
-        partial: partial[Task]
-
-        """
+        """Initialize the Trial."""
         self.schema = schema
-        self.task: Optional[Task] = None
+        self.searchable: Optional[Searchable] = None
 
     def step(self) -> Tuple[bool, Optional[float]]:
         """Run a step of the Trial"""
-        if self.task is None:
-            self.task = self.schema.compile()
+        if self.searchable is None:
+            self.searchable = self.schema()
 
-        continue_ = self.task.step()
-        metric = self.task.metric()
+        continue_ = self.searchable.step()
+        metric = self.searchable.metric()
         return continue_, metric
 
     def kill(self) -> None:
+        """Kill the trial."""
         ray.actor.exit_actor()
 
 
 class CallableAdapter:
-
     """Perform computation of a function."""
 
     def __init__(self, schema: Schema) -> None:
-        """Initialize the Trial.
-
-        Parameters
-        ----------
-        partial: partial[Task]
-
-        """
+        """Initialize the Trial."""
         self.schema = schema
         self.callable: Optional[Callable] = None
 
     def step(self) -> Tuple[bool, Optional[float]]:
-        """Run a step of the Trial"""
+        """Run a step of the Trial."""
         self.callable = self.callable or self.schema()
         continue_ = False
         metric = self.callable()
         return continue_, metric
 
     def kill(self) -> None:
+        """Kill the trial."""
         ray.actor.exit_actor()
 
 
-class Checkpointer(object):
+class Checkpoint(object):
 
     def __init__(self,
                  path: str,
-                 host: str,
-                 memory: bool = False,
-                 local_dir: Optional[str] = None):
+                 host: Optional[str] = None,
+                 memory: bool = False):
+        """[summary]
+
+        Parameters
+        ----------
+        path : str
+            [description]
+        host : Optional[str], optional
+            [description], by default None
+        memory : bool, optional
+            [description], by default False
+        """
 
         self.object_id = None
         self.memory = memory
         self.path = os.path.join(path, '')
-        self.remote = f"{host}:{self.path}"
+        self.remote = f"{host}:{self.path}" if host else None
 
-    def get_checkpoint(self) -> Optional[Task]:
+    def get(self) -> Searchable:
         if self.memory:
             if self.object_id is None:
-                return None
+                raise ValueError("No object ID, could not find checkpoint.")
             return ray.get(self.object_id)
         else:
             if not os.path.exists(self.path):
                 os.mkdir(self.path)
-            subprocess.run(f'rsync -a {self.remote} {self.path}')
+            if self.remote:
+                subprocess.run(f'rsync -a {self.remote} {self.path}')
             return fl.load(self.path)
 
-    def set_checkpoint(self, task: Task):
+    def set(self, task: Searchable):
         if self.memory:
             del self.object_id
             self.object_id = ray.put(task)
         else:
             fl.save(task, self.path)
-            subprocess.run(f'rsync -a {self.path} {self.remote}')
+            if self.remote:
+                subprocess.run(f'rsync -a {self.path} {self.remote}')
 
 
-class Search(object):
+class Search(Runnable):
     """Implement a hyperparameter search over any schema.
 
     Use a Search to construct a hyperparameter search over any
@@ -119,8 +110,8 @@ class Search(object):
     Example
     -------
 
-    >>> task = Schema(Task, arg1=uniform(0, 1), arg2=choice('a', 'b'))
-    >>> search = Search(task, algorithm=Hyperband())
+    >>> schema = Schema(func, arg1=uniform(0, 1), arg2=choice('a', 'b'))
+    >>> search = Search(schema, algorithm=Hyperband())
     >>> search.run()
 
     """
@@ -129,8 +120,9 @@ class Search(object):
                  algorithm: Algorithm,
                  cpus_per_trial: int = 1,
                  gpus_per_trial: int = 0,
-                 ouput_dir: Optional[str] = None,
-                 refresh_waitime: float = 1.0) -> None:
+                 ouput_dir: str = 'flambe__output',
+                 refresh_waitime: float = 1.0,
+                 use_object_store: bool = False) -> None:
         """Initialize a hyperparameter search.
 
         Parameters
@@ -146,6 +138,10 @@ class Search(object):
         refresh_waitime : float, optional
             The minimum amount of time to wait before a refresh.
             Defaults ``10`` seconds.
+        use_object_store: bool, optional
+            Whether to use the plasma object store to move objects
+            between workers. See Ray documentation for more details.
+            Default ``False``.
 
         """
         self.output_dir = ouput_dir
@@ -160,35 +156,45 @@ class Search(object):
             raise ValueError("# of CPUs required per trial is larger than the total available.")
 
         # Check schema
-        if any(isinstance(dist, Grid) for dist in schema.search_space()):
+        if any(isinstance(dist, Variants) for dist in schema.extract_search_space().values()):
             raise ValueError("Schema cannot contain grid options, please split first.")
 
         self.schema = schema
         self.algorithm = algorithm
 
-        if issubclass(self.schema._cls, Task):
-            self.adatper = ray.remote(num_cpus=self.n_cpus, num_gpus=self.n_gpus)(TaskAdapter)
-        elif isinstance(self.schema._cls, Callable):  # type: ignore
-            self.adatper = ray.remote(num_cpus=self.n_cpus, num_gpus=self.n_gpus)(CallableAdapter)
-        else:
-            raise ValueError("Only functions and Task objects supported.")
-
-    def run(self) -> List[Trial]:
+    def run(self,
+            environment: Optional[Environment] = None) -> Dict[str, Dict]:
         """Execute the search.
+
+        Parameters
+        ----------
+        env : Environment, optional
+            An optional environment object.
 
         Returns
         -------
-        List[Trial]
+        Dict[str, Dict]
+            A list of trial objects.
 
         """
-        self.algorithm.initialize(self.schema.search_space())
+        env = environment or Environment(self.output_dir)
+
+        if isinstance(self.schema.callable, type) and issubclass(self.schema.callable, Searchable):
+            checkpointable = True
+            adapter = ray.remote(num_cpus=self.n_cpus, num_gpus=self.n_gpus)(SearchableAdapter)
+        else:
+            checkpointable = False
+            adapter = ray.remote(num_cpus=self.n_cpus, num_gpus=self.n_gpus)(CallableAdapter)
+
+        search_space = self.schema.extract_search_space().items()
+        self.algorithm.initialize(dict((".".join(k), v) for k, v in search_space))  # type: ignore
 
         running: List[int] = []
         finished: List[int] = []
 
         trials: Dict[str, Trial] = dict()
-        id_to_trial_name: Dict[str, str] = dict()
-        trial_name_to_actor: Dict[str, Any] = dict()
+        state: Dict[str, Dict[str, Any]] = dict()
+        object_id_to_trial_id: Dict[str, str] = dict()
 
         while running or (not self.algorithm.is_done()):
             # Get all the current object ids running
@@ -198,47 +204,62 @@ class Search(object):
             # Process finished trials
             for object_id in finished:
                 _continue, metric = ray.get(object_id)
-                trial = trials[id_to_trial_name[str(object_id)]]
+                trial_id = object_id_to_trial_id[str(object_id)]
 
+                # Checkpoint
+                if checkpointable:
+                    actor = state[trial_id]['actor']
+                    checkpoint = state[trial_id]['checkpoint']
+                    checkpoint.set(actor.searchable)
+
+                # Check if terminated
+                trial = trials[trial_id]
                 if _continue:
                     trial.set_metric(metric)
                     trial.set_has_result()
                 else:
                     trial.set_terminated()
 
-            # Update the algorithm
-            max_queries = 0
+            # Compute maximum number of trials to create
             current_resources = ray.available_resources()
-            if self.n_cpus > 0 and self.n_gpus > 0:
-                n_possible_cpu = current_resources.get('CPU', 0) // self.n_cpus
+            max_queries = current_resources.get('CPU', 0) // self.n_cpus
+            if self.n_gpus:
                 n_possible_gpu = current_resources.get('GPU', 0) // self.n_gpus
-                max_queries = min(n_possible_cpu, n_possible_gpu)
-            elif self.n_cpus > 0:
-                max_queries = current_resources.get('CPU', 0) // self.n_cpus
-            elif self.n_gpus > 0:
-                max_queries = current_resources.get('GPU', 0) // self.n_gpus
+                max_queries = min(max_queries, n_possible_gpu)
 
+            # Update the algorithm and get new trials
             trials = self.algorithm.update(trials, maximum=max_queries)
 
             # Update based on trial status
-            for name, trial in trials.items():
+            for trial_id, trial in trials.items():
                 # Handle creation and termination
                 if trial.is_paused() or trial.is_running():
                     continue
-                elif trial.is_terminated() and name in trial_name_to_actor:
-                    del trial_name_to_actor[name]
+                elif trial.is_terminated() and trial_id in state:
+                    state[trial_id]['actor'].kill()
+                    del state[trial_id]['actor']
                 elif trial.is_created():
-                    partial = self.schema.set_params(trial.parameters)
-                    actor = self.adatper.remote(partial)
-                    trial_name_to_actor[name] = actor
+                    schema_copy = copy.deepcopy(self.schema)
+                    schema_copy.set_from_search_space(trial.parameters)
+                    state[trial_id] = dict()
+                    state[trial_id]['actor'] = adapter.remote(schema_copy)
+                    if checkpointable:
+                        state[trial_id]['checkpoint'] = Checkpoint(
+                            path=os.path.join(self.output_dir, trial.generate_name()),
+                            host=env.orchestrator_ip
+                        )
                     trial.set_resume()
 
                 # Launch created and resumed
                 if trial.is_resuming():
-                    actor = trial_name_to_actor[name]
-                    object_id = actor.step.remote()
+                    object_id = state[trial_id]['actor'].step().remote()
+                    object_id_to_trial_id[str(object_id)] = trial_id
                     running.append(object_id)
-                    id_to_trial_name[str(object_id)] = name
                     trial.set_running()
 
-        return list(trials.values())
+        result = dict()
+        for trial_id, trial in trials.items():
+            checkpoint = state[trial_id]['checkpoint']
+            result[trial.generate_name()] = dict(trial=trial, checkpoint=checkpoint)
+
+        return result

@@ -47,8 +47,7 @@ setup(
     # What is packaged here.
     packages=find_packages(exclude=("tests", "tests.*", "extensions")),
     scripts=[
-        'bin/flambe',
-        'bin/flambe-site'
+        'bin/flambe'
     ],
 
     install_requires=required(),

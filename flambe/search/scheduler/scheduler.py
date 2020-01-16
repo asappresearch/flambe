@@ -13,7 +13,8 @@ class Scheduler(ABC):
         results_file: String to path that results will be logged.
         results_keys: The names of the results that will be stored.
         target_result: The key result for searchers to focus on.
-        n_workers: The maximum number of trials to be released in parallel.
+        n_workers: The maximum number of trials to be released in
+            parallel.
         verbose: Whether or not to print out the results.
         '''
         self.trials = {}
@@ -25,7 +26,8 @@ class Scheduler(ABC):
 
     def link_searcher_fns(self, propose_new_params_fn, register_results_fn):
         '''
-        Link the searcher's propose_new_hp and register_hps functions to the scheduler.
+        Link the searcher's propose_new_hp and register_hps
+        functions to the scheduler.
         '''
         self._propose_new_params = propose_new_params_fn
         self._register_results = register_results_fn
