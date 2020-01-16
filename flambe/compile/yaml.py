@@ -250,7 +250,6 @@ def load_config(yaml_config: Union[TextIO, str]) -> Any:
     """
     extensions = _load_extensions(yaml_config)
     for module in extensions.keys():
-        continue
         if not is_installed_module(module):
             raise ImportError(
                 f"Module {x} is required and not installed. Please 'pip install'"
@@ -263,7 +262,7 @@ def load_config(yaml_config: Union[TextIO, str]) -> Any:
     import_modules(extensions.keys())
     registry = get_registry()
     with synced_yaml(registry) as yaml:
-        # _check_tags(yaml, yaml_config, registry, strict=True)
+        check_tags(yaml, yaml_config, registry, strict=True)
         result = list(yaml.load_all(yaml_config))[-1]
     return result
 
