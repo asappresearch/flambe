@@ -1,4 +1,4 @@
-from flambe.runnable.runnable import Runnable, Environment
+from flambe.runner.runnable import Runnable, Environment
 
 
 __all__ = ['Runnable', 'Environment']

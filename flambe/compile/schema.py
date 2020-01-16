@@ -32,6 +32,10 @@ class UnpreparedLinkError(LinkError):
     pass
 
 
+class Options(Registrable, should_register=False):
+    pass
+
+
 def create_link_str(schematic_path: Sequence[str],
                     attr_path: Optional[Sequence[str]] = None) -> str:
     """Create a string representation of the specified link
@@ -379,13 +383,13 @@ class Schema(MutableMapping[str, Any]):
             raise te
         return cache[path]
 
-    def extract_search_space(self) -> Dict[str, Tuple[str]]:
+    def extract_search_space(self) -> Dict[Tuple[str], Options]:
         search_space = {}
 
         for path, item in traverse(self, yield_schema='never'):
             if isinstance(item, Link):
                 pass
-            elif isinstance(item, Distribution):
+            elif isinstance(item, Options):
                 search_space[path] = item
 
         return search_space
@@ -416,12 +420,8 @@ class Schema(MutableMapping[str, Any]):
         """Remove options according to lookup function"""
         raise NotImplementedError()
 
-    def sort_options(self, objective_fn: Callable[['Schema'], bool]) -> None:
+    def reduce(self, objective_fn: Callable[['Schema'], bool]) -> None:
         """Sort options according to objectiv function"""
-        raise NotImplementedError()
-
-    def reduce(self) -> None:
-        """Remove options based on top-k reduce values in Links"""
         raise NotImplementedError()
 
     @recursive_repr()

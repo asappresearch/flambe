@@ -1,6 +1,5 @@
 import numpy as np
 
-from flambe.compile import alias
 from flambe.search.distribution.numerical import Numerical
 
 
@@ -11,8 +10,7 @@ class Continuous(Numerical):
     var_type = 'continuous'
 
 
-@alias("~u")
-class Uniform(Continuous):
+class Uniform(Continuous, tag_override="~u"):
 
     def __init__(self, low, high, transform=None):
         '''
@@ -32,8 +30,7 @@ class Uniform(Continuous):
         return np.random.uniform(**self.dist_params)
 
 
-@alias("~n")
-class Normal(Continuous):
+class Normal(Continuous, tag_override="~n"):
 
     def __init__(self, loc, scale, transform=None):
         '''
@@ -52,7 +49,7 @@ class Normal(Continuous):
         return np.random.normal(**self.dist_params)
 
 
-class Beta(Continuous):
+class Beta(Continuous, tag_override="~b"):
 
     def __init__(self, a, b, transform=None):
         '''

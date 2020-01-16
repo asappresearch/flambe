@@ -1,5 +1,6 @@
 from typing import Callable, Optional, Any, Union, TextIO, Dict
 import functools
+import os
 from warnings import warn
 
 import ruamel.yaml
@@ -250,6 +251,7 @@ def load_config(yaml_config: Union[TextIO, str]) -> Any:
     """
     extensions = _load_extensions(yaml_config)
     for module in extensions.keys():
+        continue
         if not is_installed_module(module):
             raise ImportError(
                 f"Module {x} is required and not installed. Please 'pip install'"
@@ -261,9 +263,14 @@ def load_config(yaml_config: Union[TextIO, str]) -> Any:
     import_modules(extensions.keys())
     registry = get_registry()
     with synced_yaml(registry) as yaml:
-        _check_tags(yaml, yaml_config, registry, strict=True)
+        # _check_tags(yaml, yaml_config, registry, strict=True)
         result = list(yaml.load_all(yaml_config))[-1]
     return result
+
+
+def load_config_from_file(yaml_config: str):
+    with open(os.path.expanduser(yaml_config), 'r') as f:
+        load_config(f)
 
 
 def dump_config(obj: Any, stream: Any, extensions: Optional[Dict[str, str]] = None):

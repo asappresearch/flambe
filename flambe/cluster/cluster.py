@@ -1,15 +1,16 @@
+import os
 from typing import Optional, Dict, List
 from ruamel.yaml import YAML
-import subprocess
 import tempfile
 
 from ray.autoscaler.commands import get_head_node_ip, get_worker_node_ips
+from ray.autoscaler.commands import exec_cluster, create_or_update_cluster, rsync
 
-from flambe.runner import Runnable
-from flambe.compile import Registrable
+from flambe.compile import RegisteredStatelessMap, load_extensions
+from flambe.runner.utils import is_dev_mode, get_flambe_repo_location
 
 
-class Cluster(Registrable):
+class Cluster(RegisteredStatelessMap):
     """Base cluster implementation."""
 
     def __init__(self,
@@ -61,43 +62,186 @@ class Cluster(Registrable):
             A list of commands to run on the factory nodes only.
 
         """
-        setup_commands = setup_commands or []
-        setup_commands.append('pip install --user -U flambe')
-
         config = {
+            'cluster_name': name,
+            'initial_workers': initial_workers,
+            'min_workers': min_workers,
+            'max_workers': max_workers,
+            'target_utilization_fraction': target_utilization_fraction,
+            'idle_timeout_minutes': idle_timeout_minutes,
             'auth': {
                 'ssh_user': ssh_user,
                 'ssh_private_key': ssh_private_key
             },
             'file_mounts': file_mounts or {},
-            'setup_commands': setup_commands,
+            'setup_commands': setup_commands or [],
             'head_setup_commands': head_setup_commands or [],
-            'worker_setup_commands': worker_setup_commands or []
+            'worker_setup_commands': worker_setup_commands or [],
+            'initialization_commands': []
         }
 
         self.config = config
 
-    def _run(self, command):
-        """Update / Create the cluster."""
+    def up(self,
+           min_workers: Optional[int] = None,
+           max_workers: Optional[int] = None,
+           yes: bool = False):
+        """Update / Create the cluster.
+
+        Parameters
+        ----------
+        min_workers : Optional[int], optional
+            [description], by default None
+        max_workers : Optional[int], optional
+            [description], by default None
+        yes : bool, optional
+            [description], by default False
+
+        """
         yaml = YAML()
         with tempfile.NamedTemporaryFile() as fp:
             yaml.dump(self.config, fp)
-            subprocess.run(f"ray {command} {fp.name}")
-
-    def up(self):
-        """Update / Create the cluster."""
-        return self._run('up')
+            create_or_update_cluster(fp.name, min_workers, max_workers, True, False, yes, None)
 
     def down(self):
-        """Shutdown the cluster."""
-        return self._run('down')
-
-    def submit(self, runnable: Runnable):
-        """Submit a job to the cluster."""
+        """Teardown the cluster."""
         yaml = YAML()
         with tempfile.NamedTemporaryFile() as fp:
             yaml.dump(self.config, fp)
-            subprocess.run(f"ray submit {fp.name}")
+            teardown_cluster(fp.name, yes, workers_only, cluster_name)
+
+    def rsync_up(self, source: str, target: str):
+        """[summary]
+
+        Parameters
+        ----------
+        source : str
+            [description]
+        target : str
+            [description]
+        """
+        yaml = YAML()
+        with tempfile.NamedTemporaryFile() as fp:
+            yaml.dump(self.config, fp)
+            rsync(fp.name, source, target, down=False)
+
+    def rsync_down(self, source: str, target: str):
+        """[summary]
+
+        Parameters
+        ----------
+        source : str
+            [description]
+        target : str
+            [description]
+        """
+        yaml = YAML()
+        with tempfile.NamedTemporaryFile() as fp:
+            yaml.dump(self.config, fp)
+            rsync(fp.name, source, target, down=True)
+
+    def attach(self, name: str, new: bool = False):
+        """Attach to a tmux session.
+
+        Arguments:
+            new: whether to force a new tmux session
+
+        """
+        if new:
+            cmd = f"tmux new -s {name}"
+        else:
+            cmd = f"tmux attach -t {name} || tmux new -s {name}"
+
+        yaml = YAML()
+        with tempfile.NamedTemporaryFile() as fp:
+            yaml.dump(self.config, fp)
+            exec_cluster(fp.name, cmd, False, False, False, False, False, None, None)
+
+    def list(self):
+        """Attach to a tmux session.
+
+        Arguments:
+            new: whether to force a new tmux session
+
+        """
+        cmd = f"tmux ls"
+
+        yaml = YAML()
+        with tempfile.NamedTemporaryFile() as fp:
+            yaml.dump(self.config, fp)
+            exec_cluster(fp.name, cmd, False, False, False, False, False, None, None)
+
+    def kill(self, name: str):
+        """Attach to a tmux session.
+
+        Arguments:
+            new: whether to force a new tmux session
+
+        """
+        cmd = f"tmux kill-session -t {name}"
+
+        yaml = YAML()
+        with tempfile.NamedTemporaryFile() as fp:
+            yaml.dump(self.config, fp)
+            exec_cluster(fp.name, cmd, False, False, False, False, False, None, None)
+
+    def submit(self,
+               runnable: str,
+               name: str,
+               force: bool = False,
+               debug: bool = False):
+        """Submit a job to the cluster.
+
+        Parameters
+        ----------
+        runnable : str
+            [description]
+        name : str
+            [description]
+        force : bool, optional
+            [description], by default False
+        debug : bool, optional
+            [description], by default False
+
+        """
+        yaml = YAML()
+        with tempfile.NamedTemporaryFile() as fp:
+            yaml.dump(self.config, fp)
+
+            # Create new directory, tmux session, and virtual env
+            cmd = f"mkdir ~/{name} && tmux new -s {name}"
+            cmd += f' && conda create -y -q --name {name} && source activate {name}'
+            exec_cluster(fp.name, cmd, False, False, False, False, False, None, [])
+            tmux_cmd = lambda x: f'tmux send-keys -t {name}.0 "{x}" ENTER'  # noqa: E731
+
+            # Upload and install flambe
+            if is_dev_mode():
+                flambe_repo = get_flambe_repo_location()
+                target = f'~/{name}/flambe'
+                rsync(fp.name, flambe_repo, target, None, down=False)
+
+                cmd = f'pip install -U {target}'
+                exec_cluster(fp.name, tmux_cmd(cmd), False, False, False, False, False, None, [])
+            else:
+                cmd = f'pip install -U flambe'
+                exec_cluster(fp.name, tmux_cmd(cmd), False, False, False, False, False, None, [])
+
+            # Upload and install extensions
+            extensions = load_extensions(runnable)
+            for module, package in extensions.items():
+                target = package
+                if os.path.exists(package):
+                    target = f'~/{name}/extensions/{os.path.basename(package)}'
+                    rsync(fp.name, package, target, None, down=False)
+
+                cmd = f'pip install -U {target}'
+                exec_cluster(fp.name, tmux_cmd(cmd), False, False, False, False, False, None, [])
+
+            # Run Flambe
+            target = os.path.join(f"~/{name}", os.path.basename(runnable))
+            rsync(fp.name, runnable, target, None, down=False)
+            cmd = f'flambe run {target}'
+            exec_cluster(fp.name, tmux_cmd(cmd), False, False, False, False, False, None, [])
 
     def head_node_ip(self) -> str:
         """Get the head node ip address"""

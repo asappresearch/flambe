@@ -1,7 +1,8 @@
 from abc import abstractmethod
 from typing import List, Any, Optional
 
-from flambe.compile import Registrable
+from flambe.compile.registered_types import Registrable
+from flambe.compile.component import Component
 
 
 class Environment(Registrable):
@@ -40,6 +41,14 @@ class Environment(Registrable):
         self.orchestrator_ip = orchestrator_ip
         self.factories_ips = factories_ips
 
+    def clone(self) -> 'Environment':
+        return Environment(
+            self.ouput_path,
+            self.remote,
+            self.orchestrator_ip,
+            self.factories_ips
+        )
+
     @classmethod
     def to_yaml(cls, representer: Any, node: Any, tag: str) -> Any:
         """Use representer to create yaml representation of node"""
@@ -58,16 +67,16 @@ class Environment(Registrable):
         return cls(**kwargs)
 
 
-class Runnable(Registrable):
+class Runnable(Component):
     """Abstract runnable interface."""
 
     @abstractmethod
-    def run(env: Optional[Environment] = None):
+    def run(self, environment: Optional[Environment] = None):
         """Execute the Runnable.
 
         Parameters
         ----------
-        env : Optional[Environment], optional
+        environment : Environment, optional
             An optional environment object.
 
         """

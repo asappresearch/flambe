@@ -102,8 +102,8 @@ class AWSCluster(Cluster):
                 'KeyName': key_name,
                 'InstanceType': head_node_type,
                 'ImageId': head_node_ami,
-                'SubnetId': subnet_id,
-                'SecurityGroupIds': security_group,
+                'SubnetIds': [subnet_id],
+                'SecurityGroupIds': [security_group],
                 'IamInstanceProfile': {
                     'Name': iam_profile
                 },
@@ -124,8 +124,8 @@ class AWSCluster(Cluster):
                 'IamInstanceProfile': {
                     'Name': iam_profile
                 },
-                'SubnetId': subnet_id,
-                'SecurityGroupIds': security_group,
+                'SubnetIds': [subnet_id],
+                'SecurityGroupIds': [security_group],
                 'BlockDeviceMappings': [
                     {
                         'DeviceName': '/dev/sda1',
@@ -168,5 +168,16 @@ class AWSCluster(Cluster):
                 spot['InstanceMarketOptions']['SpotOptions'] = spot_options  # type: ignore
 
             config['worker_nodes']['InstanceMarketOptions'] = spot  # type: ignore
+
+        # Command to start ray on the head and worker nodes
+        config['head_start_ray_commands'] = [
+            'ray stop',
+            'ulimit -n 65536; ray start --head --redis-port=6379 \
+                --object-manager-port=8076 --autoscaling-config=~/ray_bootstrap_config.yaml'
+        ]
+        config['worker_start_ray_commands'] = [
+            'ray stop',
+            'ulimit -n 65536; ray start --address=$RAY_HEAD_IP:6379 --object-manager-port=8076'
+        ]
 
         self.config.update(config)

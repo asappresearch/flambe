@@ -7,7 +7,7 @@ import subprocess
 from urllib.parse import urlparse
 
 import flambe
-from flambe.runnable import Runnable, error
+from flambe.runner.runnable import Runnable
 from flambe.compile import Component, Schema
 from flambe.compile.const import DEFAULT_PROTOCOL
 from flambe.logging import coloredlogs as cl
@@ -114,7 +114,7 @@ class Builder(Runnable):
             os.listdir(self.destination) and
             not force
         ):
-            raise error.ParsingRunnableError(
+            raise ValueError(
                 f"Destination {self.destination} folder is not empty. " +
                 "Use --force to force the usage of this folder or " +
                 "pick another destination."
@@ -140,7 +140,7 @@ class Builder(Runnable):
         url = urlparse(self.destination)
 
         if url.scheme != 's3' or url.netloc == '':
-            raise error.ParsingRunnableError(
+            raise ValueError(
                 "When uploading to s3, destination should be: " +
                 "s3://<bucket-name>[/path/to/dir]"
             )
@@ -152,7 +152,7 @@ class Builder(Runnable):
         for content in bucket.objects.all():
             path = url.path[1:]  # Remove first '/'
             if content.key.startswith(path) and not force:
-                raise error.ParsingRunnableError(
+                raise ValueError(
                     f"Destination {self.destination} is not empty. " +
                     "Use --force to force the usage of this bucket folder or " +
                     "pick another destination."
