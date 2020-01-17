@@ -274,7 +274,7 @@ class Schema(MutableMapping[str, Any]):
         args = args if args is not None else []
         kwargs = kwargs if kwargs is not None else {}
         s = inspect.signature(self.factory_method)
-        self.bound_arguments = s.bind(*self.args, **self.kwargs)
+        self.bound_arguments = s.bind(*args, **kwargs)
         self.bound_arguments.apply_defaults()
         for k, v in self.bound_arguments.arguments.items():
             if s.parameters[k].kind not in [inspect.Parameter.POSITIONAL_OR_KEYWORD,
@@ -286,6 +286,10 @@ class Schema(MutableMapping[str, Any]):
             else:
                 tag = self.callable.__name__
         self.created_with_tag = tag
+
+    @property
+    def arguments(self):
+        return self.bound_arguments.arguments
 
     def __setitem__(self, key: str, value: Any) -> None:
         self.bound_arguments.arguments[key] = value
@@ -346,14 +350,14 @@ class Schema(MutableMapping[str, Any]):
         elif isinstance(obj, Schema):
             if yield_schema is None or yield_schema == 'before':
                 yield (current_path, fn(obj))
-                yield from Schema.traverse(obj.kwargs, current_path, fn, yield_schema)
+                yield from Schema.traverse(obj.arguments, current_path, fn, yield_schema)
             elif yield_schema == 'only':
                 yield (current_path, fn(obj))
             elif yield_schema == 'after':
-                yield from Schema.traverse(obj.kwargs, current_path, fn, yield_schema)
+                yield from Schema.traverse(obj.arguments, current_path, fn, yield_schema)
                 yield (current_path, fn(obj))
             elif yield_schema == 'never':
-                yield from Schema.traverse(obj.kwargs, current_path, fn, yield_schema)
+                yield from Schema.traverse(obj.arguments, current_path, fn, yield_schema)
         elif isinstance(obj, dict):
             for k, v in obj.items():
                 next_path = current_path + (k,)
@@ -380,7 +384,6 @@ class Schema(MutableMapping[str, Any]):
         current_obj = self
         for item in path[:-1]:
             current_obj = current_obj[item]
-        print(current_obj[path[-1]])
         current_obj[path[-1]] = value
 
     def initialize(self,
@@ -402,7 +405,7 @@ class Schema(MutableMapping[str, Any]):
                 initialized.set_param(current_path, new_value)
         initialized_arguments = initialized.bound_arguments
 
-        for k, v in initialized.kwargs.items():
+        for k, v in initialized_arguments.arguments.items():
             if isinstance(v, YAML_TYPES):
                 msg = f"keyword '{k}' is still yaml type {type(v)}\n"
                 msg += f"This could be because of a typo or the class is not registered properly"
@@ -460,7 +463,7 @@ class Schema(MutableMapping[str, Any]):
 
     @recursive_repr()
     def __repr__(self) -> str:
-        args = ", ".join("{}={!r}".format(k, v) for k, v in sorted(self.kwargs))
+        args = ", ".join("{}={!r}".format(k, v) for k, v in sorted(self.bound_arguments.arguments))
         format_string = "{module}.{cls}({callable}, {args})"
         return format_string.format(module=self.__class__.__module__,
                                     cls=self.__class__.__qualname__,

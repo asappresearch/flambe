@@ -3,6 +3,7 @@ from typing import Optional, Dict, List
 from ruamel.yaml import YAML
 import tempfile
 import subprocess
+from datetime import datetime
 
 from ray.autoscaler.commands import get_head_node_ip, get_worker_node_ips
 from ray.autoscaler.commands import exec_cluster, create_or_update_cluster, rsync, teardown_cluster
@@ -19,14 +20,16 @@ from flambe.runner.utils import is_dev_mode, get_flambe_repo_location
 def supress_rsync(func):
     def wrapper(args, *, stdin=None, stdout=None, stderr=None,
                 shell=False, cwd=None, timeout=None):
-        func(args, stdin=None, stdout=subprocess.DEVNULL, stderr=None,
+        if args[0] == 'rsync':
+            stdout = subprocess.DEVNULL
+        func(args, stdin=None, stdout=stdout, stderr=None,
              shell=False, cwd=None, timeout=None)
     return wrapper
 
 
 def supress_ssh(func):
     def wrapper(self, connect_timeout):
-        return func(self, connect_timeout) + ['-o', "LogLevel=ERROR"]
+        return func(self, connect_timeout) + ['-o', "LogLevel=QUIET"]
     return wrapper
 
 
@@ -35,6 +38,10 @@ def supress():
         SSHCommandRunner.get_default_ssh_options
     )
     subprocess.check_call = supress_rsync(subprocess.check_call)
+
+
+def time():
+    return datetime.now().strftime('%H:%M:%S')
 
 
 class Cluster(RegisteredStatelessMap):
@@ -174,6 +181,8 @@ class Cluster(RegisteredStatelessMap):
             new: whether to force a new tmux session
 
         """
+        supress()
+
         if name is not None:
             cmd = f"tmux attach -t {name}"
         else:
@@ -183,6 +192,11 @@ class Cluster(RegisteredStatelessMap):
         with tempfile.NamedTemporaryFile() as fp:
             yaml.dump(self.config, fp)
             exec_cluster(fp.name, cmd, False, False, False, False, False, None, None)
+
+        try:
+            raise KeyboardInterrupt
+        except KeyboardInterrupt:
+            pass
 
     def list(self):
         """Attach to a tmux session.
@@ -212,6 +226,24 @@ class Cluster(RegisteredStatelessMap):
             yaml.dump(self.config, fp)
             exec_cluster(fp.name, cmd, False, False, False, False, False, None, None)
 
+    def launch_site(self, port, name):
+        """Attach to a tmux session.
+
+        Arguments:
+            new: whether to force a new tmux session
+
+        """
+        cmd = f'pip install tensorboard > /dev/null && \
+            tensorboard --logdir=$HOME/jobs/{name} --port={port}'
+
+        yaml = YAML()
+        with tempfile.NamedTemporaryFile() as fp:
+            yaml.dump(self.config, fp)
+            try:
+                exec_cluster(fp.name, cmd, False, False, False, False, False, None, port)
+            except KeyboardInterrupt:
+                pass
+
     def submit(self,
                runnable: str,
                name: str,
@@ -233,6 +265,7 @@ class Cluster(RegisteredStatelessMap):
         """
         # Turn off output from ray
         supress()
+        print(cl.BL(f'Job: {name}\n.'))
 
         yaml = YAML()
         with tempfile.NamedTemporaryFile() as fp:
@@ -249,18 +282,18 @@ class Cluster(RegisteredStatelessMap):
                 raise ValueError(f"Job {name} currently running. Use -f, --force to override.")
 
             # Create new directory, new tmux session, and virtual env
-            print(cl.BL('- Starting tmux session.'))
+            print(f'[{time()}] Starting tmux session.')
             cmd = f"tmux kill-session -t {name}; tmux new -d -s {name}"
             exec_cluster(fp.name, cmd, False, False, False, False, False, None, [])
 
-            print(cl.BL('- Starting python env.'))
+            print(f'[{time()}] Starting python env.')
             tmux = lambda x: f'tmux send-keys -t {name}.0 "{x}" ENTER'  # noqa: E731
-            cmd = f"mkdir -p ~/jobs/{name}/extensions && \
+            cmd = f"mkdir -p $HOME/jobs/{name}/extensions && \
                 conda create -y -q --name {name}; echo ''"
             exec_cluster(fp.name, tmux(cmd), False, False, False, False, False, None, [])
 
             # Upload and install flambe
-            print(cl.BL('- Setting up Flambé.'))
+            print(f'[{time()}] Setting up Flambé.')
             cmd = f'source activate {name}'
             if is_dev_mode():
                 flambe_repo = get_flambe_repo_location()
@@ -274,7 +307,7 @@ class Cluster(RegisteredStatelessMap):
                 exec_cluster(fp.name, tmux(cmd), False, False, False, False, False, None, [])
 
             # Upload and install extensions
-            print(cl.BL('- Setting up extensions.'))
+            print(f'[{time()}] Setting up extensions.')
             extensions_dir = os.path.join(FLAMBE_GLOBAL_FOLDER, 'extensions')
             if not os.path.exists(extensions_dir):
                 os.makedirs(extensions_dir)
@@ -291,25 +324,25 @@ class Cluster(RegisteredStatelessMap):
                 exec_cluster(fp.name, tmux(cmd), False, False, False, False, False, None, [])
 
             # Run Flambe
-            print(cl.BL('- Submitting job.'))
+            print(f'[{time()}] Submitting job.')
             env = {
-                'ouput_path': f"~/jobs/{name}/output",
+                'ouput_path': f"$HOME/jobs/{name}/output",
                 'remote': True,
                 'head_node_ip': self.head_node_ip()
             }
             yaml = YAML()
             with tempfile.NamedTemporaryFile() as env_file:
                 yaml.dump(env, env_file)
-                env_target = f"~/jobs/{name}/env.yaml"
+                env_target = f"$HOME/jobs/{name}/env.yaml"
                 rsync(fp.name, env_file.name, env_target, None, down=False)
 
             # Run Flambe
-            target = f"~/jobs/{name}/{os.path.basename(runnable)}"
+            target = f"$HOME/jobs/{name}/{os.path.basename(runnable)}"
             rsync(fp.name, runnable, target, None, down=False)
             cmd = f'flambe run {target} --env {env_target}'
             cmd += ' -d' * int(debug) + ' -f' * int(force)
             exec_cluster(fp.name, tmux(cmd), False, False, False, False, False, None, [])
-            print(cl.GR(f'\nJob {name} submitted susscessfully.'))
+            print(cl.GR(f'\nJob submitted susscessfully.'))
 
     def head_node_ip(self) -> str:
         """Get the head node ip address"""

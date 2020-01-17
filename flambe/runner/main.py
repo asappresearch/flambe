@@ -21,7 +21,8 @@ def cli():
 
 # ----------------- flambe up ------------------ #
 @click.command()
-@click.option('-c', '--cluster', type=str, default=FLAMBE_CLUSTER_DEFAULT)
+@click.option('-c', '--cluster', type=str, default=FLAMBE_CLUSTER_DEFAULT,
+              help="Cluster config.")
 def up(cluster):
     """Launch / update the cluster based on the given config"""
     cluster = load_config_from_file(cluster)
@@ -30,18 +31,20 @@ def up(cluster):
 
 # ----------------- flambe down ------------------ #
 @click.command()
-@click.option('-c', '--cluster', type=str, default=FLAMBE_CLUSTER_DEFAULT)
+@click.option('-c', '--cluster', type=str, default=FLAMBE_CLUSTER_DEFAULT,
+              help="Cluster config.")
 def down(cluster):
-    """Launch / update the cluster based on the given config"""
+    """Teardown the cluster."""
     cluster = load_config_from_file(cluster)
     cluster.down()
 
 
 # ----------------- flambe list ------------------ #
 @click.command()
-@click.option('-c', '--cluster', type=str, default=FLAMBE_CLUSTER_DEFAULT)
+@click.option('-c', '--cluster', type=str, default=FLAMBE_CLUSTER_DEFAULT,
+              help="Cluster config.")
 def list_cmd(cluster):
-    """Attach to a tmux session on the cluster."""
+    """List the jobs (i.e tmux sessions) running on the cluster."""
     logging.disable(logging.INFO)
     cluster = load_config_from_file(cluster)
     cluster.list()
@@ -50,9 +53,10 @@ def list_cmd(cluster):
 # ----------------- flambe exec ------------------ #
 @click.command()
 @click.argument('command', type=str)
-@click.option('-c', '--cluster', type=str, default=FLAMBE_CLUSTER_DEFAULT)
+@click.option('-c', '--cluster', type=str, default=FLAMBE_CLUSTER_DEFAULT,
+              help="Cluster config.")
 def exec_cmd(command, cluster):
-    """Execute a command on the head node."""
+    """Execute a command on the cluster head node."""
     logging.disable(logging.INFO)
     cluster = load_config_from_file(cluster)
     cluster.exec(command=command)
@@ -61,9 +65,10 @@ def exec_cmd(command, cluster):
 # ----------------- flambe attach ------------------ #
 @click.command()
 @click.argument('name', required=False, type=str, default=None)
-@click.option('-c', '--cluster', type=str, default=FLAMBE_CLUSTER_DEFAULT)
+@click.option('-c', '--cluster', type=str, default=FLAMBE_CLUSTER_DEFAULT,
+              help="Cluster config.")
 def attach(name, cluster):
-    """Attach to a tmux session on the cluster."""
+    """Attach to a running job (i.e tmux session) on the cluster."""
     logging.disable(logging.INFO)
     cluster = load_config_from_file(cluster)
     cluster.attach(name)
@@ -72,9 +77,10 @@ def attach(name, cluster):
 # ----------------- flambe kill ------------------ #
 @click.command()
 @click.argument('name', type=str)
-@click.option('-c', '--cluster', type=str, default=FLAMBE_CLUSTER_DEFAULT)
+@click.option('-c', '--cluster', type=str, default=FLAMBE_CLUSTER_DEFAULT,
+              help="Cluster config.")
 def kill(name, cluster):
-    """Attach to a tmux session on the cluster."""
+    """Kill a job (i.e tmux session) running on the cluster."""
     logging.disable(logging.INFO)
     cluster = load_config_from_file(cluster)
     cluster.kill(name=name)
@@ -98,7 +104,7 @@ def kill(name, cluster):
 @click.option('-e', '--env', type=str, default=None,
               help='Verbose console output')
 def run(runnable, output, force, debug, verbose, env):
-    """Execute command based on given config"""
+    """Execute a runnable config."""
     # Check if previous job exists
     output = os.path.join(os.path.expanduser(output), 'flambe_output')
     if os.path.exists(output):
@@ -139,7 +145,8 @@ def run(runnable, output, force, debug, verbose, env):
 @click.command()
 @click.argument('runnable', type=str, required=True)
 @click.argument('name', type=str, required=True)
-@click.option('-c', '--cluster', type=str, default=FLAMBE_CLUSTER_DEFAULT)
+@click.option('-c', '--cluster', type=str, default=FLAMBE_CLUSTER_DEFAULT,
+              help="Cluster config.")
 @click.option('-f', '--force', is_flag=True, default=False,
               help='Override existing job with this name. Be careful \
                     when using this flag as it could have undesired effects.')
@@ -152,7 +159,7 @@ def run(runnable, output, force, debug, verbose, env):
 @click.option('-a', '--attach', is_flag=True, default=False,
               help='Attach after submitting the job.')
 def submit(runnable, name, cluster, force, debug, verbose, attach):
-    """Submit a job to the cluster."""
+    """Submit a job to the cluster, as a YAML config."""
     if not debug:
         logging.disable(logging.INFO)
     if is_dev_mode():
@@ -170,13 +177,15 @@ def submit(runnable, name, cluster, force, debug, verbose, attach):
 
 # ----------------- flambe site ------------------ #
 @click.command()
-@click.option('-c', '--cluster', type=str, default=FLAMBE_CLUSTER_DEFAULT)
-@click.option('--name', type=str, default='',
-              help='The name of the job to inspect')
-@click.option('--port', type=int, default=49558,
+@click.argument('name', type=str, required=False, default='')
+@click.option('-c', '--cluster', type=str, default=FLAMBE_CLUSTER_DEFAULT,
+              help="Cluster config.")
+@click.option('-p', '--port', type=int, default=49558,
               help='Port in which the site will be running url')
-def site(config, name, port):
-    cluster = load_config_from_file(config)
+def site(name, cluster, port):
+    """Launch the site on the cluster."""
+    logging.disable(logging.INFO)
+    cluster = load_config_from_file(cluster)
     cluster.launch_site(port=port, name=name)
 
 
