@@ -271,13 +271,8 @@ class Schema(MutableMapping[str, Any]):
             if not isinstance(self.callable, type):
                 raise ValueError(f'Cannot specify factory name on non-class callable {callable}')
             self.factory_method = getattr(self.callable, factory_name)
-<<<<<<< HEAD
-        self.args = args or []
-        self.kwargs = kwargs or {}
-=======
         args = args if args is not None else []
         kwargs = kwargs if kwargs is not None else {}
->>>>>>> refactor
         s = inspect.signature(self.factory_method)
         self.bound_arguments = s.bind(*self.args, **self.kwargs)
         self.bound_arguments.apply_defaults()
@@ -392,32 +387,20 @@ class Schema(MutableMapping[str, Any]):
                    path: Optional[Tuple[str]] = None,
                    cache: Optional[Dict[str, Any]] = None) -> Any:
         cache = cache if cache is not None else {}
-<<<<<<< HEAD
-        path = path or tuple()
-=======
         path = path if path is not None else tuple()
->>>>>>> refactor
         if path in cache:
             return cache[path]
         initialized = copy.deepcopy(self)
-<<<<<<< HEAD
-        for path, obj in Schema.traverse(self.kwargs, yield_schema='only'):
-=======
         for current_path, obj in self.traverse(self.bound_arguments, current_path=path, yield_schema='only'):
->>>>>>> refactor
             if isinstance(obj, Link):
                 new_value = obj(cache=cache)
                 cache[current_path] = new_value
                 initialized.set_param(current_path, new_value)
             elif isinstance(obj, Schema):
-<<<<<<< HEAD
-                initialized.set_param(path, obj(path, cache))
-=======
                 new_value = obj(path=current_path, cache=cache)
                 cache[current_path] = new_value
                 initialized.set_param(current_path, new_value)
         initialized_arguments = initialized.bound_arguments
->>>>>>> refactor
 
         for k, v in initialized.kwargs.items():
             if isinstance(v, YAML_TYPES):
@@ -425,14 +408,9 @@ class Schema(MutableMapping[str, Any]):
                 msg += f"This could be because of a typo or the class is not registered properly"
                 warn(msg)
         try:
-<<<<<<< HEAD
-            cache[path] = self.factory_method(*initialized.args,
-                                              **initialized.kwargs)
-=======
             # TODO make sure redundant cache update is really redundant
             cache[path] = self.factory_method(*initialized_arguments.args,
                                               **initialized_arguments.kwargs)
->>>>>>> refactor
         except TypeError as te:
             print(f"Constructor {self.factory_method} failed with "
                   f"arguments:\n{initialized.kwargs}")
