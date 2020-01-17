@@ -1,8 +1,8 @@
 from abc import abstractmethod
-from flambe.runner import Runnable
+from flambe.compile.schema import Schematic
 
 
-class Searchable(Runnable):
+class Searchable(Schematic):
     """Base Task interface.
 
     Tasks are at the core of Flambé. They are the inputs to both

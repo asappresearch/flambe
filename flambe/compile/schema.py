@@ -184,7 +184,7 @@ class Variants(Registrable, tag_override="g"):
         raise NotImplementedError()
 
     @classmethod
-    def from_yaml(cls, constructor: Any, node: Any, factory_name: str) -> 'Link':
+    def from_yaml(cls, constructor: Any, node: Any, factory_name: str, tag: str) -> 'Link':
          # construct_yaml_seq returns wrapper tuple, need to unpack;
          #  will also recurse so items in options can also be links
          options, = list(constructor.construct_yaml_seq(node))
@@ -224,7 +224,7 @@ class Link(Registrable, tag_override="@"):
         return obj
 
     @classmethod
-    def from_yaml(cls, constructor: Any, node: Any, factory_name: str) -> 'Link':
+    def from_yaml(cls, constructor: Any, node: Any, factory_name: str, tag: str) -> 'Link':
         if isinstance(node, ScalarNode):
             link_str = constructor.construct_scalar(node)
             return cls(link_str)
@@ -274,7 +274,7 @@ class Schema(MutableMapping[str, Any]):
         args = args if args is not None else []
         kwargs = kwargs if kwargs is not None else {}
         s = inspect.signature(self.factory_method)
-        self.bound_arguments = s.bind(*args, **kwargs)
+        self.bound_arguments = s.bind(*self.args, **self.kwargs)
         self.bound_arguments.apply_defaults()
         for k, v in self.bound_arguments.arguments.items():
             if s.parameters[k].kind not in [inspect.Parameter.POSITIONAL_OR_KEYWORD,
@@ -380,6 +380,7 @@ class Schema(MutableMapping[str, Any]):
         current_obj = self
         for item in path[:-1]:
             current_obj = current_obj[item]
+        print(current_obj[path[-1]])
         current_obj[path[-1]] = value
 
     def initialize(self,
@@ -401,7 +402,7 @@ class Schema(MutableMapping[str, Any]):
                 initialized.set_param(current_path, new_value)
         initialized_arguments = initialized.bound_arguments
 
-        for k, v in initialized_arguments.arguments.items():
+        for k, v in initialized.kwargs.items():
             if isinstance(v, YAML_TYPES):
                 msg = f"keyword '{k}' is still yaml type {type(v)}\n"
                 msg += f"This could be because of a typo or the class is not registered properly"
@@ -412,14 +413,14 @@ class Schema(MutableMapping[str, Any]):
                                               **initialized_arguments.kwargs)
         except TypeError as te:
             print(f"Constructor {self.factory_method} failed with "
-                  f"arguments:\n{initialized_arguments}")
+                  f"arguments:\n{initialized.kwargs}")
             raise te
         return cache[path]
 
-    def extract_search_space(self) -> Dict[Tuple[str], Options]:
+    def extract_search_space(self) -> Dict[Tuple[str, ...], Options]:
         search_space = {}
 
-        for path, item in traverse(self, yield_schema='never'):
+        for path, item in Schema.traverse(self, yield_schema='never'):
             if isinstance(item, Link):
                 pass
             elif isinstance(item, Options):
@@ -427,7 +428,7 @@ class Schema(MutableMapping[str, Any]):
 
         return search_space
 
-    def set_from_search_space(self, search_space: Dict[Tuple[str], Any]) -> None:
+    def set_from_search_space(self, search_space: Dict[Tuple[str, ...], Any]) -> None:
         for path, value in search_space.items():
             self.set_param(path, value)
 
@@ -435,7 +436,7 @@ class Schema(MutableMapping[str, Any]):
         """Yield variants selecting the parallel options from each"""
         for selection_index in range(self.num_options):
             variant_schema = copy.deepcopy(self)
-            for path, item in traverse(self, yield_schema='never'):
+            for path, item in Schema.traverse(self, yield_schema='never'):
                 if isinstance(item, Variants):
                     value = item[selection_index]
                     variant_schema.set_param(path, value)
@@ -459,7 +460,7 @@ class Schema(MutableMapping[str, Any]):
 
     @recursive_repr()
     def __repr__(self) -> str:
-        args = ", ".join("{}={!r}".format(k, v) for k, v in sorted(self.bound_arguments.arguments.items()))
+        args = ", ".join("{}={!r}".format(k, v) for k, v in sorted(self.kwargs))
         format_string = "{module}.{cls}({callable}, {args})"
         return format_string.format(module=self.__class__.__module__,
                                     cls=self.__class__.__qualname__,

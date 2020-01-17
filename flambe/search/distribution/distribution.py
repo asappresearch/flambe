@@ -14,9 +14,9 @@ class Distribution(Options):
         pass
 
     @classmethod
-    def from_sequence(cls, *args) -> 'Distribution':
+    def from_sequence(cls, args) -> 'Distribution':
         """Build the distribution from positonal arguments."""
-        return cls(*args)  # type: ignore
+        return cls(args)  # type: ignore
 
     @classmethod
     def from_dict(cls, **kwargs) -> 'Distribution':
@@ -28,13 +28,13 @@ class Distribution(Options):
         return representer.represent_sequence(tag, node.elements)
 
     @classmethod
-    def from_yaml(cls, constructor: Any, node: Any, factory_name: str) -> 'Distribution':
+    def from_yaml(cls, constructor: Any, node: Any, factory_name: str, tag: str) -> 'Distribution':
         args, = list(constructor.construct_yaml_seq(node))
         if factory_name is None:
             if isinstance(args, Sequence):
-                return cls(*args)  # type: ignore
+                return cls.from_sequence(args)  # type: ignore
             elif isinstance(args, Dict):
-                return cls(**args)
+                return cls.from_dict(**args)
         else:
             factory = getattr(cls, factory_name)
             return factory(args)

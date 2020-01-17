@@ -135,7 +135,7 @@ class Trial(object):
         """Sets the trial status to created."""
         self.status = Status.CREATED
 
-    def generate_name(self, prefix: str = '') -> str:
+    def generate_name(self, prefix: str = '', delimiter=',') -> str:
         """Generate a name for this parameter variant.
 
         Parameters
@@ -154,16 +154,18 @@ class Trial(object):
         """
         def helper(params):
             if isinstance(params, (list, tuple, set)):
-                name = ",".join([helper(param) for param in params])
+                name = ";".join([helper(param) for param in params])
                 name = f"[{name}]"
             elif isinstance(params, dict):
-                name = '|'
+                name = delimiter
                 for param, value in params.items():
                     if isinstance(value, dict):
                         name += helper({f'{param}.{k}': v for k, v in value.items()})[1:]
                     else:
-                        name += f'{param}={helper(value)}|'
+                        name += f'{param}={helper(value)}{delimiter}'
             else:
                 name = str(params)
 
-        return prefix + helper(self.parameters)
+            return name
+
+        return prefix + helper(self.parameters).strip(delimiter)

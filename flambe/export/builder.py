@@ -2,12 +2,13 @@ import tempfile
 import os
 import boto3
 import dill
+from typing import Optional
 
 import subprocess
 from urllib.parse import urlparse
 
 import flambe
-from flambe.runner.runnable import Runnable
+from flambe.runner.runnable import Runnable, Environment
 from flambe.compile import Component, Schema
 from flambe.compile.const import DEFAULT_PROTOCOL
 from flambe.logging import coloredlogs as cl
@@ -36,6 +37,7 @@ class Builder(Runnable):
     def __init__(self,
                  component: Schema,
                  destination: str,
+                 override: bool = False,
                  storage: str = 'local',
                  compress: bool = False,
                  pickle_only: bool = False,
@@ -70,6 +72,7 @@ class Builder(Runnable):
         """
         super().__init__()
 
+        self.override = override
         self.destination = destination
         self.component = component
 
@@ -83,24 +86,24 @@ class Builder(Runnable):
             'pickle_protocol': pickle_protocol
         }
 
-    def run(self, force: bool = False, **kwargs) -> None:
+    def run(self, env: Optional[Environment] = None) -> None:
         """Run the Builder."""
 
         # Add information about the extensions. This ensures
         # the compiled component has the extensions information
-        self.component.add_extensions_metadata(self.extensions)
+        # self.component.add_extensions_metadata(self.extensions)
 
         self.compiled_component = self.component()  # Compile Schema
 
         if self.storage == 'local':
-            self.save_local(force)
+            self.save_local()
         elif self.storage == 's3':
-            self.save_s3(force)
+            self.save_s3()
         else:
             msg = f"Unknown storage {self.storage}, should be one of: [local, s3]"
             raise ValueError(msg)
 
-    def save_local(self, force) -> None:
+    def save_local(self) -> None:
         """Save an object locally.
 
         Parameters
@@ -109,6 +112,7 @@ class Builder(Runnable):
             Wheter to use a non-empty folder or not
 
         """
+        force = self.override
         if (
             os.path.exists(self.destination) and
             os.listdir(self.destination) and
@@ -128,7 +132,7 @@ class Builder(Runnable):
         """
         return boto3.Session()
 
-    def save_s3(self, force) -> None:
+    def save_s3(self) -> None:
         """Save an object to s3 using awscli
 
         Parameters
@@ -137,6 +141,8 @@ class Builder(Runnable):
             Wheter to use a non-empty bucket folder or not
 
         """
+        force = self.override
+
         url = urlparse(self.destination)
 
         if url.scheme != 's3' or url.netloc == '':
