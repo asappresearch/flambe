@@ -142,8 +142,8 @@ class RNNEncoder(Module):
             output, state = self.rnn(data, state)
         elif self.rnn_type == 'sru':
             # SRU takes a mask instead of PackedSequence objects
-            # Write (1 - mask_t) in weird way for type checking to work
-            output, state = self.rnn(data, state, mask_pad=(-padding_mask + 1).byte())
+            # ~ operator negates bool tensor in torch 1.3
+            output, state = self.rnn(data, state, mask_pad=(~padding_mask).byte())
         else:
             # Deal with variable length sequences
             lengths = padding_mask.long().sum(dim=0)
