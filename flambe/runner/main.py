@@ -1,5 +1,6 @@
 import logging
 import click
+import os
 
 import torch
 
@@ -9,10 +10,8 @@ from flambe.logging import setup_global_logging
 from flambe.logging import coloredlogs as cl
 from flambe.runner.utils import is_dev_mode, get_flambe_repo_location
 from flambe.logo import ASCII_LOGO, ASCII_LOGO_DEV
-from flambe.compile.yaml import load_config_from_file as load_config
-
-
-logger = logging.getLogger(__name__)
+from flambe.compile.yaml import load_config_from_file
+from flambe.runner.runnable import Environment
 
 
 @click.group()
@@ -22,63 +21,69 @@ def cli():
 
 # ----------------- flambe up ------------------ #
 @click.command()
-@click.argument('cluster', type=str, default=FLAMBE_CLUSTER_DEFAULT)
+@click.option('-c', '--cluster', type=str, default=FLAMBE_CLUSTER_DEFAULT)
 def up(cluster):
     """Launch / update the cluster based on the given config"""
-    cluster = load_config(cluster)
+    cluster = load_config_from_file(cluster)
     cluster.up()
 
 
 # ----------------- flambe down ------------------ #
 @click.command()
-@click.argument('cluster', type=str, default=FLAMBE_CLUSTER_DEFAULT)
+@click.option('-c', '--cluster', type=str, default=FLAMBE_CLUSTER_DEFAULT)
 def down(cluster):
     """Launch / update the cluster based on the given config"""
-    cluster = load_config(cluster)
+    cluster = load_config_from_file(cluster)
     cluster.down()
-
-
-# ----------------- flambe exec ------------------ #
-@click.command()
-@click.argument('cluster', type=str, default=FLAMBE_CLUSTER_DEFAULT)
-@click.argument('command', type=str)
-def exec(cluster, command):
-    """Execute a command on the head node."""
-    cluster = load_config(cluster)
-    cluster.exec(command=command)
 
 
 # ----------------- flambe list ------------------ #
 @click.command()
-@click.argument('cluster', type=str, default=FLAMBE_CLUSTER_DEFAULT)
-def list(cluster):
+@click.option('-c', '--cluster', type=str, default=FLAMBE_CLUSTER_DEFAULT)
+def list_cmd(cluster):
     """Attach to a tmux session on the cluster."""
-    cluster = load_config(cluster)
+    logging.disable(logging.INFO)
+    cluster = load_config_from_file(cluster)
     cluster.list()
+
+
+# ----------------- flambe exec ------------------ #
+@click.command()
+@click.argument('command', type=str)
+@click.option('-c', '--cluster', type=str, default=FLAMBE_CLUSTER_DEFAULT)
+def exec_cmd(command, cluster):
+    """Execute a command on the head node."""
+    logging.disable(logging.INFO)
+    cluster = load_config_from_file(cluster)
+    cluster.exec(command=command)
 
 
 # ----------------- flambe attach ------------------ #
 @click.command()
-@click.argument('cluster', type=str, default=FLAMBE_CLUSTER_DEFAULT)
-def attach(cluster):
+@click.argument('name', required=False, type=str, default=None)
+@click.option('-c', '--cluster', type=str, default=FLAMBE_CLUSTER_DEFAULT)
+def attach(name, cluster):
     """Attach to a tmux session on the cluster."""
-    cluster = load_config(cluster)
-    cluster.attach()
+    logging.disable(logging.INFO)
+    cluster = load_config_from_file(cluster)
+    cluster.attach(name)
 
 
 # ----------------- flambe kill ------------------ #
 @click.command()
-@click.argument('cluster', type=str, default=FLAMBE_CLUSTER_DEFAULT)
-def kill(cluster, name):
+@click.argument('name', type=str)
+@click.option('-c', '--cluster', type=str, default=FLAMBE_CLUSTER_DEFAULT)
+def kill(name, cluster):
     """Attach to a tmux session on the cluster."""
-    cluster = load_config(cluster)
-    cluster.kill(name)
+    logging.disable(logging.INFO)
+    cluster = load_config_from_file(cluster)
+    cluster.kill(name=name)
 
 
 # ----------------- flambe run ------------------ #
 @click.command()
 @click.argument('runnable', type=str, required=True)
-@click.option('-o', '--output', default='flambe__output',
+@click.option('-o', '--output', default='./',
               help='Override existing job with this name. Be careful \
                     when using this flag as it could have undesired effects.')
 @click.option('-f', '--force', is_flag=True, default=False,
@@ -90,8 +95,18 @@ def kill(cluster, name):
                     allowing user breakpoints')
 @click.option('-v', '--verbose', is_flag=True, default=False,
               help='Verbose console output')
-def run(runnable, output, force, debug, verbose):
+@click.option('-e', '--env', type=str, default=None,
+              help='Verbose console output')
+def run(runnable, output, force, debug, verbose, env):
     """Execute command based on given config"""
+    # Check if previous job exists
+    output = os.path.join(os.path.expanduser(output), 'flambe_output')
+    if os.path.exists(output):
+        if force:
+            shutil.rmtree(output)
+        else:
+            raise ValueError(f"{output} already exists. Use -f, --force to override.")
+
     # torch.multiprocessing exists, ignore mypy
     # TODO: investigate if this is actually needed
     torch.multiprocessing.set_start_method('fork', force=True)  # type: ignore
@@ -108,12 +123,13 @@ def run(runnable, output, force, debug, verbose):
         print(cl.RA(ASCII_LOGO))
         print(cl.BL(f"VERSION: {flambe.__version__}\n"))
 
-    if args.debug:
+    if debug:
         print(cl.YE(f"Debug mode activated\n"))
 
     try:
-        runnable = load_config(config)
-        runnable.run(Environment(output, force=force, debug=debug))
+        kwargs = load_config_from_file(env) if env else {'output_path': output}
+        runnable_obj = load_config_from_file(runnable)
+        runnable_obj.run(Environment(**kwargs))
         logger.info(cl.GR("------------------- Done -------------------"))
     except KeyboardInterrupt:
         logger.info(cl.RE("---- Exiting early (Keyboard Interrupt) ----"))
@@ -122,7 +138,8 @@ def run(runnable, output, force, debug, verbose):
 # ----------------- flambe submit ------------------ #
 @click.command()
 @click.argument('runnable', type=str, required=True)
-@click.argument('cluster', type=str, default=FLAMBE_CLUSTER_DEFAULT)
+@click.argument('name', type=str, required=True)
+@click.option('-c', '--cluster', type=str, default=FLAMBE_CLUSTER_DEFAULT)
 @click.option('-f', '--force', is_flag=True, default=False,
               help='Override existing job with this name. Be careful \
                     when using this flag as it could have undesired effects.')
@@ -132,8 +149,12 @@ def run(runnable, output, force, debug, verbose):
                     allowing user breakpoints')
 @click.option('-v', '--verbose', is_flag=True, default=False,
               help='Verbose console output')
-def submit(cluster, runnnable, name, force, debug, verbos, args):
+@click.option('-a', '--attach', is_flag=True, default=False,
+              help='Attach after submitting the job.')
+def submit(runnable, name, cluster, force, debug, verbose, attach):
     """Submit a job to the cluster."""
+    if not debug:
+        logging.disable(logging.INFO)
     if is_dev_mode():
         print(cl.RA(ASCII_LOGO_DEV))
         print(cl.BL(f"Location: {get_flambe_repo_location()}\n"))
@@ -141,25 +162,32 @@ def submit(cluster, runnnable, name, force, debug, verbos, args):
         print(cl.RA(ASCII_LOGO))
         print(cl.BL(f"VERSION: {flambe.__version__}\n"))
 
-    cluster = load_config(cluster)
+    cluster = load_config_from_file(cluster)
     cluster.submit(runnable, name, force=force, debug=debug)
+    if attach:
+        cluster.attach(name)
 
 
 # ----------------- flambe site ------------------ #
 @click.command()
-@click.argument('cluster', type=str, default=FLAMBE_CLUSTER_DEFAULT)
+@click.option('-c', '--cluster', type=str, default=FLAMBE_CLUSTER_DEFAULT)
 @click.option('--name', type=str, default='',
               help='The name of the job to inspect')
 @click.option('--port', type=int, default=49558,
               help='Port in which the site will be running url')
-def site(config, name, port, launch_tensorboard):
-    cluster = yaml.load(config)
+def site(config, name, port):
+    cluster = load_config_from_file(config)
     cluster.launch_site(port=port, name=name)
 
 
 if __name__ == '__main__':
     cli.add_command(up)
     cli.add_command(down)
+    cli.add_command(kill)
+    cli.add_command(list_cmd, name='ls')
+    cli.add_command(exec_cmd, name='exec')
+    cli.add_command(attach)
+    cli.add_command(run)
     cli.add_command(submit)
     cli.add_command(site)
-    cli()
+    cli(prog_name='flambe')

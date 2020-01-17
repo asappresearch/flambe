@@ -25,7 +25,7 @@ class DummyRunnable(ClusterRunnable):
         return representer.represent_mapping(tag, kwargs)
 
     @classmethod
-    def from_yaml(cls, constructor, node, factory_name):
+    def from_yaml(cls, constructor, node, factory_name, tag):
         kwargs, = list(constructor.construct_yaml_map(node))
         return cls(**kwargs)
 

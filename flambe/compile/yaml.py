@@ -262,7 +262,7 @@ def load_config(yaml_config: Union[TextIO, str]) -> Any:
     import_modules(extensions.keys())
     registry = get_registry()
     with synced_yaml(registry) as yaml:
-        check_tags(yaml, yaml_config, registry, strict=True)
+        _check_tags(yaml, yaml_config, registry, strict=True)
         result = list(yaml.load_all(yaml_config))[-1]
     return result
 
@@ -359,3 +359,32 @@ def load_extensions(yaml_config: Union[TextIO, str]) -> Dict[str, str]:
     """
     extensions = _load_extensions(yaml_config)
     return extensions
+
+
+def load_extensions_from_file(file_path: str) -> Any:
+    """Load extensions after reading them from the file path
+
+    Parameters
+    ----------
+    file_path : str
+        Location of YAML config file.
+
+    Returns
+    -------
+    Any
+        Initialized object defined by the YAML config
+
+    Raises
+    -------
+    FileNotFoundError
+        If the specified file is not found
+    MalformedConfig
+        TODO
+    ValueError
+        If the file does not contain either 1 or 2 YAML documents
+        separated by '---'
+
+    """
+    with open(file_path) as f:
+        result = load_extensions(f.read())
+    return result

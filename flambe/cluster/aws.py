@@ -16,6 +16,7 @@ class AWSCluster(Cluster):
                  subnet_id: str,
                  key_name: str,
                  iam_profile: str,
+                 ssh_user: str = 'ec2-user',
                  availability_zone: Optional[List[str]] = None,
                  tags: Dict[str, str] = None,
                  use_spot: bool = False,
@@ -88,7 +89,7 @@ class AWSCluster(Cluster):
         See flambe.cluster.Cluster for extra arguments.
 
         """
-        super().__init__(name, **kwargs)
+        super().__init__(name=name, ssh_user=ssh_user, **kwargs)
 
         head_node_ami = head_node_ami or AWS_AMI
         worker_node_ami = worker_node_ami or AWS_AMI

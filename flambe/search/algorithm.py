@@ -1,6 +1,7 @@
 from abc import abstractmethod
 from typing import Dict, Optional
 
+from flambe.compile import RegisteredStatelessMap
 from flambe.search.distribution import Distribution
 from flambe.search.trial import Trial
 from flambe.search.space import Space
@@ -9,7 +10,7 @@ from flambe.search.searcher import Searcher, GridSearcher, RandomSearcher,\
 from flambe.search.scheduler import Scheduler, BlackBoxScheduler, HyperBandScheduler
 
 
-class Algorithm(object):
+class Algorithm(RegisteredStatelessMap):
     """Interface for hyperparameter search algorithms."""
 
     @abstractmethod
