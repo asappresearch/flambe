@@ -193,6 +193,7 @@ class Cluster(RegisteredStatelessMap):
             yaml.dump(self.config, fp)
             exec_cluster(fp.name, cmd, False, False, False, False, False, None, None)
 
+        # Seems to help with terminal sometime hanging after detach
         try:
             raise KeyboardInterrupt
         except KeyboardInterrupt:

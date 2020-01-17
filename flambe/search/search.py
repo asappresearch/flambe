@@ -36,6 +36,7 @@ class Checkpoint(object):
         self.remote = f"{user}@{host}:{self.checkpoint_path}" if host else None
 
     def get(self) -> Searchable:
+        return
         if os.path.exists(self.checkpoint_path):
             searchable = torch.load(self.checkpoint_path)
         else:
@@ -49,6 +50,7 @@ class Checkpoint(object):
         return searchable
 
     def set(self, searchable):
+        return
         if not os.path.exists(self.path):
             os.makedirs(self.path)
         torch.save(searchable, self.checkpoint_path)
