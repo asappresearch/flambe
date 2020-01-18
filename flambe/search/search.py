@@ -242,7 +242,9 @@ class Search(Runnable):
                     schema_copy = copy.deepcopy(self.schema)
                     space = dict((tuple(k.split('.')), v) for k, v in trial.parameters.items())
                     schema_copy.set_from_search_space(space)
+
                     state[trial_id] = dict()
+                    state[trial_id]['schema'] = schema_copy
                     if checkpointable:
                         checkpoint = Checkpoint(
                             path=os.path.join(env.output_path, trial.generate_name()),
@@ -253,6 +255,7 @@ class Search(Runnable):
                         state[trial_id]['actor'] = adapter.remote(schema_copy, checkpoint)
                     else:
                         state[trial_id]['actor'] = adapter.remote(schema_copy)
+
                     trial.set_resume()
 
                 # Launch created and resumed

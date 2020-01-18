@@ -77,9 +77,11 @@ class HyperBandScheduler(Scheduler):
                 else:
                     # Resume previously paused trial
                     trial = trials[trial_id]
+                    # TODO
                     # n_res_curr = len(trial.metrics)
-                    # n_res_total = n_res_init * (self.drop_rate**bracket.n_halvings)
-                    # TODO trial.append_steps(int(n_res_total - n_res_curr))
+                    # n_res_total = n_res_init *
+                    # (self.drop_rate**bracket.n_halvings)
+                    # trial.append_steps(int(n_res_total - n_res_curr))
                     trial.set_resume()
 
                 self.bracket_ids[trial_id] = br

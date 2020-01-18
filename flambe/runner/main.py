@@ -119,10 +119,6 @@ def run(runnable, output, force, debug, env):
     # TODO: investigate if this is actually needed
     torch.multiprocessing.set_start_method('fork', force=True)  # type: ignore
 
-    # Setup logging
-    if debug:
-        logging.disable(logging.NOTSET)
-
     # Check if dev mode
     if is_dev_mode():
         print(cl.RA(ASCII_LOGO_DEV))
@@ -131,8 +127,10 @@ def run(runnable, output, force, debug, env):
         print(cl.RA(ASCII_LOGO))
         print(cl.BL(f"VERSION: {flambe.__version__}\n"))
 
+    # Check if debug
     if debug:
         print(cl.YE(f"Debug mode activated\n"))
+        logging.disable(logging.NOTSET)
 
     try:
         kwargs = env_config if env else dict()
@@ -187,7 +185,7 @@ def submit(runnable, name, cluster, force, debug, verbose, attach):
 @click.option('-p', '--port', type=int, default=49558,
               help='Port in which the site will be running url')
 def site(name, cluster, port):
-    """Launch the site on the cluster."""
+    """Launch a Web UI to monitor activity on the cluster."""
     logging.disable(logging.INFO)
     cluster = load_config_from_file(cluster)
     cluster.launch_site(port=port, name=name)
