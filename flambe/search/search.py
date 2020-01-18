@@ -239,8 +239,8 @@ class Search(Runnable):
                 # Handle creation and termination
                 if trial.is_paused() or trial.is_running():
                     continue
-                elif trial.is_terminated() and trial_id in state:
-                    state[trial_id]['actor'].kill()
+                elif trial.is_terminated() and 'actor' in state[trial_id]:
+                    state[trial_id]['actor'].kill.remote()
                     del state[trial_id]['actor']
                 elif trial.is_created():
                     schema_copy = copy.deepcopy(self.schema)
