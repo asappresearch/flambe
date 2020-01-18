@@ -73,6 +73,5 @@ class Scheduler(ABC):
         if params is None:
             return None, None
         else:
-            # TODO: pass n_steps?
             new_trial = Trial(params)
             return trial_id, new_trial

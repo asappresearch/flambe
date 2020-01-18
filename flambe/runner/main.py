@@ -1,12 +1,12 @@
 import logging
 import click
 import os
+import shutil
 
 import torch
 
 import flambe
 from flambe.const import FLAMBE_CLUSTER_DEFAULT
-from flambe.logging import setup_global_logging
 from flambe.logging import coloredlogs as cl
 from flambe.runner.utils import is_dev_mode, get_flambe_repo_location
 from flambe.logo import ASCII_LOGO, ASCII_LOGO_DEV
@@ -99,13 +99,15 @@ def kill(name, cluster):
               help='Enable debug mode. Each runnable specifies the debug behavior. \
                     For example for an Experiment, Ray will run in a single thread \
                     allowing user breakpoints')
-@click.option('-v', '--verbose', is_flag=True, default=False,
-              help='Verbose console output')
 @click.option('-e', '--env', type=str, default=None,
               help='Verbose console output')
-def run(runnable, output, force, debug, verbose, env):
+def run(runnable, output, force, debug, env):
     """Execute a runnable config."""
     # Check if previous job exists
+    if env:
+        env_config = load_config_from_file(env)
+        output = env_config.pop('output_path')
+
     output = os.path.join(os.path.expanduser(output), 'flambe_output')
     if os.path.exists(output):
         if force:
@@ -118,8 +120,8 @@ def run(runnable, output, force, debug, verbose, env):
     torch.multiprocessing.set_start_method('fork', force=True)  # type: ignore
 
     # Setup logging
-    setup_global_logging(logging.INFO if not verbose else logging.DEBUG)
-    logger = logging.getLogger(__name__)
+    if debug:
+        logging.disable(logging.NOTSET)
 
     # Check if dev mode
     if is_dev_mode():
@@ -133,12 +135,15 @@ def run(runnable, output, force, debug, verbose, env):
         print(cl.YE(f"Debug mode activated\n"))
 
     try:
-        kwargs = load_config_from_file(env) if env else {'output_path': output}
+        kwargs = env_config if env else dict()
         runnable_obj = load_config_from_file(runnable)
-        runnable_obj.run(Environment(**kwargs))
-        logger.info(cl.GR("------------------- Done -------------------"))
+        runnable_obj.run(Environment(output_path=output, debug=debug, **kwargs))
+        print(cl.GR("------------------- Done -------------------"))
     except KeyboardInterrupt:
-        logger.info(cl.RE("---- Exiting early (Keyboard Interrupt) ----"))
+        print(cl.RE("---- Exiting early (Keyboard Interrupt) ----"))
+    except Exception as e:
+        print(e)
+        print(cl.RE("------------------- Error -------------------"))
 
 
 # ----------------- flambe submit ------------------ #
@@ -160,8 +165,7 @@ def run(runnable, output, force, debug, verbose, env):
               help='Attach after submitting the job.')
 def submit(runnable, name, cluster, force, debug, verbose, attach):
     """Submit a job to the cluster, as a YAML config."""
-    if not debug:
-        logging.disable(logging.INFO)
+    logging.disable(logging.INFO)
     if is_dev_mode():
         print(cl.RA(ASCII_LOGO_DEV))
         print(cl.BL(f"Location: {get_flambe_repo_location()}\n"))

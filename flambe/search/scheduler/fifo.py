@@ -62,5 +62,5 @@ class BlackBoxScheduler(Scheduler):
         results_dict = {t_id: trial.best_metric for t_id, trial in trials_with_result.items()}
         self._register_results(results_dict)
         for trial in trials_with_result.values():
-            trial.set_terminated()
+            trial.set_resume()
         return trials

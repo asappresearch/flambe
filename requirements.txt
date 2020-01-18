@@ -25,3 +25,4 @@ fastBPE==0.1.0
 ninja~=1.9.0
 bayesian-optimization~=1.0.1
 statsmodels~=0.10.2
+setproctitle~=1.1.10

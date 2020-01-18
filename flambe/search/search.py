@@ -3,6 +3,8 @@ import os
 import subprocess
 import copy
 import getpass
+import warnings
+import socket
 
 import ray
 import torch
@@ -31,31 +33,34 @@ class Checkpoint(object):
             by default None
 
         """
-        self.path = os.path.expanduser(path)
+        self.path = path
+        self.host = host
         self.checkpoint_path = os.path.join(self.path, 'checkpoint.pt')
         self.remote = f"{user}@{host}:{self.checkpoint_path}" if host else None
 
-    def get(self) -> Searchable:
-        return
+    def get(self):
         if os.path.exists(self.checkpoint_path):
             searchable = torch.load(self.checkpoint_path)
         else:
             if not os.path.exists(self.path):
                 os.makedirs(self.path)
             if self.remote:
-                subprocess.run(f'rsync -a {self.remote} {self.checkpoint_path}')
+                subprocess.run(f'rsync -az -e "ssh -i $HOME/ray_bootstrap_key.pem" \
+                    {self.remote} {self.checkpoint_path}')
                 searchable = torch.load(self.checkpoint_path)
             else:
                 raise ValueError(f"Checkpoint {self.checkpoint_path} couldn't be found.")
         return searchable
 
     def set(self, searchable):
-        return
         if not os.path.exists(self.path):
             os.makedirs(self.path)
         torch.save(searchable, self.checkpoint_path)
         if self.remote:
-            subprocess.run(f'rsync -a {self.checkpoint_path} {self.remote}')
+            current_ip = socket.gethostbyname(socket.gethostname())
+            if str(current_ip) != self.host:
+                subprocess.run(f'rsync -az -e "ssh -i $HOME/ray_bootstrap_key.pem" \
+                    {self.checkpoint_path} {self.remote}')
 
 
 class SearchableAdapter:
@@ -77,10 +82,6 @@ class SearchableAdapter:
         self.checkpoint.set(self.searchable)
         return continue_, metric
 
-    def kill(self) -> None:
-        """Kill the trial."""
-        ray.actor.exit_actor()
-
 
 class CallableAdapter:
     """Perform computation of a function."""
@@ -96,10 +97,6 @@ class CallableAdapter:
         continue_ = False
         metric = self.callable()
         return continue_, metric
-
-    def kill(self) -> None:
-        """Kill the trial."""
-        ray.actor.exit_actor()
 
 
 class Search(Runnable):
@@ -122,7 +119,7 @@ class Search(Runnable):
                  algorithm: Optional[Algorithm] = None,
                  cpus_per_trial: int = 1,
                  gpus_per_trial: int = 0,
-                 output_path: str = 'flambe__output',
+                 output_path: str = 'flambe_output',
                  refresh_waitime: float = 1.0,
                  use_object_store: bool = False) -> None:
         """Initialize a hyperparameter search.
@@ -139,26 +136,17 @@ class Search(Runnable):
                 The number of gpu's to allocate per trial
         refresh_waitime : float, optional
             The minimum amount of time to wait before a refresh.
-            Defaults ``10`` seconds.
+            Defaults ``1`` seconds.
         use_object_store: bool, optional
             Whether to use the plasma object store to move objects
             between workers. See Ray documentation for more details.
             Default ``False``.
 
         """
-        if not ray.is_initialized():
-            ray.init()
-
         self.output_path = output_path
         self.n_cpus = cpus_per_trial
         self.n_gpus = gpus_per_trial
         self.refresh_waitime = refresh_waitime
-
-        total_resources = ray.cluster_resources()
-        if self.n_cpus > 0 and self.n_cpus > total_resources['CPU']:
-            raise ValueError("# of CPUs required per trial is larger than the total available.")
-        elif self.n_gpus > 0 and self.n_gpus > total_resources['GPU']:
-            raise ValueError("# of CPUs required per trial is larger than the total available.")
 
         # Check schema
         if any(isinstance(dist, Variants) for dist in schema.extract_search_space().values()):
@@ -182,6 +170,15 @@ class Search(Runnable):
 
         """
         env = env if env is not None else Environment(self.output_path)
+        if not ray.is_initialized():
+            ray.init(local_mode=env.debug)
+
+        if not env.debug:
+            total_resources = ray.cluster_resources()
+            if self.n_cpus > 0 and self.n_cpus > total_resources['CPU']:
+                raise ValueError("# of CPUs required per trial is larger than the total available.")
+            elif self.n_gpus > 0 and self.n_gpus > total_resources['GPU']:
+                raise ValueError("# of CPUs required per trial is larger than the total available.")
 
         if isinstance(self.schema.callable, type) and issubclass(self.schema.callable, Searchable):
             checkpointable = True
@@ -192,7 +189,6 @@ class Search(Runnable):
 
         search_space = self.schema.extract_search_space().items()
         self.algorithm.initialize(dict((".".join(k), v) for k, v in search_space))  # type: ignore
-
         running: List[int] = []
         finished: List[int] = []
 
@@ -207,40 +203,40 @@ class Search(Runnable):
 
             # Process finished trials
             for object_id in finished:
-                _continue, metric = ray.get(object_id)
                 trial_id = object_id_to_trial_id[str(object_id)]
-
-                # Checkpoint
-                if checkpointable:
-                    actor = state[trial_id]['actor']
-                    checkpoint = state[trial_id]['checkpoint']
-                    checkpoint.set(actor)
-
-                # Check if terminated
                 trial = trials[trial_id]
-                if _continue:
-                    trial.set_metric(metric)
-                    trial.set_has_result()
-                else:
-                    trial.set_terminated()
+                try:
+                    _continue, metric = ray.get(object_id)
+                    if _continue:
+                        trial.set_metric(metric)
+                        trial.set_has_result()
+                    else:
+                        trial.set_terminated()
+                except Exception as e:
+                    trial.set_error()
+                    params = trial.generate_name()
+                    warnings.warn(f"Trial {trial_id} with parameters {params} failed.")
+                    if env.debug:
+                        warnings.warn(str(e))
 
             # Compute maximum number of trials to create
-            current_resources = ray.available_resources()
-            max_queries = current_resources.get('CPU', 0) // self.n_cpus
-            if self.n_gpus:
-                n_possible_gpu = current_resources.get('GPU', 0) // self.n_gpus
-                max_queries = min(max_queries, n_possible_gpu)
+            if env.debug:
+                max_queries = int(all(t.is_terminated() for t in trials.values()))
+            else:
+                current_resources = ray.available_resources()
+                max_queries = current_resources.get('CPU', 0) // self.n_cpus
+                if self.n_gpus:
+                    n_possible_gpu = current_resources.get('GPU', 0) // self.n_gpus
+                    max_queries = min(max_queries, n_possible_gpu)
 
             # Update the algorithm and get new trials
             trials = self.algorithm.update(trials, maximum=max_queries)
-
             # Update based on trial status
             for trial_id, trial in trials.items():
                 # Handle creation and termination
                 if trial.is_paused() or trial.is_running():
                     continue
                 elif trial.is_terminated() and 'actor' in state[trial_id]:
-                    state[trial_id]['actor'].kill.remote()
                     del state[trial_id]['actor']
                 elif trial.is_created():
                     schema_copy = copy.deepcopy(self.schema)
@@ -249,7 +245,7 @@ class Search(Runnable):
                     state[trial_id] = dict()
                     if checkpointable:
                         checkpoint = Checkpoint(
-                            path=os.path.join(env.ouput_path, trial.generate_name()),
+                            path=os.path.join(env.output_path, trial.generate_name()),
                             host=env.head_node_ip,
                             user=getpass.getuser()
                         )

@@ -169,3 +169,7 @@ class Trial(object):
             return name
 
         return prefix + helper(self.parameters).strip(delimiter)
+
+    def __repr__(self):
+        name = self.generate_name()
+        return f'Trial[{name}][{self.status}]'

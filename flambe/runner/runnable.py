@@ -27,19 +27,22 @@ class Environment(RegisteredStatelessMap):
     """
 
     def __init__(self,
-                 ouput_path: str = 'flambe__output',
+                 output_path: str = 'flambe__output',
                  remote: bool = False,
-                 head_node_ip: Optional[str] = None) -> None:
+                 head_node_ip: Optional[str] = None,
+                 debug: bool = False) -> None:
         """Initialize the environment."""
-        self.ouput_path = ouput_path
+        self.output_path = output_path
         self.remote = remote
         self.head_node_ip = head_node_ip
+        self.debug = debug
 
     def clone(self) -> 'Environment':
         return Environment(
-            self.ouput_path,
+            self.output_path,
             self.remote,
-            self.head_node_ip
+            self.head_node_ip,
+            self.debug
         )
 
     @classmethod
@@ -47,7 +50,8 @@ class Environment(RegisteredStatelessMap):
         """Use representer to create yaml representation of node"""
         kwargs = {'output_path': node.output_path,
                   'remote': node.remote,
-                  'head_node_ip': node.head_node_ip}
+                  'head_node_ip': node.head_node_ip,
+                  'debug': node.debug}
         return representer.represent_mapping(tag, kwargs)
 
     @classmethod

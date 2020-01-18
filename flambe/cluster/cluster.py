@@ -317,7 +317,7 @@ class Cluster(RegisteredStatelessMap):
             for module, package in extensions.items():
                 target = package
                 if os.path.exists(package):
-                    target = f'~/jobs/{name}/extensions'
+                    target = f'$HOME/jobs/{name}/extensions'
                     rsync(fp.name, package, target, None, down=False)
                     target = f'{target}/{os.path.basename(package)}'
 
@@ -327,7 +327,7 @@ class Cluster(RegisteredStatelessMap):
             # Run Flambe
             print(f'[{time()}] Submitting job.')
             env = {
-                'ouput_path': f"$HOME/jobs/{name}/output",
+                'output_path': f"~/jobs/{name}",
                 'remote': True,
                 'head_node_ip': self.head_node_ip()
             }
@@ -343,7 +343,7 @@ class Cluster(RegisteredStatelessMap):
             cmd = f'flambe run {target} --env {env_target}'
             cmd += ' -d' * int(debug) + ' -f' * int(force)
             exec_cluster(fp.name, tmux(cmd), False, False, False, False, False, None, [])
-            print(cl.GR(f'\nJob submitted susscessfully.'))
+            print(cl.GR(f'\nJob submitted successfully.'))
 
     def head_node_ip(self) -> str:
         """Get the head node ip address"""
