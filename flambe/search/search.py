@@ -243,6 +243,7 @@ class Search(Runnable):
                     space = dict((tuple(k.split('.')), v) for k, v in trial.parameters.items())
                     schema_copy.set_from_search_space(space)
 
+                    # Update state
                     state[trial_id] = dict()
                     state[trial_id]['schema'] = schema_copy
                     if checkpointable:

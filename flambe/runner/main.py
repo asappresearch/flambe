@@ -185,7 +185,7 @@ def submit(runnable, name, cluster, force, debug, verbose, attach):
 @click.option('-p', '--port', type=int, default=49558,
               help='Port in which the site will be running url')
 def site(name, cluster, port):
-    """Launch a Web UI to monitor activity on the cluster."""
+    """Launch a Web UI to monitor the activity on the cluster."""
     logging.disable(logging.INFO)
     cluster = load_config_from_file(cluster)
     cluster.launch_site(port=port, name=name)
