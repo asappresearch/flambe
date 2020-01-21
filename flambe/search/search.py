@@ -1,4 +1,5 @@
-from typing import Tuple, Optional, Callable, Dict, List, Any
+from abc import abstractmethod, ABC
+from typing import Tuple, Optional, Dict, List, Any
 import os
 import subprocess
 import copy
@@ -12,8 +13,57 @@ import torch
 from flambe.runner import Runnable, Environment
 from flambe.compile.schema import Schema, Variants
 from flambe.search.trial import Trial
-from flambe.search.searchable import Searchable
 from flambe.search.algorithm import Algorithm, GridSearch
+
+
+class Searchable(ABC):
+    """Base Searchable interface.
+
+    Searchable are at the core of Flambé. They are the inputs to both
+    the ``Search`` and ``Experiment`` objects. A task can implemented
+    with two simple methods:
+
+    - ``step``: executes computation in steps. Returns a boolean
+        indicating whether execution should continue or end.
+    - ``metric``: returns a float used to compare different tasks's
+        performance. A higher number should mean better.
+
+    """
+
+    @abstractmethod
+    def step(self) -> bool:
+        """Run a single computational step.
+
+        When used in an experiment, this computational step should
+        be on the order of tens of seconds to about 10 minutes of work
+        on your intended hardware; checkpoints will be performed in
+        between calls to run, and resources or search algorithms will
+        be updated. If you want to run everything all at once, make
+        sure a single call to run does all the work and return False.
+
+        Returns
+        -------
+        bool
+            True if should continue running later i.e. more work to do
+
+        """
+        pass
+
+    @abstractmethod
+    def metric(self) -> float:
+        """Override this method to enable scheduling and searching.
+
+        This method is called after every call to ``step``, and should
+        return a unique scalar representing the current performance,
+        which is used to compare against other variants.
+
+        Returns
+        -------
+        float
+            The metric to compare different variants of your searchable.
+
+        """
+        pass
 
 
 class Checkpoint(object):
@@ -28,8 +78,11 @@ class Checkpoint(object):
         ----------
         path : str
             The local path used for saving
-        host : Optional[str], optional
+        host : str, optional
             An optional host to upload the checkpoint to,
+            by default None
+        user: str, optional
+            An optional user to use alongside the host name,
             by default None
 
         """
@@ -38,7 +91,15 @@ class Checkpoint(object):
         self.checkpoint_path = os.path.join(self.path, 'checkpoint.pt')
         self.remote = f"{user}@{host}:{self.checkpoint_path}" if host else None
 
-    def get(self):
+    def get(self) -> Searchable:
+        """Retrieve the object from a checkpoint.
+
+        Returns
+        -------
+        Searchable
+            The restored searchable object.
+
+        """
         if os.path.exists(self.checkpoint_path):
             searchable = torch.load(self.checkpoint_path)
         else:
@@ -52,7 +113,15 @@ class Checkpoint(object):
                 raise ValueError(f"Checkpoint {self.checkpoint_path} couldn't be found.")
         return searchable
 
-    def set(self, searchable):
+    def set(self, searchable: Searchable):
+        """Retrieve the object from a checkpoint.
+
+        Parameters
+        ----------
+        Searchable
+            The searchable object to save.
+
+        """
         if not os.path.exists(self.path):
             os.makedirs(self.path)
         torch.save(searchable, self.checkpoint_path)
@@ -63,7 +132,8 @@ class Checkpoint(object):
                     {self.checkpoint_path} {self.remote}')
 
 
-class SearchableAdapter:
+@ray.remote
+class RayAdapter:
     """Perform computation of a task."""
 
     def __init__(self, schema: Schema, checkpoint: Checkpoint) -> None:
@@ -80,22 +150,6 @@ class SearchableAdapter:
         continue_ = self.searchable.step()
         metric = self.searchable.metric()
         self.checkpoint.set(self.searchable)
-        return continue_, metric
-
-
-class CallableAdapter:
-    """Perform computation of a function."""
-
-    def __init__(self, schema: Schema) -> None:
-        """Initialize the Trial."""
-        self.schema = schema
-        self.callable: Optional[Callable] = None
-
-    def step(self) -> Tuple[bool, Optional[float]]:
-        """Run a step of the Trial."""
-        self.callable = self.callable or self.schema()
-        continue_ = False
-        metric = self.callable()
         return continue_, metric
 
 
@@ -120,8 +174,7 @@ class Search(Runnable):
                  cpus_per_trial: int = 1,
                  gpus_per_trial: int = 0,
                  output_path: str = 'flambe_output',
-                 refresh_waitime: float = 1.0,
-                 use_object_store: bool = False) -> None:
+                 refresh_waitime: float = 1.0) -> None:
         """Initialize a hyperparameter search.
 
         Parameters
@@ -137,10 +190,6 @@ class Search(Runnable):
         refresh_waitime : float, optional
             The minimum amount of time to wait before a refresh.
             Defaults ``1`` seconds.
-        use_object_store: bool, optional
-            Whether to use the plasma object store to move objects
-            between workers. See Ray documentation for more details.
-            Default ``False``.
 
         """
         self.output_path = output_path
@@ -153,7 +202,7 @@ class Search(Runnable):
             raise ValueError("Schema cannot contain grid options, please split first.")
 
         self.schema = schema
-        self.algorithm = algorithm if algorithm is not None else GridSearch()
+        self.algorithm = GridSearch() if algorithm is None else algorithm
 
     def run(self, env: Optional[Environment] = None) -> Dict[str, Dict]:
         """Execute the search.
@@ -171,7 +220,7 @@ class Search(Runnable):
         """
         env = env if env is not None else Environment(self.output_path)
         if not ray.is_initialized():
-            ray.init(local_mode=env.debug)
+            ray.init(address="auto", local_mode=env.debug)
 
         if not env.debug:
             total_resources = ray.cluster_resources()
@@ -179,13 +228,6 @@ class Search(Runnable):
                 raise ValueError("# of CPUs required per trial is larger than the total available.")
             elif self.n_gpus > 0 and self.n_gpus > total_resources['GPU']:
                 raise ValueError("# of CPUs required per trial is larger than the total available.")
-
-        if isinstance(self.schema.callable, type) and issubclass(self.schema.callable, Searchable):
-            checkpointable = True
-            adapter = ray.remote(num_cpus=self.n_cpus, num_gpus=self.n_gpus)(SearchableAdapter)
-        else:
-            checkpointable = False
-            adapter = ray.remote(num_cpus=self.n_cpus, num_gpus=self.n_gpus)(CallableAdapter)
 
         search_space = self.schema.extract_search_space().items()
         self.algorithm.initialize(dict((".".join(k), v) for k, v in search_space))  # type: ignore
@@ -244,20 +286,16 @@ class Search(Runnable):
                     schema_copy.set_from_search_space(space)
 
                     # Update state
+                    trial.set_resume()
                     state[trial_id] = dict()
                     state[trial_id]['schema'] = schema_copy
-                    if checkpointable:
-                        checkpoint = Checkpoint(
-                            path=os.path.join(env.output_path, trial.generate_name()),
-                            host=env.head_node_ip,
-                            user=getpass.getuser()
-                        )
-                        state[trial_id]['checkpoint'] = checkpoint
-                        state[trial_id]['actor'] = adapter.remote(schema_copy, checkpoint)
-                    else:
-                        state[trial_id]['actor'] = adapter.remote(schema_copy)
-
-                    trial.set_resume()
+                    checkpoint = Checkpoint(
+                        path=os.path.join(env.output_path, trial.generate_name()),
+                        host=env.head_node_ip,
+                        user=getpass.getuser()
+                    )
+                    state[trial_id]['checkpoint'] = checkpoint
+                    state[trial_id]['actor'] = RayAdapter.remote(schema_copy, checkpoint)  # type: ignore
 
                 # Launch created and resumed
                 if trial.is_resuming():

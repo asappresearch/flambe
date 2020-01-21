@@ -9,8 +9,8 @@ FLAMBE_CLUSTER_DEFAULT = os.path.join(FLAMBE_GLOBAL_FOLDER, 'cluster.yaml')
 MB = 2**20
 WARN_LIMIT_MB = 100
 
-# Deep Learning AMI (Ubuntu) Version 26.0
-AWS_AMI = 'ami-02bd97932dabc037b'
+# AWS Pytorch
+AWS_AMI = 'ami-0698bcaf8bd9ef56d'
 
 # Pytorch AMI
 GCP_AMI = 'projects/deeplearning-platform-release/global/images/family/pytorch-1-1-cpu'

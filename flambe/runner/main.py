@@ -2,6 +2,7 @@ import logging
 import click
 import os
 import shutil
+import traceback
 
 import torch
 
@@ -37,6 +38,30 @@ def down(cluster):
     """Teardown the cluster."""
     cluster = load_config_from_file(cluster)
     cluster.down()
+
+
+# ----------------- flambe rsync up ------------------ #
+@click.command()
+@click.argument('source', type=str, required=True)
+@click.argument('target', type=str, required=True) 
+@click.option('-c', '--cluster', type=str, default=FLAMBE_CLUSTER_DEFAULT,
+              help="Cluster config.")
+def rsync_up(source, target, cluster):
+    """Launch / update the cluster based on the given config"""
+    cluster = load_config_from_file(cluster)
+    cluster.rsync_up(source, target)
+
+
+# ----------------- flambe rsync down ------------------ #
+@click.command()
+@click.argument('source', type=str, required=True)
+@click.argument('target', type=str, required=True)
+@click.option('-c', '--cluster', type=str, default=FLAMBE_CLUSTER_DEFAULT,
+              help="Cluster config.")
+def rsync_down(source, target, cluster):
+    """Teardown the cluster."""
+    cluster = load_config_from_file(cluster)
+    cluster.rsync_down(source, target)
 
 
 # ----------------- flambe list ------------------ #
@@ -134,13 +159,14 @@ def run(runnable, output, force, debug, env):
 
     try:
         kwargs = env_config if env else dict()
+        kwargs.update({'output_path': output, 'debug': debug})
         runnable_obj = load_config_from_file(runnable)
-        runnable_obj.run(Environment(output_path=output, debug=debug, **kwargs))
+        runnable_obj.run(Environment(**kwargs))
         print(cl.GR("------------------- Done -------------------"))
     except KeyboardInterrupt:
         print(cl.RE("---- Exiting early (Keyboard Interrupt) ----"))
-    except Exception as e:
-        print(e)
+    except Exception:
+        print(traceback.format_exc())
         print(cl.RE("------------------- Error -------------------"))
 
 
@@ -201,4 +227,6 @@ if __name__ == '__main__':
     cli.add_command(run)
     cli.add_command(submit)
     cli.add_command(site)
+    cli.add_command(rsync_up, name='rsync-up')
+    cli.add_command(rsync_down, name='rsync-down')
     cli(prog_name='flambe')

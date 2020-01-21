@@ -16,7 +16,7 @@ class AWSCluster(Cluster):
                  subnet_id: str,
                  key_name: str,
                  iam_profile: str,
-                 ssh_user: str = 'ec2-user',
+                 ssh_user: str = 'ubuntu',
                  availability_zone: Optional[List[str]] = None,
                  tags: Dict[str, str] = None,
                  use_spot: bool = False,

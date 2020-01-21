@@ -1,11 +1,11 @@
 import logging
-from copy import deepcopy
-from typing import Optional, Dict, Sequence, Union, List, NamedTuple, Tuple
+from typing import Optional, Dict, List, NamedTuple, Tuple
 
 import ray
 
 from flambe.compile import Schema
 from flambe.search import Algorithm, Search, Trial
+from flambe.search.search import Checkpoint
 from flambe.runner.runnable import Runnable, Environment
 
 
@@ -24,7 +24,7 @@ class Pipeline(Schema):
 
     def __init__(self,
                  schemas: Dict[str, Schema],
-                 checkpoints: Dict[str, Checkpoint]):
+                 checkpoints: Optional[Dict[str, Checkpoint]] = None):
         """[summary]
 
         Parameters
