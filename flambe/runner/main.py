@@ -8,9 +8,9 @@ import torch
 
 import flambe
 from flambe.const import FLAMBE_CLUSTER_DEFAULT
+from flambe.logo import ASCII_LOGO, ASCII_LOGO_DEV
 from flambe.logging import coloredlogs as cl
 from flambe.runner.utils import is_dev_mode, get_flambe_repo_location
-from flambe.logo import ASCII_LOGO, ASCII_LOGO_DEV
 from flambe.compile.yaml import load_config_from_file
 from flambe.runner.runnable import Environment
 
@@ -43,7 +43,7 @@ def down(cluster):
 # ----------------- flambe rsync up ------------------ #
 @click.command()
 @click.argument('source', type=str, required=True)
-@click.argument('target', type=str, required=True) 
+@click.argument('target', type=str, required=True)
 @click.option('-c', '--cluster', type=str, default=FLAMBE_CLUSTER_DEFAULT,
               help="Cluster config.")
 def rsync_up(source, target, cluster):
@@ -214,7 +214,10 @@ def site(name, cluster, port):
     """Launch a Web UI to monitor the activity on the cluster."""
     logging.disable(logging.INFO)
     cluster = load_config_from_file(cluster)
-    cluster.launch_site(port=port, name=name)
+    try:
+        cluster.launch_site(port=port, name=name)
+    except KeyboardInterrupt:
+        logging.disable(logging.ERROR)
 
 
 if __name__ == '__main__':

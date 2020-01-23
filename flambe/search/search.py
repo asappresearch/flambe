@@ -163,7 +163,7 @@ class Search(Runnable):
     Example
     -------
 
-    >>> schema = Schema(func, arg1=uniform(0, 1), arg2=choice('a', 'b'))
+    >>> schema = Schema(cls, arg1=uniform(0, 1), arg2=choice('a', 'b'))
     >>> search = Search(schema, algorithm=Hyperband())
     >>> search.run()
 
@@ -215,7 +215,9 @@ class Search(Runnable):
         Returns
         -------
         Dict[str, Dict]
-            A list of trial objects.
+            A dictionary pointing from trial name to sub-dicionary
+            containing the keys 'trial' and 'checkpoint' pointing to
+            a Trial and a Checkpoint object respecitvely.
 
         """
         env = env if env is not None else Environment(self.output_path)
@@ -295,7 +297,10 @@ class Search(Runnable):
                         user=getpass.getuser()
                     )
                     state[trial_id]['checkpoint'] = checkpoint
-                    state[trial_id]['actor'] = RayAdapter.remote(schema_copy, checkpoint)  # type: ignore
+                    state[trial_id]['actor'] = RayAdapter.remote(  # type: ignore
+                        schema_copy,
+                        checkpoint
+                    )
 
                 # Launch created and resumed
                 if trial.is_resuming():
@@ -304,6 +309,7 @@ class Search(Runnable):
                     running.append(object_id)
                     trial.set_running()
 
+        # Construct result output
         result = dict()
         for trial_id, trial in trials.items():
             checkpoint = state[trial_id].get('checkpoint', None)

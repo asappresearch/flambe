@@ -279,7 +279,7 @@ class Schema(MutableMapping[str, Any]):
         for k, v in self.bound_arguments.arguments.items():
             if s.parameters[k].kind not in [inspect.Parameter.POSITIONAL_OR_KEYWORD,
                                             inspect.Parameter.KEYWORD_ONLY]:
-                raise TypeError(f'Argument type {s.parameters[k].kind} not supported')
+                raise TypeError(f'Argument {k} of type {s.parameters[k].kind} not supported')
         if tag is None:
             if isinstance(self.callable, type):
                 tag = type(self.callable).__name__

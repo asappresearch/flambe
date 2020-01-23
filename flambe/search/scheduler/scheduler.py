@@ -8,18 +8,16 @@ class Scheduler(ABC):
     Base scheduler class.
     '''
 
-    def __init__(self, max_steps=1, verbose=False):
+    def __init__(self, max_steps=1):
         '''
         results_file: String to path that results will be logged.
         results_keys: The names of the results that will be stored.
         target_result: The key result for searchers to focus on.
         n_workers: The maximum number of trials to be released in
             parallel.
-        verbose: Whether or not to print out the results.
         '''
         self.trials = {}
         self.max_steps = max_steps
-        self.verbose = verbose
 
         self._propose_new_params = None
         self._register_results = None

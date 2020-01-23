@@ -1,5 +1,5 @@
 import os
-from typing import Optional, Dict, List
+from typing import Optional, Dict, List, Union
 from ruamel.yaml import YAML
 import tempfile
 import subprocess
@@ -30,14 +30,17 @@ exec_cluster = partial(
 )
 
 
+# TODO: find a cleaner solution
 def supress():
     """Supress the messages coming from the ssh command."""
     def supress_ssh(func):
+        """Set SSH level for ray calls to QUIET"""
         def wrapper(self, connect_timeout):
             return func(self, connect_timeout) + ['-o', "LogLevel=QUIET"]
         return wrapper
 
     def supress_rsync(func):
+        """Surpess rsync messages from ray."""
         def wrapper(args, *, stdin=None, stdout=None, stderr=None,
                     shell=False, cwd=None, timeout=None):
             if args[0] == 'rsync':
@@ -109,6 +112,8 @@ class Cluster(RegisteredStatelessMap):
         worker_setup_commands : Optional[List[str]], optional
             A list of commands to run on the factory nodes only.
         custom_config: str, optional
+            A custom cluster config. See all available arguments
+            on the Ray Autoscaler documentation.
 
         """
         config = {
@@ -129,22 +134,22 @@ class Cluster(RegisteredStatelessMap):
             'initialization_commands': []
         }
 
-        self.config = config
+        self.config = custom_config if custom_config is not None else config
 
     def up(self,
            min_workers: Optional[int] = None,
            max_workers: Optional[int] = None,
-           yes: bool = True):
+           yes: bool = False):
         """Update / Create the cluster.
 
         Parameters
         ----------
         min_workers : Optional[int], optional
-            [description], by default None
+            The minimum number of workers to keep on the cluster.
         max_workers : Optional[int], optional
-            [description], by default None
+            The maximum number of workers to keep on the cluster.
         yes : bool, optional
-            [description], by default False
+            Whether to force confirm a change in the cluster.
 
         """
         yaml = YAML()
@@ -152,15 +157,15 @@ class Cluster(RegisteredStatelessMap):
             yaml.dump(self.config, fp)
             create_or_update_cluster(fp.name, min_workers, max_workers, True, False, yes, None)
 
-    def down(self, yes: bool = True, workers_only: bool = False):
+    def down(self, yes: bool = False, workers_only: bool = False):
         """Teardown the cluster.
 
         Parameters
         ----------
         yes : bool, optional
-            [description], by default True
+            Tear the cluster down.
         workers_only : bool, optional
-            [description], by default False
+            Kill only worker nodes, by default False.
 
         """
         yaml = YAML()
@@ -169,14 +174,14 @@ class Cluster(RegisteredStatelessMap):
             teardown_cluster(fp.name, yes, workers_only, None)
 
     def rsync_up(self, source: str, target: str):
-        """[summary]
+        """Rsync the local source to the target on the cluster.
 
         Parameters
         ----------
         source : str
-            [description]
+            The source folder on the local machine.
         target : str
-            [description]
+            The target folder on the cluster.
 
         """
         yaml = YAML()
@@ -185,14 +190,14 @@ class Cluster(RegisteredStatelessMap):
             rsync(fp.name, source, target, None, down=False)
 
     def rsync_down(self, source: str, target: str):
-        """[summary]
+        """Rsync the source from the cluster to the local target.
 
         Parameters
         ----------
         source : str
-            [description]
+            The source folder on the cluster.
         target : str
-            [description]
+            The target folder on the local machine.
 
         """
         yaml = YAML()
@@ -201,12 +206,12 @@ class Cluster(RegisteredStatelessMap):
             rsync(fp.name, source, target, None, down=True)
 
     def attach(self, name: Optional[str] = None):
-        """Attach to a tmux session.
+        """Attach onto a running job (i.e tmux session).
 
         Parameters
         ----------
         name: str, optional
-           The name of the job to attached to. If none give,
+           The name of the job to attach. If none given,
            creates a new tmux session. Default ``None``.
 
         """
@@ -229,12 +234,8 @@ class Cluster(RegisteredStatelessMap):
             pass
 
     def list(self):
-        """Attach to a tmux session.
-
-        Arguments:
-            new: whether to force a new tmux session
-
-        """
+        """List all currently running jobs (i.e tmux sessions)."""
+        supress()
         cmd = f'tmux ls || echo "No tmux session running"'
 
         yaml = YAML()
@@ -243,12 +244,15 @@ class Cluster(RegisteredStatelessMap):
             exec_cluster(fp.name, cmd)
 
     def kill(self, name: str):
-        """Attach to a tmux session.
+        """Kill a running jog (i.e tmux session).
 
-        Arguments:
-            new: whether to force a new tmux session
+        Parameters
+        ----------
+        name: str
+            The name of the job to kill.
 
         """
+        supress()
         cmd = f"tmux kill-session -t {name}"
 
         yaml = YAML()
@@ -256,23 +260,28 @@ class Cluster(RegisteredStatelessMap):
             yaml.dump(self.config, fp)
             exec_cluster(fp.name, cmd)
 
-    def launch_site(self, port, name):
-        """Attach to a tmux session.
+        print(f"Job {name} killed")
 
-        Arguments:
-            new: whether to force a new tmux session
+    def launch_site(self, port: Union[int, str], name: str = ''):
+        """Launch the report website.
+
+        Parameters
+        ----------
+        port: Union[int, str]
+            The port to use in launching the site.
+        name: str, optional
+            If given, restricts the report to a single job.
 
         """
+        supress()
+
         cmd = f'pip install tensorboard > /dev/null && \
             tensorboard --logdir=$HOME/jobs/{name} --port={port}'
 
         yaml = YAML()
         with tempfile.NamedTemporaryFile() as fp:
             yaml.dump(self.config, fp)
-            try:
-                exec_cluster(fp.name, cmd, port_forward=port)
-            except KeyboardInterrupt:
-                pass
+            exec_cluster(fp.name, cmd, port_forward=port)
 
     def submit(self,
                runnable: str,
@@ -370,7 +379,14 @@ class Cluster(RegisteredStatelessMap):
             print(cl.GR(f'[{time()}] Job submitted successfully.\n'))
 
     def head_node_ip(self) -> str:
-        """Get the head node ip address"""
+        """Get the head node ip address.
+
+        Returns
+        -------
+        str
+            The head node IP address.
+
+        """
         supress()
         yaml = YAML()
         with tempfile.NamedTemporaryFile() as fp:
@@ -379,7 +395,14 @@ class Cluster(RegisteredStatelessMap):
         return node_ip
 
     def worker_node_ips(self) -> List[str]:
-        """Get the worker node ip addresses."""
+        """Get the worker node ip addresses.
+
+        Returns
+        -------
+        str
+            The worker nodes IP addresses.
+
+        """
         supress()
         yaml = YAML()
         with tempfile.NamedTemporaryFile() as fp:

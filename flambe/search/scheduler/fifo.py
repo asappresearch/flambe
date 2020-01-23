@@ -6,7 +6,7 @@ class BlackBoxScheduler(Scheduler):
     Base scheduler class.
     '''
 
-    def __init__(self, trial_budget, max_steps=1, verbose=False):
+    def __init__(self, trial_budget, max_steps=1):
         '''
         budget: Maximum number of trials to create.
         results_file: String to path that results will be logged.
@@ -14,9 +14,8 @@ class BlackBoxScheduler(Scheduler):
         target_result: The key result for searchers to focus on.
         n_workers: The maximum number of trials to be released in
         parallel.
-        verbose: Whether or not to print out the results.
         '''
-        super().__init__(max_steps, verbose)
+        super().__init__(max_steps)
         self.trial_budget = trial_budget
         self.num_released = 0
         self.done = False

@@ -5,7 +5,7 @@ from flambe.search.scheduler.scheduler import Scheduler
 
 class HyperBandScheduler(Scheduler):
 
-    def __init__(self, step_budget, max_steps, min_steps=1, drop_rate=3, verbose=False):
+    def __init__(self, step_budget, max_steps, min_steps=1, drop_rate=3):
         '''
         n_workers: The maximum number of trials to be released in
             parallel.
@@ -22,9 +22,8 @@ class HyperBandScheduler(Scheduler):
         successive halving iteration.
         res_is_int: Whether or not to truncate resources to nearest
         integer.
-        verbose: Whether or not to print out results.
         '''
-        super().__init__(max_steps, verbose)
+        super().__init__(max_steps)
         self.min_steps = min_steps
         self.drop_rate = drop_rate
 
