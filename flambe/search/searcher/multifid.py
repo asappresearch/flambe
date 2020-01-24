@@ -1,19 +1,29 @@
 import numpy as np
+from typing import List, Dict, Any, Optional
 
 from flambe.search.searcher.searcher import ModelBasedSearcher
+from flambe.search.searcher.searcher import Space
 
 
 class MultiFidSearcher(ModelBasedSearcher):
-    '''
+    """
     A searcher that allows for multiple fidelities --
     meant to be paired with HyperBand scheduler.
-    '''
+    """
 
-    def __init__(self, searcher_class, search_kwargs):
-        '''
-        searcher_class: A subclass of ModelBasedSearcher.
-        search_kwargs: The parameters of the searcher_class.
-        '''
+    def __init__(self,
+                 searcher_class: ModelBasedSearcher,
+                 search_kwargs: Dict[str, Any]):
+        """Creates a searcher comprised of several sub-searchers based on a model-based searcher.
+
+        Parameters
+        ----------
+        searcher_class: ModelBasedSearcher
+            A subclass of ModelBasedSearcher.
+        search_kwargs: Dict[str, Any]
+            The parameters of the ModelBasedSearcher class used for
+            instantiation.
+        """
 
         self.searcher_class = searcher_class
         self.search_kwargs = search_kwargs
@@ -23,26 +33,74 @@ class MultiFidSearcher(ModelBasedSearcher):
 
         super().__init__(min_configs_in_model=0)
 
-    def _check_space(self, space):
-        '''
-        Check if the space is valid for this algorithm.
+    def _check_space(self, space: Space):
+        """
+        Check if the space is valid for this algorithm.  Executes the
+        _check_space function of its ModelBasedSearcher class.
 
-        space: A hypertune.space.Space object.
-        '''
+        Parameters
+        ----------
+        space: Space
+            A Space object that holds the distributions to search over.
+        """
         self.max_fid_searcher._check_space(space)
 
-    def assign_space(self, space):
+    def assign_space(self, space: Space):
+        """
+        Assign a space of distributions for the searcher to search
+        over.
+
+        Parameters
+        ----------
+        space: Space
+            A Space object that holds the distributions to search over.
+        """
         super().assign_space(space)
         self.max_fid_searcher.assign_space(space)
 
-    def _propose_new_params_in_model_space(self):
+    def _propose_new_params_in_model_space(self) -> Dict[str, Any]:
+        """
+        Propose new parameters in model space using its current
+        maximum fidelity searcher.
+
+        Returns
+        ----------
+        Dict[str, Any]
+            A hyperparameter configuration in model space.
+        """
         return self.max_fid_searcher._propose_new_params_in_model_space()
 
-    def _apply_transform(self, params_in_model_space):
+    def _apply_transform(self, params_in_model_space: Dict[str, Any]) -> Dict[str, Any]:
+        """Applies transform to configuration in model space.
+
+        Parameters
+        ----------
+        params_in_model_space: Dict[str, Any]
+            A hyperparameter configuration in model space.
+
+        Returns
+        ----------
+        Dict[str, Any]
+            A hyperparameter configuration in transformed space.
+        """
         return self.max_fid_searcher._apply_transform(params_in_model_space)
 
-    def register_results(self, results, fids_dict):
+    def register_results(self,
+                         results: Dict[int, float],
+                         fids_dict: Dict[int, float]):
+        """
+        Records results of hyperparameter configurations based on
+        their fidelities.  The appropriate subsearcher is called to
+        register results.  Note that the subsearcher is only called if
+        the fidelity of the configuration is the current maximum.
 
+        Parameters
+        ----------
+        results: Dict[int, float]
+            A dictionary mapping parameter id to result.
+        fids_dict: Dict[int, float]
+            A dictionary mapping parameter id to fidelity.
+        """
         # Group param_ids by fidelity
         fids_groups = {}
         for param_id, fid in fids_dict.items():

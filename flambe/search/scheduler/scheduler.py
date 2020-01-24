@@ -1,32 +1,45 @@
 from abc import ABC, abstractmethod
+from typing import List, Dict, Any, Optional, Callable
 
 from flambe.search.trial import Trial
 
 
 class Scheduler(ABC):
-    '''
-    Base scheduler class.
-    '''
+    """
+    Base scheduler class.  Schedulers only observe the results of
+    trials and may decide to temporarily freeze or permanently end
+    trials based on these results.  They report the results back to the
+    searcher for future hyperparameter configuration proposals.
+    """
 
-    def __init__(self, max_steps=1):
-        '''
-        results_file: String to path that results will be logged.
-        results_keys: The names of the results that will be stored.
-        target_result: The key result for searchers to focus on.
-        n_workers: The maximum number of trials to be released in
-            parallel.
-        '''
+    def __init__(self, max_steps: int = 1):
+        """
+        Parameters
+        ----------
+        max_steps: int
+            Maximum number of steps that will be logged.
+        """
         self.trials = {}
         self.max_steps = max_steps
 
         self._propose_new_params = None
         self._register_results = None
 
-    def link_searcher_fns(self, propose_new_params_fn, register_results_fn):
-        '''
-        Link the searcher's propose_new_hp and register_hps
-        functions to the scheduler.
-        '''
+    def link_searcher_fns(self,
+                          propose_new_params_fn: Callable,
+                          register_results_fn: Callable):
+        """
+        Link the searcher's propose_new_params_fn and
+        register_results_fn functions to the scheduler.
+
+        Parameters
+        ----------
+        propose_new_params_fn: Callable
+            A function for proposing new hyperparameter configurations.
+        register_results_fn: Callable
+            A function for recording the results of hyperparameter
+            configurations.
+        """
         self._propose_new_params = propose_new_params_fn
         self._register_results = register_results_fn
 
@@ -43,29 +56,65 @@ class Scheduler(ABC):
         pass
 
     @abstractmethod
-    def release_trials(self, n, trials_paused):
-        '''
-        Return a new trial for the user.
+    def release_trials(self,
+                       n: int,
+                       trials: Dict[int, Trial]) -> Dict[int, Trial]:
+        """
+        Release trials with hyperparameter configurations
+        to the trial dictionary.  New trials may be added or existing
+        trials may be unfrozen.
 
-        worker_id: The id of the worker.
-        '''
+        Parameters
+        ----------
+        n: int
+            The number of new trials to add.
+        trials: Dict[int, Trial]
+            A dictionary mapping trial id to corresponding Trial
+            objects.
+
+        Returns
+        ----------
+        Dict[int, Trial]
+            A dictionary mapping trial id to corresponding Trial
+            objects, with newly released trials.
+        """
         pass
 
     @abstractmethod
-    def update_trials(self, trial_ids):
-        '''
-        Update results from the user.
+    def update_trials(self,
+                      trials: Dict[int, Trial]) -> Dict[int, Trial]:
+        """Update the algorithm with trial results.
 
-        worker_id: The id of the worker.
-        trial_id: The id of the trial.
-        results: Dictionary of results.
-        '''
+        Parameters
+        ----------
+        trials: Dict[int, Trial]
+            A dictionary mapping trial id to corresponding Trial
+            objects.
+
+        Returns
+        ----------
+        Dict[int, Trial]
+            A dictionary mapping trial id to corresponding Trial
+            objects.
+        """
         pass
 
-    def _create_trial(self, n_steps, **kwargs):
-        '''
-        Create a new trial.
-        '''
+    def _create_trial(self,
+                      n_steps: int, **kwargs) -> Tuple[int, Trial]:
+        """Create a new trial.
+
+        Parameters
+        ----------
+        n_steps: int
+            The number of steps to initially assign the new trial.
+
+        Returns
+        ----------
+        int
+            The trial id of the new trial.
+        Trial
+            The new trial object.
+        """
         # Create trial
         trial_id, params = self._propose_new_params(**kwargs)
         if params is None:
