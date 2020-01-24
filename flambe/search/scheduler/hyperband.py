@@ -1,28 +1,35 @@
 import numpy as np
+from typing import List, Dict, Any, Optional, Callable
 
 from flambe.search.scheduler.scheduler import Scheduler
+from flambe.search.trial import Trial
 
 
 class HyperBandScheduler(Scheduler):
+    """The HyperBand scheduling algorithm.
+    """
+    def __init__(self,
+                 step_budget: int,
+                 max_steps: int,
+                 min_steps: int = 1,
+                 drop_rate: float = 3):
+        """Initializes the HyperBand scheduler.
 
-    def __init__(self, step_budget, max_steps, min_steps=1, drop_rate=3):
-        '''
-        n_workers: The maximum number of trials to be released in
-            parallel.
-        results_file: String to path that results will be logged.
-        results_keys: The names of the results that will be stored.
-        target_result: The key result for searchers to focus on.
-        max_steps: Maximum number of resources to allocate to a single
-            trial.
-        min_steps: Minimum number of resources to allocate to a single
-            trial.
-        n_bracket_runs: Number of iterations of the outer loop of
-        HyperBandto run.
-        drop_rate: The factor by which trials are ended after each
-        successive halving iteration.
-        res_is_int: Whether or not to truncate resources to nearest
-        integer.
-        '''
+        Parameters
+        ----------
+        step_budget: int
+            The maximum number of steps to allocate across all trials.
+        max_steps: int
+            The maximum number of steps that can be allocated to a
+            single trial.
+        min_steps: int
+            The minimum number of steps that can be allocated to a
+            single trial.
+        drop_rate: float
+            The rate at which trials are dropped between rounds of the
+            HyperBand algorithm.  A higher drop rate means that the
+            algorithm will be more exploitative than exploratory.
+        """
         super().__init__(max_steps)
         self.min_steps = min_steps
         self.drop_rate = drop_rate
@@ -56,12 +63,28 @@ class HyperBandScheduler(Scheduler):
         """
         return all(bracket.has_finished for bracket in self.brackets)
 
-    def release_trials(self, n, trials):
-        '''
-        Release a new trial with the corresponding worker id.
+    def release_trials(self,
+                       n: int,
+                       trials: Dict[int, Trial]) -> Dict[int, Trial]:
+        """
+        Release trials with hyperparameter configurations
+        to the trial dictionary.  May add new trials or unfreeze
+        old trials.
 
-        worker_id: The id of the worker in {0, ..., n_workers}.
-        '''
+        Parameters
+        ----------
+        n: int
+            The number of trials to release.
+        trials: Dict[int, Trial]
+            A dictionary mapping trial id to corresponding Trial
+            objects.
+
+        Returns
+        ----------
+        Dict[int, Trial]
+            A dictionary mapping trial id to corresponding Trial
+            objects, with newly released trials.
+        """
         for br, bracket in enumerate(self.brackets):
             s = bracket.max_halvings
 
@@ -89,13 +112,20 @@ class HyperBandScheduler(Scheduler):
         return trials
 
     def update_trials(self, trials):
-        '''
-        Update the algorithm with trial results.
+        """Update the algorithm with trial results.
 
-        worker_id: The id of the worker in {0, ..., n_workers}.
-        trial_id: String denoting the id of the trial.
-        results: Dictionary of results to log.
-        '''
+        Parameters
+        ----------
+        trials: Dict[int, Trial]
+            A dictionary mapping trial id to corresponding Trial
+            objects.
+
+        Returns
+        ----------
+        Dict[int, Trial]
+            A dictionary mapping trial id to corresponding Trial
+            objects.
+        """
 
         # Send results back to searcher
         trials_with_result = {trial_id: trial for trial_id,
@@ -128,11 +158,19 @@ class HyperBandScheduler(Scheduler):
 
 
 class Bracket:
-    '''
-    Internal hyperband data structure.
-    '''
+    """Internal HyperBand data structure.
+    """
 
-    def __init__(self, n_trials, max_halvings):
+    def __init__(self, n_trials: int, max_halvings: int):
+        """Initialize the bracket.
+
+        Parameters
+        ----------
+        n_trials: int
+            The number of trials that the bracket holds.
+        max_halvings: int
+            The number of drop episodes that the bracket will execute.
+        """
         self.n_trials = n_trials
         self.n_halvings = 0
         self.max_halvings = max_halvings
@@ -140,24 +178,78 @@ class Bracket:
         self.finished = []
 
     def get_pending(self):
+        """Get a pending trial id.
+
+        Returns
+        ----------
+        int
+            The trial id.
+        """
         return self.pending.pop()
 
-    def record_finished(self, trial, result):
+    def record_finished(self, trial: int, result: float):
+        """Record the result of a finished trial.
+
+        Parameters
+        ----------
+        trial: int
+            The trial id.
+        result:
+            The corresponding result of the trial.
+        """
         self.finished.append((trial, result))
 
     @property
-    def has_pending(self):
+    def has_pending(self) -> bool:
+        """Check if the bracket has a pending trial.
+
+        Returns
+        ----------
+        bool
+            Denotes whether or not the bracket has a pending trial.
+        """
         return len(self.pending) > 0
 
     @property
-    def is_ready_for_halving(self):
+    def is_ready_for_halving(self) -> bool:
+        """
+        Check if the bracket is ready for a drop episode (also
+        called 'halving').
+
+        Returns
+        ----------
+        bool
+            Denotes whether or not the bracket is ready to drop.
+        """
         return (self.n_halvings < self.max_halvings) & (self.n_trials == len(self.finished))
 
     @property
-    def has_finished(self):
+    def has_finished(self) -> bool:
+        """
+        Check if the bracket has finished processing all of its trials.
+
+        Returns
+        ----------
+        bool
+            Denotes whether or not the bracket is finished.
+        """
         return (self.n_halvings == self.max_halvings) & (self.n_trials == len(self.finished))
 
-    def execute_halving(self, n_active):
+    def execute_halving(self, n_active: int) -> List[int]:
+        """
+        Run a drop episode, which only keeps (approximately) the top
+        1/drop_rate trials.  All other trials are ended.
+
+        Parameters
+        ----------
+        n_active: int
+            The number of trials to keep active.
+
+        Returns
+        ----------
+        List[int]
+            The ids of the trials to end.
+        """
         trials_sorted = sorted(self.finished, key=lambda x: x[1], reverse=True)
         trials_sorted = [x[0] for x in trials_sorted]
         active_trials = trials_sorted[:n_active]
