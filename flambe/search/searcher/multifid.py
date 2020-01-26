@@ -1,72 +1,70 @@
 import numpy as np
-from typing import List, Dict, Any, Optional
+from typing import Dict, Any, Optional, Set, Type
 
+from flambe.search.distribution import Distribution
 from flambe.search.searcher.searcher import ModelBasedSearcher
 from flambe.search.searcher.searcher import Space
 
 
 class MultiFidSearcher(ModelBasedSearcher):
-    """
-    A searcher that allows for multiple fidelities --
-    meant to be paired with HyperBand scheduler.
+    """A searcher that allows for multiple fidelities.
+
+    Meant to be paired with HyperBand scheduler.
+
     """
 
     def __init__(self,
-                 searcher_class: ModelBasedSearcher,
+                 space: Dict[str, Distribution],
+                 searcher_class: Type[ModelBasedSearcher],
                  search_kwargs: Dict[str, Any]):
-        """Creates a searcher comprised of several sub-searchers based on a model-based searcher.
+        """Creates a searcher comprised of several sub-searchers.
 
         Parameters
         ----------
+        space: Dict[str, Distribution]
+            Dictionary mapping variable names to their initial
+            distributions.
         searcher_class: ModelBasedSearcher
             A subclass of ModelBasedSearcher.
         search_kwargs: Dict[str, Any]
             The parameters of the ModelBasedSearcher class used for
             instantiation.
+
         """
+        super().__init__(space, min_configs_in_model=0)
 
         self.searcher_class = searcher_class
         self.search_kwargs = search_kwargs
-        self.searchers = {}
         self.max_fid = -np.inf
-        self.max_fid_searcher = self.searcher_class(**self.search_kwargs)
+        self.max_fid_searcher = self.searcher_class(space, **self.search_kwargs)
+        self.fids_dict: Dict[str, int] = dict()
+        self.searchers: Dict[int, ModelBasedSearcher] = dict()
 
-        super().__init__(min_configs_in_model=0)
-
-    def _check_space(self, space: Space):
-        """
-        Check if the space is valid for this algorithm.  Executes the
-        _check_space function of its ModelBasedSearcher class.
+    def check_space(self, space: Space):
+        """Check that a particular space is valid for the searcher.
 
         Parameters
         ----------
         space: Space
             A Space object that holds the distributions to search over.
-        """
-        self.max_fid_searcher._check_space(space)
 
-    def assign_space(self, space: Space):
-        """
-        Assign a space of distributions for the searcher to search
-        over.
-
-        Parameters
+        Raises
         ----------
-        space: Space
-            A Space object that holds the distributions to search over.
-        """
-        super().assign_space(space)
-        self.max_fid_searcher.assign_space(space)
+        ValueError
+            If invalid space object is passed to searcher.
 
-    def _propose_new_params_in_model_space(self) -> Dict[str, Any]:
         """
-        Propose new parameters in model space using its current
+        self.max_fid_searcher.check_space(space)
+
+    def _propose_new_params_in_model_space(self) -> Optional[Dict[str, Any]]:
+        """Propose new parameters in model space using its current
         maximum fidelity searcher.
 
         Returns
         ----------
-        Dict[str, Any]
+        Dict[str, Any], optional
             A hyperparameter configuration in model space.
+
         """
         return self.max_fid_searcher._propose_new_params_in_model_space()
 
@@ -82,15 +80,14 @@ class MultiFidSearcher(ModelBasedSearcher):
         ----------
         Dict[str, Any]
             A hyperparameter configuration in transformed space.
+
         """
         return self.max_fid_searcher._apply_transform(params_in_model_space)
 
-    def register_results(self,
-                         results: Dict[int, float],
-                         fids_dict: Dict[int, float]):
-        """
-        Records results of hyperparameter configurations based on
-        their fidelities.  The appropriate subsearcher is called to
+    def register_results(self, results: Dict[str, float]):
+        """Records results of hyperparameter configurations.
+
+        Based on fidelities.  The appropriate subsearcher is called to
         register results.  Note that the subsearcher is only called if
         the fidelity of the configuration is the current maximum.
 
@@ -98,11 +95,19 @@ class MultiFidSearcher(ModelBasedSearcher):
         ----------
         results: Dict[int, float]
             A dictionary mapping parameter id to result.
-        fids_dict: Dict[int, float]
-            A dictionary mapping parameter id to fidelity.
+
         """
+        # Update fidelities
+        fids_dict = dict()
+        for key, value in results.items():
+            if key in self.fids_dict:
+                self.fids_dict[key] += 1
+            else:
+                self.fids_dict[key] = 1
+            fids_dict[key] = self.fids_dict[key]
+
         # Group param_ids by fidelity
-        fids_groups = {}
+        fids_groups: Dict[int, Set[str]] = dict()
         for param_id, fid in fids_dict.items():
             if fid in fids_groups:
                 fids_groups[fid].add(param_id)
@@ -111,22 +116,20 @@ class MultiFidSearcher(ModelBasedSearcher):
 
         for fid, params_ids in fids_groups.items():
 
-            # Do not need to train the model if fidelity is less than max
+            # No need to train the model if fidelity is less than max
             if fid < self.max_fid:
                 continue
 
-            if fid in self.searchers.keys():
+            if fid in self.searchers:
                 searcher = self.searchers[fid]
             else:
-                searcher = self.searcher_class(**self.search_kwargs)
-                searcher.assign_space(self.space)
+                searcher = self.searcher_class(self.space.dists, **self.search_kwargs)
                 self.searchers[fid] = searcher
 
             # Transfer data from multifidelity searcher to subsearcher
             for params_id in params_ids:
-                params_in_model_space = self.data[params_id]['params_in_model_space']
-                searcher.data[params_id] = {'params_in_model_space': params_in_model_space,
-                                            'result': None}
+                params_in_model_space = self.params[params_id]
+                searcher.params[params_id] = params_in_model_space
 
             filtered_results = {p_id: res for p_id, res in results.items() if p_id in params_ids}
             searcher.register_results(filtered_results)

@@ -4,7 +4,7 @@ from typing import Dict, Optional
 from flambe.compile import RegisteredStatelessMap
 from flambe.search.distribution import Distribution
 from flambe.search.trial import Trial
-from flambe.search.searcher import Searcher, GridSearcher, RandomSearcher,\
+from flambe.search.searcher import GridSearcher, RandomSearcher,\
     BayesOptGPSearcher, BayesOptKDESearcher, MultiFidSearcher
 from flambe.search.scheduler import Scheduler, BlackBoxScheduler, HyperBandScheduler
 
@@ -18,7 +18,7 @@ class Algorithm(RegisteredStatelessMap):
 
         Parameters
         ----------
-        trials:
+        space:
             Mapping from option name to values.
 
         """
@@ -60,62 +60,9 @@ class BaseAlgorithm(Algorithm):
     """Base implementation of a hyperparameter search algorithm."""
 
     def __init__(self,
-                 searcher: Searcher,
-                 scheduler: Scheduler,
-                 space: Optional[Dict[str, Distribution]] = None):
-        """Initialize a BaseAlgorithm.
-
-        Parameters
-        ----------
-        searcher : Searcher
-            The searcher object to use. See ``Searcher``.
-        scheduler : Scheduler
-            The scheduler object to use. See ``Scheduler``.
-        space : Dict[str, Distribution], optional
-            A space of hyperparameters to search over. Can also be
-            provided through the initialize method.
-
-        """
-        scheduler.link_searcher_fns(searcher.propose_new_params, searcher.register_results)
-
-        self.searcher = searcher
-        self.scheduler = scheduler
-        self._initialized = False
-
-        if space is not None:
-            self.initialize(space)
-            self._initialized = True
-
-    def initialize(self, space: Dict[str, Distribution]):
-        """Initialize the algorithm with a search space."""
-        if self._initialized:
-            raise ValueError("Algorithm was already initialized.")
-        self.searcher.assign_space(space)
-
-    def is_done(self) -> bool:
-        """Whether the algorithm has finished producing trials."""
-        return self.scheduler.is_done()
-
-    def update(self, trials: Dict[str, Trial], maximum: int) -> Dict[str, Trial]:
-        """Update the state of the search."""
-        if self.searcher.space is None:
-            raise ValueError('Algorithm has not been initialized with search space.')
-
-        trials = self.scheduler.update_trials(trials)
-        trials = self.scheduler.release_trials(maximum, trials)
-        return trials
-
-
-class GridSearch(BaseAlgorithm):
-
-    def __init__(self,
                  max_steps: int = 1,
-                 space: Optional[Dict[str, Distribution]] = None):
-        """The grid search algorithm.
-
-        Simply runs the cross product of all search options. Only
-        supports Choice objects as distributions, and the probabilities
-        will be ignored.
+                 space: Optional[Dict[str, Distribution]] = None) -> None:
+        """Initialize a BaseAlgorithm.
 
         Parameters
         ----------
@@ -126,12 +73,70 @@ class GridSearch(BaseAlgorithm):
             provided through the initialize method.
 
         """
-        searcher = GridSearcher()
-        scheduler = BlackBoxScheduler(
+        self.max_steps = max_steps
+        self.scheduler: Optional[Scheduler] = None
+
+        self._initialized = False
+        if space is not None:
+            self.initialize(space)
+
+    def initialize(self, space: Dict[str, Distribution]):
+        """Initialize the algorithm with a search space.
+
+        Parameters
+        ----------
+        space:
+            Mapping from option name to values.
+
+        """
+        if self._initialized:
+            raise ValueError("Algorithm was already initialized.")
+        self._initialized = True
+
+    def is_done(self) -> bool:
+        """Whether the algorithm has finished producing trials."""
+        if not self._initialized:
+            raise ValueError('Algorithm has not been initialized with search space.')
+
+        return self.scheduler.is_done()  # type: ignore
+
+    def update(self, trials: Dict[str, Trial], maximum: int) -> Dict[str, Trial]:
+        """Update the state of the search."""
+        if not self._initialized:
+            raise ValueError('Algorithm has not been initialized with search space.')
+
+        trials = self.scheduler.update_trials(trials)  # type: ignore
+        trials = self.scheduler.release_trials(maximum, trials)   # type: ignore
+        return trials
+
+
+class GridSearch(BaseAlgorithm):
+    """The grid search algorithm.
+
+    Simply runs the cross product of all search options. Only
+    supports Choice objects as distributions, and the probabilities
+    will be ignored.
+
+    """
+
+    def initialize(self, space: Dict[str, Distribution]):
+        """Initialize the algorithm with a search space.
+
+        Parameters
+        ----------
+        space:
+            Mapping from option name to values.
+
+        """
+        super().initialize(space)
+
+        searcher = GridSearcher(space)
+        self.scheduler = BlackBoxScheduler(
+            searcher=searcher,
             trial_budget=float('inf'),
-            max_steps=max_steps,
+            max_steps=self.max_steps,
+
         )
-        super().__init__(searcher, scheduler)
 
 
 class RandomSearch(BaseAlgorithm):
@@ -156,12 +161,27 @@ class RandomSearch(BaseAlgorithm):
             provided through the initialize method.
 
         """
-        searcher = RandomSearcher(seed=seed)
-        scheduler = BlackBoxScheduler(
-            max_steps=max_steps,
-            trial_budget=trial_budget
+        super().__init__(max_steps, space=space)
+        self.trial_budget = trial_budget
+        self.seed = seed
+
+    def initialize(self, space: Dict[str, Distribution]):
+        """Initialize the algorithm with a search space.
+
+        Parameters
+        ----------
+        space:
+            Mapping from option name to values.
+
+        """
+        super().initialize(space)
+
+        searcher = RandomSearcher(space, seed=self.seed)
+        self.scheduler = BlackBoxScheduler(
+            searcher=searcher,
+            max_steps=self.max_steps,
+            trial_budget=self.trial_budget
         )
-        super().__init__(searcher, scheduler, space=space)
 
 
 class BayesOptGP(BaseAlgorithm):
@@ -200,18 +220,39 @@ class BayesOptGP(BaseAlgorithm):
             provided through the initialize method.e
 
         """
+        super().__init__(max_steps, space=space)
+
+        self.trial_budget = trial_budget
+        self.seed = seed
+        self.aq_func = aq_func
+        self.kappa = kappa
+        self.xi = xi
+        self.min_configs_in_model = min_configs_in_model
+
+    def initialize(self, space: Dict[str, Distribution]):
+        """Initialize the algorithm with a search space.
+
+        Parameters
+        ----------
+        space:
+            Mapping from option name to values.
+
+        """
+        super().initialize(space)
+
         searcher = BayesOptGPSearcher(
-            min_configs_in_model=min_configs_in_model,
-            aq_func=aq_func,
-            kappa=kappa,
-            xi=xi,
-            seed=seed
+            space=space,
+            min_configs_in_model=self.min_configs_in_model,
+            aq_func=self.aq_func,
+            kappa=self.kappa,
+            xi=self.xi,
+            seed=self.seed
         )
-        scheduler = BlackBoxScheduler(
-            trial_budget=trial_budget,
-            max_steps=max_steps,
+        self.scheduler = BlackBoxScheduler(
+            searcher=searcher,
+            trial_budget=self.trial_budget,
+            max_steps=self.max_steps,
         )
-        super().__init__(searcher, scheduler, space=space)
 
 
 class BayesOptKDE(BaseAlgorithm):
@@ -253,19 +294,41 @@ class BayesOptKDE(BaseAlgorithm):
             provided through the initialize method.
 
         """
+        super().__init__(max_steps, space=space)
+
+        self.trial_budget = trial_budget
+        self.top_n_frac = top_n_frac
+        self.num_samples = num_samples
+        self.random_fraction = random_fraction
+        self.bandwidth_factor = bandwidth_factor
+        self.min_bandwidth = min_bandwidth
+        self.min_configs_per_model = min_configs_per_model
+
+    def initialize(self, space: Dict[str, Distribution]):
+        """Initialize the algorithm with a search space.
+
+        Parameters
+        ----------
+        space:
+            Mapping from option name to values.
+
+        """
+        super().initialize(space)
+
         searcher = BayesOptKDESearcher(
-            min_configs_per_model=min_configs_per_model,
-            top_n_frac=top_n_frac,
-            num_samples=num_samples,
-            random_fraction=random_fraction,
-            bandwidth_factor=bandwidth_factor,
-            min_bandwidth=min_bandwidth
+            space=space,
+            min_configs_per_model=self.min_configs_per_model,
+            top_n_frac=self.top_n_frac,
+            num_samples=self.num_samples,
+            random_fraction=self.random_fraction,
+            bandwidth_factor=self.bandwidth_factor,
+            min_bandwidth=self.min_bandwidth
         )
-        scheduler = BlackBoxScheduler(
-            trial_budget=trial_budget,
-            max_steps=max_steps
+        self.scheduler = BlackBoxScheduler(
+            searcher=searcher,
+            trial_budget=self.trial_budget,
+            max_steps=self.max_steps,
         )
-        super().__init__(searcher, scheduler, space=space)
 
 
 class Hyperband(BaseAlgorithm):
@@ -287,13 +350,29 @@ class Hyperband(BaseAlgorithm):
             provided through the initialize method.e
 
         """
-        searcher = RandomSearcher(seed=seed)
-        scheduler = HyperBandScheduler(
-            step_budget=step_budget,
-            drop_rate=drop_rate,
-            max_steps=max_steps,
+        super().__init__(max_steps, space=space)
+        self.step_budget = step_budget
+        self.seed = seed
+        self.drop_rate = drop_rate
+
+    def initialize(self, space: Dict[str, Distribution]):
+        """Initialize the algorithm with a search space.
+
+        Parameters
+        ----------
+        space:
+            Mapping from option name to values.
+
+        """
+        super().initialize(space)
+
+        searcher = RandomSearcher(space, seed=self.seed)
+        self.scheduler = HyperBandScheduler(
+            searcher=searcher,
+            step_budget=self.step_budget,
+            drop_rate=self.drop_rate,
+            max_steps=self.max_steps,
         )
-        super().__init__(searcher, scheduler, space=space)
 
 
 class BOHB(BaseAlgorithm):
@@ -327,21 +406,46 @@ class BOHB(BaseAlgorithm):
             provided through the initialize method.
 
         """
+        super().__init__(max_steps, space=space)
+
+        self.seed = seed
+        self.step_budget = step_budget
+        self.drop_rate = drop_rate
+        self.min_steps = min_steps
+        self.top_n_frac = top_n_frac
+        self.num_samples = num_samples
+        self.random_fraction = random_fraction
+        self.bandwidth_factor = bandwidth_factor
+        self.min_bandwidth = min_bandwidth
+        self.min_configs_per_model = min_configs_per_model
+
+    def initialize(self, space: Dict[str, Distribution]):
+        """Initialize the algorithm with a search space.
+
+        Parameters
+        ----------
+        space:
+            Mapping from option name to values.
+
+        """
+        super().initialize(space)
+
         searcher = MultiFidSearcher(
-            BayesOptKDESearcher,
-            {
-                'min_configs_per_model': min_configs_per_model,
-                'top_n_frac': top_n_frac,
-                'num_samples': num_samples,
-                'random_fraction': random_fraction,
-                'bandwidth_factor': bandwidth_factor,
-                'min_bandwidth': min_bandwidth
+            space=space,
+            searcher_class=BayesOptKDESearcher,
+            search_kwargs={
+                'min_configs_per_model': self.min_configs_per_model,
+                'top_n_frac': self.top_n_frac,
+                'num_samples': self.num_samples,
+                'random_fraction': self.random_fraction,
+                'bandwidth_factor': self.bandwidth_factor,
+                'min_bandwidth': self.min_bandwidth
             }
         )
-        scheduler = HyperBandScheduler(
-            step_budget=step_budget,
-            drop_rate=drop_rate,
-            max_steps=max_steps,
-            min_steps=min_steps
+        self.scheduler = HyperBandScheduler(
+            searcher=searcher,
+            step_budget=self.step_budget,
+            drop_rate=self.drop_rate,
+            max_steps=self.max_steps,
+            min_steps=self.min_steps
         )
-        super().__init__(searcher, scheduler, space=space)

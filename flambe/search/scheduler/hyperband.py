@@ -1,14 +1,16 @@
 import numpy as np
-from typing import List, Dict, Any, Optional, Callable
+from typing import List, Dict, Tuple, Optional, Sequence
 
+from flambe.search.searcher import Searcher
 from flambe.search.scheduler.scheduler import Scheduler
 from flambe.search.trial import Trial
 
 
 class HyperBandScheduler(Scheduler):
-    """The HyperBand scheduling algorithm.
-    """
+    """The HyperBand scheduling algorithm."""
+
     def __init__(self,
+                 searcher: Searcher,
                  step_budget: int,
                  max_steps: int,
                  min_steps: int = 1,
@@ -17,6 +19,8 @@ class HyperBandScheduler(Scheduler):
 
         Parameters
         ----------
+        searcher: Searcher
+            The searcher object to use to explore the search space.
         step_budget: int
             The maximum number of steps to allocate across all trials.
         max_steps: int
@@ -29,8 +33,10 @@ class HyperBandScheduler(Scheduler):
             The rate at which trials are dropped between rounds of the
             HyperBand algorithm.  A higher drop rate means that the
             algorithm will be more exploitative than exploratory.
+
         """
-        super().__init__(max_steps)
+        super().__init__(searcher, max_steps)
+
         self.min_steps = min_steps
         self.drop_rate = drop_rate
 
@@ -50,7 +56,8 @@ class HyperBandScheduler(Scheduler):
             s = self.max_drops - br % (self.max_drops + 1)
             self.brackets.append(Bracket(self.n_trials_grid[s], s))
 
-        self.bracket_ids = {}
+        self.bracket_ids: Dict[str, int] = {}
+        self.done = False
 
     def is_done(self) -> bool:
         """Whether the algorithm has finished producing trials.
@@ -61,29 +68,27 @@ class HyperBandScheduler(Scheduler):
             ``True`` if the algorithm has terminated.
 
         """
-        return all(bracket.has_finished for bracket in self.brackets)
+        return self.done or all(bracket.has_finished for bracket in self.brackets)
 
-    def release_trials(self,
-                       n: int,
-                       trials: Dict[int, Trial]) -> Dict[int, Trial]:
-        """
-        Release trials with hyperparameter configurations
-        to the trial dictionary.  May add new trials or unfreeze
-        old trials.
+    def release_trials(self, n: int, trials: Dict[str, Trial]) -> Dict[str, Trial]:
+        """Release trials with hyperparameter configurations.
+
+        New trials may be added or existing trials may be unfrozen.
 
         Parameters
         ----------
         n: int
-            The number of trials to release.
-        trials: Dict[int, Trial]
-            A dictionary mapping trial id to corresponding Trial
+            The number of new trials to add.
+        trials: Dict[str, Trial]
+            A dictionary mapping trial name to corresponding Trial
             objects.
 
         Returns
         ----------
-        Dict[int, Trial]
-            A dictionary mapping trial id to corresponding Trial
+        Dict[st, Trial]
+            A dictionary mapping trial name to corresponding Trial
             objects, with newly released trials.
+
         """
         for br, bracket in enumerate(self.brackets):
             s = bracket.max_halvings
@@ -94,8 +99,12 @@ class HyperBandScheduler(Scheduler):
 
                 if trial_id is None:
                     # Create new trial
-                    trial_id, trial = self._create_trial(int(n_res_init))
-                    trials[trial_id] = trial
+                    new = self._create_trial(int(n_res_init))
+                    if new is None:
+                        self.done = True
+                    else:
+                        trial_id, trial = new
+                        trials[trial_id] = trial
                 else:
                     # Resume previously paused trial
                     trial = trials[trial_id]
@@ -111,28 +120,27 @@ class HyperBandScheduler(Scheduler):
 
         return trials
 
-    def update_trials(self, trials):
+    def update_trials(self, trials: Dict[str, Trial]) -> Dict[str, Trial]:
         """Update the algorithm with trial results.
 
         Parameters
         ----------
-        trials: Dict[int, Trial]
+        trials: Dict[str, Trial]
             A dictionary mapping trial id to corresponding Trial
             objects.
 
         Returns
         ----------
-        Dict[int, Trial]
+        Dict[str, Trial]
             A dictionary mapping trial id to corresponding Trial
             objects.
-        """
 
+        """
         # Send results back to searcher
         trials_with_result = {trial_id: trial for trial_id,
                               trial in trials.items() if trial.has_result()}
         results_dict = {t_id: trial.best_metric for t_id, trial in trials_with_result.items()}
-        fids_dict = {t_id: len(trial.metrics) for t_id, trial in trials_with_result.items()}
-        self._register_results(results_dict, fids_dict=fids_dict)
+        self.searcher.register_results(results_dict)  # type: ignore
 
         # Update brackets with results
         for trial_id, trial in trials_with_result.items():
@@ -158,8 +166,7 @@ class HyperBandScheduler(Scheduler):
 
 
 class Bracket:
-    """Internal HyperBand data structure.
-    """
+    """Internal HyperBand data structure."""
 
     def __init__(self, n_trials: int, max_halvings: int):
         """Initialize the bracket.
@@ -170,12 +177,13 @@ class Bracket:
             The number of trials that the bracket holds.
         max_halvings: int
             The number of drop episodes that the bracket will execute.
+
         """
         self.n_trials = n_trials
         self.n_halvings = 0
         self.max_halvings = max_halvings
-        self.pending = [None] * n_trials
-        self.finished = []
+        self.pending: Sequence[Optional[str]] = [None] * n_trials
+        self.finished: List[Tuple[str, float]] = []
 
     def get_pending(self):
         """Get a pending trial id.
@@ -184,18 +192,20 @@ class Bracket:
         ----------
         int
             The trial id.
+
         """
         return self.pending.pop()
 
-    def record_finished(self, trial: int, result: float):
+    def record_finished(self, trial: str, result: float):
         """Record the result of a finished trial.
 
         Parameters
         ----------
-        trial: int
+        trial: str
             The trial id.
         result:
             The corresponding result of the trial.
+
         """
         self.finished.append((trial, result))
 
@@ -207,37 +217,37 @@ class Bracket:
         ----------
         bool
             Denotes whether or not the bracket has a pending trial.
+
         """
         return len(self.pending) > 0
 
     @property
     def is_ready_for_halving(self) -> bool:
-        """
-        Check if the bracket is ready for a drop episode (also
+        """Check if the bracket is ready for a drop episode (also
         called 'halving').
 
         Returns
-        ----------
+        -------
         bool
             Denotes whether or not the bracket is ready to drop.
+
         """
         return (self.n_halvings < self.max_halvings) & (self.n_trials == len(self.finished))
 
     @property
     def has_finished(self) -> bool:
-        """
-        Check if the bracket has finished processing all of its trials.
+        """Check if the bracket has finished processing all its trials.
 
         Returns
-        ----------
+        -------
         bool
             Denotes whether or not the bracket is finished.
+
         """
         return (self.n_halvings == self.max_halvings) & (self.n_trials == len(self.finished))
 
-    def execute_halving(self, n_active: int) -> List[int]:
-        """
-        Run a drop episode, which only keeps (approximately) the top
+    def execute_halving(self, n_active: int) -> List[str]:
+        """Run a drop episode, which only keeps (approximately) the top
         1/drop_rate trials.  All other trials are ended.
 
         Parameters
@@ -247,8 +257,9 @@ class Bracket:
 
         Returns
         ----------
-        List[int]
+        List[str]
             The ids of the trials to end.
+
         """
         trials_sorted = sorted(self.finished, key=lambda x: x[1], reverse=True)
         trials_sorted = [x[0] for x in trials_sorted]

@@ -1,11 +1,13 @@
+from typing import Any, Dict, Optional, List
+
+import numpy as np
+from bayes_opt import BayesianOptimization, UtilityFunction
 from scipy.stats import truncnorm
 from statsmodels.nonparametric.kernel_density import KDEMultivariate
-from bayes_opt import BayesianOptimization, UtilityFunction
-import numpy as np
-from typing import List, Dict, Any, Optional
 
-from flambe.search.searcher.searcher import ModelBasedSearcher
-from flambe.search.searcher.searcher import Space
+from flambe.search.distribution import (Choice, Continuous, Discrete,
+                                        Distribution, Numerical)
+from flambe.search.searcher.searcher import ModelBasedSearcher, Space
 
 
 class BayesOptGPSearcher(ModelBasedSearcher):
@@ -22,6 +24,7 @@ class BayesOptGPSearcher(ModelBasedSearcher):
     """
 
     def __init__(self,
+                 space: Dict[str, Distribution],
                  min_configs_in_model: int = 1,
                  aq_func: str = "ei",
                  kappa: float = 2.5,
@@ -31,6 +34,9 @@ class BayesOptGPSearcher(ModelBasedSearcher):
 
         Parameters
         ----------
+        space: Dict[str, Distribution]
+            Dictionary mapping variable names to their initial
+            distributions.
         min_points_in_model: int
             Minimum number of points before model-based searching
             starts.
@@ -42,17 +48,26 @@ class BayesOptGPSearcher(ModelBasedSearcher):
             Acquisition function parameter `xi`.
         seed: Optional[int]
             Seed for the searcher.
-        """
 
-        super().__init__(min_configs_in_model)
+        """
+        super().__init__(space, min_configs_in_model)
 
         self.aq_func = aq_func
         self.kappa = kappa
         self.xi = xi
         self.seed = seed
 
+        # Initialize BayesOpt library objects
+        self.optimizer = BayesianOptimization(
+            f=None,
+            pbounds={n: b for n, b in zip(self.space.dists.keys(), self.space.var_bounds)},
+            verbose=0,
+            random_state=self.seed
+        )
+        self.utility = UtilityFunction(self.aq_func, self.kappa, self.xi)
+
     @classmethod
-    def _check_space(cls, space: Space):
+    def check_space(cls, space: Space):
         """
         Check if the space is valid for this algorithm, which only
         accepts numerical (continuous and discrete) distributions.
@@ -61,81 +76,67 @@ class BayesOptGPSearcher(ModelBasedSearcher):
         ----------
         space: Space
             The search space to check.
+
         """
-        if np.any(np.array(space.var_types) == 'choice'):
+        dists = space.dists.values()
+        if any(not isinstance(dist, Numerical) for dist in dists):
             raise ValueError('For grid search, all dimensions \
                              must be `continuous` or `discrete`!')
 
-    def assign_space(self, space):
-        """Assign a search space to the searcher.
+    def _propose_new_params_in_model_space(self) -> Optional[Dict[str, Any]]:
+        """Propose a new hyperparameter configuration.
 
-        Parameters
-        ----------
-        space: Space
-            The search space to assign.
-        """
-        super().assign_space(space)
-
-        # Initialize BayesOpt library objects
-        self.optimizer = BayesianOptimization(
-            f=None,
-            pbounds={n: b for n, b in zip(self.space.var_names, self.space.var_bounds)},
-            verbose=0,
-            random_state=self.seed
-        )
-        self.utility = UtilityFunction(self.aq_func, self.kappa, self.xi)
-
-    def _propose_new_params_in_model_space(self, **kwargs) -> Dict[Any]:
-        """
-        Use the GP and acquisition function to propose a
-        new (unrounded) hyperparameter configuration.
+        Return the config a a dictionary, along with unique
+        id based on internal searching algorithm.
 
         Returns
-        ----------
-        Dict[Any]
-            The configuration proposed by the model.
+        -------
+        Dict[str, Any], optional
+            The configuration proposed by the searcher.
+
         """
         # Ensure there are no proposed trials awaiting result
-        if np.any([x['result'] is None for x in self.data.values()]):
+        if any(x is None for x in self.results.values()):
             raise ValueError('Gaussian Process searcher cannot propose new\
                              configuration with missing result.')
 
-        rand_samp = self.space.sample_raw_dist(**kwargs)
+        rand_samp = self.space.sample(raw=True)
         if rand_samp is None:
             return self.optimizer.suggest(self.utility)
         else:
             return rand_samp
 
-    def _apply_transform(self, params_in_model_space: Dict[Any]) -> Dict[Any]:
+    def _apply_transform(self, params_in_model_space: Dict[str, Any]) -> Dict[str, Any]:
         """Apply transform to parameters in model space.
 
         Parameters
         ----------
-        params_in_model_space: Dict[Any]
+        params_in_model_space: Dict[str, Any]
             The configuration with parameters in model space.
 
         Returns
         ----------
-        Dict[Any]
+        Dict[str, Any]
             The configuration with parameters in transformed space.
+
         """
         params_in_raw_dist_space = self.space.round_to_space(params_in_model_space)
         params = self.space.apply_transform(params_in_raw_dist_space)
         return params
 
-    def register_results(self, results: Dict[int, float], **kwargs):
+    def register_results(self, results: Dict[str, float]):
         """Record the new results and fit a GP.
 
         Parameters
         ----------
-        results: Dict[int, float]
+        results: Dict[str, float]
             Dictionary of hyperparameter ids and results to record.
+
         """
-        super().register_results(results, **kwargs)
+        super().register_results(results)
 
         for params_id in results.keys():
-            self.optimizer.register(params=self.data[params_id]['params_in_model_space'],
-                                    target=self.data[params_id]['result'])
+            self.optimizer.register(params=self.params[params_id], target=self.results[params_id])
 
 
 class BayesOptKDESearcher(ModelBasedSearcher):
@@ -146,19 +147,24 @@ class BayesOptKDESearcher(ModelBasedSearcher):
 
     Mathematical details can be found in:
     https://bookdown.org/egarpor/NP-UC3M/kre-ii-multmix.html
+
     """
 
     def __init__(self,
+                 space: Dict[str, Distribution],
                  min_configs_per_model: Optional[int] = None,
                  top_n_frac: float = 0.15,
                  num_samples: int = 64,
-                 random_fraction: float = 1/3,
+                 random_fraction: float = 1 / 3,
                  bandwidth_factor: float = 3,
                  min_bandwidth: float = 1e-3):
         """Initialize the Bayesian optimization KDE searcher.
 
         Parameters
         ----------
+        space: Dict[str, Distribution]
+            Dictionary mapping variable names to their initial
+            distributions.
         min_configs_per_model: int
             Minimum number of points per model before model building.
             Note that there are two models for this searcher.
@@ -172,8 +178,19 @@ class BayesOptKDESearcher(ModelBasedSearcher):
             Algorithm parameter for encouraging exploration.
         min_bandwidth: float
             Minimum bandwidth.
-        """
 
+        """
+        if min_configs_per_model is None:
+            min_configs_per_model = len(space) + 1
+            min_configs_in_model = min_configs_per_model + 2
+
+        if min_configs_per_model < len(space) + 1:
+            raise ValueError('Parameter min_points_in_model cannot be \
+                             less than one plus the number of hyperparameters.')
+
+        super().__init__(space, min_configs_in_model)
+
+        self.min_configs_per_model = min_configs_per_model
         self.top_n_frac = top_n_frac
         self.bw_factor = bandwidth_factor
         self.min_bw = min_bandwidth
@@ -181,70 +198,45 @@ class BayesOptKDESearcher(ModelBasedSearcher):
         self.num_samples = num_samples
         self.random_fraction = random_fraction
 
-        self.good_kde = None
-        self.bad_kde = None
+        self.good_kde: Optional[KDEMultivariate] = None
+        self.bad_kde: Optional[KDEMultivariate] = None
 
-        self.min_configs_per_model = min_configs_per_model
-        if min_configs_per_model:
-            super().__init__(min_configs_per_model + 2)
-        else:
-            super().__init__(-1)
+    def check_space(self, space: Space):
+        """Check if the space is valid for this algorithm.
 
-    def assign_space(self, space: Space):
-        """Assign a search space to the searcher.
+        Does not allow discrete distributions.
 
         Parameters
         ----------
         space: Space
-            The search space to assign.
+            A Space object that holds the distributions to search over.
+
         """
-        super().assign_space(space)
-
-        if self.min_configs_per_model is None:
-            self.min_configs_per_model = self.space.n_vars + 1
-            self.min_configs_in_model = self.min_configs_per_model + 2
-
-        if self.min_configs_per_model < self.space.n_vars + 1:
-            raise ValueError('Parameter min_points_in_model cannot be \
-                             less than one plus the number of hyperparameters.')
-
-        self.kde_vartypes = [vt[0] for vt in self.space.var_types]
-
-    @classmethod
-    def _check_space(cls, space: Space):
-        """
-        Check if the space is valid for this algorithm, which does not
-        accept discrete distributions.
-
-        Parameters
-        ----------
-        space: Space
-            The search space to check.
-        """
-        if np.any([x == 'discrete' for x in space.var_types]):
+        if np.any([isinstance(x, Discrete) for x in space.dists.values()]):
             raise ValueError('BayesOpt KDE Searcher does not support \
                              distributions with `var_type=discrete`!')
 
-    def _propose_new_params_in_model_space(self, **kwargs) -> Dist[str, Any]:
-        """
-        Propose new model space hyperparameters.  The model is built
-        in a normalized (untransformed) space.
+    def _propose_new_params_in_model_space(self) -> Optional[Dict[str, Any]]:
+        """Propose a new hyperparameter configuration.
+
+        Return the config a a dictionary, along with unique
+        id based on internal searching algorithm.
 
         Returns
-        ----------
-        Dict[str, Any]
-            The configuration of hyperparameters in model space.
-        """
+        -------
+        Dict[str, Any], optional
+            The configuration proposed by the searcher.
 
-        rand_samp = super()._propose_new_params_in_model_space(**kwargs)
+        """
+        rand_samp = super()._propose_new_params_in_model_space()
         if rand_samp is not None:
             return self.space.normalize_to_space(rand_samp)
 
         if np.random.uniform() < self.random_fraction:
-            return self.space.normalize_to_space(self.space.sample_raw_dist())
+            return self.space.normalize_to_space(self.space.sample(raw=True))
 
         best = np.inf
-        best_hp = None
+        best_hp: List[int] = []
 
         def func_to_min(x):
             return max(1e-32, self.bad_kde.pdf(x)) / max(self.good_kde.pdf(x), 1e-32)
@@ -252,17 +244,17 @@ class BayesOptKDESearcher(ModelBasedSearcher):
         for _ in range(self.num_samples):
 
             # Sample from KDE
-            idx = np.random.randint(0, len(self.good_kde.data))
-            datum = self.good_kde.data[idx]
-            sample_hp = []
+            idx = np.random.randint(0, len(self.good_kde.data))  # type: ignore
+            datum = self.good_kde.data[idx]  # type: ignore
+            sample_hp: List[int] = []
 
-            for m, bw, dist in zip(datum, self.good_kde.bw, self.space.dists):
+            for m, bw, dist in zip(datum, self.good_kde.bw, self.space.dists):  # type: ignore
                 bw = max(bw, self.min_bw)
-                if dist.var_type == 'continuous':
+                if isinstance(dist, Continuous):
                     bw = self.bw_factor * bw
                     sample_hp.append(truncnorm.rvs(-m / bw, (1 - m) / bw, loc=m, scale=bw))
 
-                elif dist.var_type == 'choice':
+                elif isinstance(dist, Choice):
                     bw = min(bw, 1)  # Probability cannot be greater than 1
                     if np.random.rand() < 1 - bw:
                         sample_hp.append(int(m))
@@ -277,7 +269,7 @@ class BayesOptKDESearcher(ModelBasedSearcher):
                 best = val
                 best_hp = sample_hp
 
-        best_hp_dict = {n: hp for n, hp in zip(self.space.var_names, best_hp)}
+        best_hp_dict = {n: hp for n, hp in zip(self.space.dists.keys(), best_hp)}
         return best_hp_dict
 
     def _apply_transform(self, params_in_model_space: Dict[str, Any]) -> Dict[str, Any]:
@@ -298,21 +290,21 @@ class BayesOptKDESearcher(ModelBasedSearcher):
         params = self.space.apply_transform(params_in_raw_dist_space)
         return params
 
-    def register_results(self, results: Dict[int, float], **kwargs):
+    def register_results(self, results: Dict[str, float]):
         """Record the new results and fit KDEs.
 
         Parameters
         ----------
-        results: Dict[int, float]
+        results: Dict[str, float]
             Dictionary of hyperparameter ids and results to record.
-        """
 
-        super().register_results(results, **kwargs)
+        """
+        super().register_results(results)
 
         if self.has_enough_configs_for_model:
 
-            train_data = [list(x['params_in_model_space'].values()) for x in self.data.values()]
-            train_results = [x['result'] for x in self.data.values()]
+            train_data = [list(x.values()) for x in self.params.values()]
+            train_results = [x for x in self.results.values()]
 
             min_configs = self.min_configs_per_model
             n_good = max(min_configs, int(self.top_n_frac * min_configs))
@@ -323,11 +315,12 @@ class BayesOptKDESearcher(ModelBasedSearcher):
             bad_train_data = np.array(train_data)[idx[-n_bad:]]
 
             # Fit KDE
+            kde_vartypes = ["continous"] * len(self.space.dists)
             self.good_kde = KDEMultivariate(data=good_train_data,
-                                            var_type=self.kde_vartypes,
+                                            var_type=kde_vartypes,
                                             bw='normal_reference')
             self.bad_kde = KDEMultivariate(data=bad_train_data,
-                                           var_type=self.kde_vartypes,
+                                           var_type=kde_vartypes,
                                            bw='normal_reference')
 
             self.good_kde.bw = np.clip(self.good_kde.bw, self.min_bw, None)

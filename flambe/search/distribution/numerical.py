@@ -1,4 +1,6 @@
 from abc import abstractmethod
+import inspect
+from typing import Optional, Dict, Callable, Union, Any
 
 import numpy as np
 
@@ -6,23 +8,32 @@ from flambe.search.distribution.distribution import Distribution
 
 
 class Numerical(Distribution):
-    '''
-    Base numerical variable class.
-    '''
+    """Base numerical variable."""
 
-    is_numerical = True
+    def __init__(self,
+                 var_min: float,
+                 var_max: float,
+                 transform: Optional[Union[str, Callable]] = None,
+                 dist_params: Optional[Dict[str, Any]] = None) -> None:
+        """Initialize a numerical distribution.
 
-    def __init__(self, var_min, var_max, transform=None,
-                 dist_params={}):
-        '''
-        var_min: Minimum bound of variable.
-        var_max: Maximum bound of variable.
-        transform: String or custom function for transforming
-        the variable after sampling.  Possible string options
-        include: ['pow2', 'pow10', 'exp'].
-        dist_params: Dictionary denoting the parameters of
-        the distribution.
-        '''
+        Parameters
+        ----------
+        var_min: float
+            Minimum bound of variable.
+        var_max: float
+            Maximum bound of variable.
+        transform: Union[str, Callable]
+            String or custom function for transforming
+            the variable after sampling.  Possible string options
+            include: ['pow2', 'pow10', 'exp'].
+        dist_params: Dict[str, Any], optional
+            Dictionary denoting the parameters of the distribution.
+
+        """
+        if dist_params is None:
+            dist_params = dict()
+
         self.var_min = var_min
         self.var_max = var_max
 
@@ -34,42 +45,72 @@ class Numerical(Distribution):
             self.transform_fn = lambda x: 10**x
         elif transform == 'exp':
             self.transform_fn = lambda x: np.exp(x)
-        else:
+        elif isinstance(transform, str):
+            raise ValueError(f"Unsupported transform {transform}.")
+        elif inspect.isfunction(transform):
             self.transform_fn = transform
+        else:
+            raise ValueError(f"transform should be a string or a function.")
 
         self.dist_params = dist_params
 
-    def sample(self):
-        '''
-        Sample from the transformed distribution.
-        '''
+    @abstractmethod
+    def sample_raw_dist(self) -> float:
+        """Sample from the raw distribution.
+
+        Returns
+        -------
+        float
+            The sampled value.
+
+        """
+        pass
+
+    def sample(self) -> float:
+        """Sample from the transformed distribution.
+
+        Returns
+        -------
+        float
+            The sampled value.
+
+        """
         samp = self.sample_raw_dist()
         return self.transform_fn(samp)
 
-    @abstractmethod
-    def sample_raw_dist(self):
-        '''
-        Sample from the raw distribution.
-        '''
-        pass
+    def normalize_to_range(self, val: float) -> float:
+        """Standardize the variable by its min and max bounds.
 
-    def normalize_to_range(self, val):
-        '''
-        Standardize the variable by its min and max bounds.
+        Parameters
+        ----------
+        val: float
+            The value of the variable.
 
-        val: Float value of the variable.
-        '''
+        Returns
+        -------
+        float
+            The normalized value.
+
+        """
         if val < self.var_min or val > self.var_max:
             raise ValueError('Given value outside of range!')
         else:
             return (val - self.var_min) / (self.var_max - self.var_min)
 
-    def unnormalize(self, val):
-        '''
-        Reverse the normalize_to_range function.
+    def unnormalize(self, val: float) -> float:
+        """Reverse the normalize_to_range function.
 
-        val: Float value of the normalized variable.
-        '''
+        Parameters
+        ----------
+        val: float
+            The value of the variable.
+
+        Returns
+        -------
+        float
+            The unnormalized value.
+
+        """
         if val < 0 or val > 1:
             raise ValueError('Normalized value must be between [0, 1].')
         else:

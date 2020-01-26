@@ -135,41 +135,6 @@ class Trial(object):
         """Sets the trial status to created."""
         self.status = Status.CREATED
 
-    def generate_name(self, prefix: str = '', delimiter='|') -> str:
-        """Generate a name for this parameter variant.
-
-        Parameters
-        ----------
-        params: Any
-            Parameter object to parse. Can be a sequence, mapping, or
-            any other Python object.
-        prefix: str, optional
-            A prefix to add to the generated name.
-
-        Returns
-        -------
-        str
-            A string name to represent the variant when dumping results.
-
-        """
-        def helper(params):
-            if isinstance(params, (list, tuple, set)):
-                name = ",".join([helper(param) for param in params])
-                name = f"[{name}]"
-            elif isinstance(params, dict):
-                name = delimiter
-                for param, value in params.items():
-                    if isinstance(value, dict):
-                        name += helper({f'{param}.{k}': v for k, v in value.items()})[1:]
-                    else:
-                        name += f'{param}={helper(value)}{delimiter}'
-            else:
-                name = str(params)
-
-            return name
-
-        return prefix + helper(self.parameters).strip(delimiter)
-
     def __repr__(self):
         name = self.generate_name()
         return f'Trial[{name}][{self.status}]'
