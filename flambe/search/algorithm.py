@@ -18,7 +18,7 @@ class Algorithm(RegisteredStatelessMap):
 
         Parameters
         ----------
-        space:
+        space: Dict[str, Distribution]
             Mapping from option name to values.
 
         """
@@ -29,8 +29,8 @@ class Algorithm(RegisteredStatelessMap):
         """Whether the algorithm has finished producing trials.
 
         Returns
-        ----------
-        bool
+        -------
+        boool
             ``True`` if the algorithm has terminated.
 
         """
@@ -85,7 +85,7 @@ class BaseAlgorithm(Algorithm):
 
         Parameters
         ----------
-        space:
+        space: Dict[str, Distribution]
             Mapping from option name to values.
 
         """
@@ -124,7 +124,7 @@ class GridSearch(BaseAlgorithm):
 
         Parameters
         ----------
-        space:
+        space: Dict[str, Distribution]
             Mapping from option name to values.
 
         """
@@ -170,7 +170,7 @@ class RandomSearch(BaseAlgorithm):
 
         Parameters
         ----------
-        space:
+        space: Dict[str, Distribution]
             Mapping from option name to values.
 
         """
@@ -234,7 +234,7 @@ class BayesOptGP(BaseAlgorithm):
 
         Parameters
         ----------
-        space:
+        space: Dict[str, Distribution]
             Mapping from option name to values.
 
         """
@@ -309,7 +309,7 @@ class BayesOptKDE(BaseAlgorithm):
 
         Parameters
         ----------
-        space:
+        space: Dict[str, Distribution]
             Mapping from option name to values.
 
         """
@@ -360,7 +360,7 @@ class Hyperband(BaseAlgorithm):
 
         Parameters
         ----------
-        space:
+        space: Dict[str, Distribution]
             Mapping from option name to values.
 
         """
@@ -424,7 +424,7 @@ class BOHB(BaseAlgorithm):
 
         Parameters
         ----------
-        space:
+        space: Dict[str, Distribution]
             Mapping from option name to values.
 
         """

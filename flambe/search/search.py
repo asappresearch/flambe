@@ -1,4 +1,3 @@
-from abc import abstractmethod, ABC
 from typing import Tuple, Optional, Dict, List, Any
 import os
 import subprocess
@@ -14,56 +13,6 @@ from flambe.runner import Runnable, Environment
 from flambe.compile.schema import Schema, Variants
 from flambe.search.trial import Trial
 from flambe.search.algorithm import Algorithm, GridSearch
-
-
-class Searchable(ABC):
-    """Base Searchable interface.
-
-    Searchable are at the core of Flambé. They are the inputs to both
-    the ``Search`` and ``Experiment`` objects. A task can implemented
-    with two simple methods:
-
-    - ``step``: executes computation in steps. Returns a boolean
-        indicating whether execution should continue or end.
-    - ``metric``: returns a float used to compare different tasks's
-        performance. A higher number should mean better.
-
-    """
-
-    @abstractmethod
-    def step(self) -> bool:
-        """Run a single computational step.
-
-        When used in an experiment, this computational step should
-        be on the order of tens of seconds to about 10 minutes of work
-        on your intended hardware; checkpoints will be performed in
-        between calls to run, and resources or search algorithms will
-        be updated. If you want to run everything all at once, make
-        sure a single call to run does all the work and return False.
-
-        Returns
-        -------
-        bool
-            True if should continue running later i.e. more work to do
-
-        """
-        pass
-
-    @abstractmethod
-    def metric(self) -> float:
-        """Override this method to enable scheduling and searching.
-
-        This method is called after every call to ``step``, and should
-        return a unique scalar representing the current performance,
-        which is used to compare against other variants.
-
-        Returns
-        -------
-        float
-            The metric to compare different variants of your searchable.
-
-        """
-        pass
 
 
 class Checkpoint(object):
@@ -91,12 +40,12 @@ class Checkpoint(object):
         self.checkpoint_path = os.path.join(self.path, 'checkpoint.pt')
         self.remote = f"{user}@{host}:{self.checkpoint_path}" if host else None
 
-    def get(self) -> Searchable:
+    def get(self) -> Runnable:
         """Retrieve the object from a checkpoint.
 
         Returns
         -------
-        Searchable
+        Runnable
             The restored searchable object.
 
         """
@@ -113,13 +62,13 @@ class Checkpoint(object):
                 raise ValueError(f"Checkpoint {self.checkpoint_path} couldn't be found.")
         return searchable
 
-    def set(self, searchable: Searchable):
+    def set(self, searchable: Runnable):
         """Retrieve the object from a checkpoint.
 
         Parameters
         ----------
-        Searchable
-            The searchable object to save.
+        Runnable
+            The runnable object to save.
 
         """
         if not os.path.exists(self.path):
@@ -139,17 +88,17 @@ class RayAdapter:
     def __init__(self, schema: Schema, checkpoint: Checkpoint) -> None:
         """Initialize the Trial."""
         self.schema = schema
-        self.searchable: Optional[Searchable] = None
+        self.runnable: Optional[Runnable] = None
         self.checkpoint = checkpoint
 
     def step(self) -> Tuple[bool, Optional[float]]:
         """Run a step of the Trial"""
-        if self.searchable is None:
-            self.searchable = self.schema()
+        if self.runnable is None:
+            self.runnable = self.schema()
 
-        continue_ = self.searchable.step()
-        metric = self.searchable.metric()
-        self.checkpoint.set(self.searchable)
+        continue_ = self.runnable.step()
+        metric = self.runnable.metric()
+        self.checkpoint.set(self.runnable)
         return continue_, metric
 
 
@@ -168,6 +117,7 @@ class Search(Runnable):
     >>> search.run()
 
     """
+
     def __init__(self,
                  schema: Schema,
                  algorithm: Optional[Algorithm] = None,
@@ -186,7 +136,9 @@ class Search(Runnable):
         cpus_per_trial : int
             The number of cpu's to allocate per trial
         gpus_per_trial : int
-                The number of gpu's to allocate per trial
+            The number of gpu's to allocate per trial
+        output_path: str, optional
+            An output path for this search
         refresh_waitime : float, optional
             The minimum amount of time to wait before a refresh.
             Defaults ``1`` seconds.
@@ -258,8 +210,7 @@ class Search(Runnable):
                         trial.set_terminated()
                 except Exception as e:
                     trial.set_error()
-                    params = trial.generate_name()
-                    warnings.warn(f"Trial {trial_id} with parameters {params} failed.")
+                    warnings.warn(f"Trial {trial_id} failed.")
                     if env.debug:
                         warnings.warn(str(e))
 
@@ -292,7 +243,7 @@ class Search(Runnable):
                     state[trial_id] = dict()
                     state[trial_id]['schema'] = schema_copy
                     checkpoint = Checkpoint(
-                        path=os.path.join(env.output_path, trial.generate_name()),
+                        path=os.path.join(env.output_path, trial_id),
                         host=env.head_node_ip,
                         user=getpass.getuser()
                     )
@@ -313,6 +264,6 @@ class Search(Runnable):
         result = dict()
         for trial_id, trial in trials.items():
             checkpoint = state[trial_id].get('checkpoint', None)
-            result[trial.generate_name()] = dict(trial=trial, checkpoint=checkpoint)
+            result[trial_id] = dict(trial=trial, checkpoint=checkpoint)
 
         return result

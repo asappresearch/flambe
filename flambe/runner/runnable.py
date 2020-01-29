@@ -1,74 +1,25 @@
-from abc import abstractmethod
-from typing import Any, Optional
+from typing import Optional
 
 from flambe.compile.registered_types import RegisteredStatelessMap
-
-
-class Environment(RegisteredStatelessMap):
-    """This objects contains information about the cluster
-
-    This object will be available on the remote execution of
-    the ClusterRunnable (as an attribute).
-
-    IMPORTANT: this object needs to be serializable, hence it Needs
-    to be created using 'compile' method.
-
-    Attributes
-    ----------
-    output_path: str, optional
-        The directory where to store outputs.
-        Default ``flambe__output``
-    remote: bool, optional
-        Whether the envrionment is remote.
-    head_node_ip: str, optional
-        The orchestrator visible IP for the factories (usually
-        the private IP)
-
-    """
-
-    def __init__(self,
-                 output_path: str = 'flambe__output',
-                 remote: bool = False,
-                 head_node_ip: Optional[str] = None,
-                 debug: bool = False) -> None:
-        """Initialize the environment."""
-        self.output_path = output_path
-        self.remote = remote
-        self.head_node_ip = head_node_ip
-        self.debug = debug
-
-    def clone(self) -> 'Environment':
-        return Environment(
-            self.output_path,
-            self.remote,
-            self.head_node_ip,
-            self.debug
-        )
-
-    @classmethod
-    def to_yaml(cls, representer: Any, node: Any, tag: str) -> Any:
-        """Use representer to create yaml representation of node"""
-        kwargs = {'output_path': node.output_path,
-                  'remote': node.remote,
-                  'head_node_ip': node.head_node_ip,
-                  'debug': node.debug}
-        return representer.represent_mapping(tag, kwargs)
-
-    @classmethod
-    def from_yaml(cls, constructor: Any, node: Any, factory_name: str, tag: str) -> Any:
-        """Use constructor to create an instance of cls"""
-        # NOTE: construct_yaml_map is a generator that yields the
-        # constructed data and then updates it
-        kwargs, = list(constructor.construct_yaml_map(node))
-        return cls(**kwargs)
+from flambe.runner.environment import Environment
 
 
 class Runnable(RegisteredStatelessMap):
-    """Abstract runnable interface."""
+    """Abstract runnable interface.
 
-    @abstractmethod
+    Searchable are at the core of Flambé. They are the inputs to both
+    the ``Search`` and ``Experiment`` objects. A task can implemented
+    with two simple methods:
+
+    - ``step``: executes computation in steps. Returns a boolean
+        indicating whether execution should continue or end.
+    - ``metric``: returns a float used to compare different tasks's
+        performance. A higher number should mean better.
+
+    """
+
     def run(self, environment: Optional[Environment] = None):
-        """Execute the Runnable.
+        """Implement this method to execute this object.
 
         Parameters
         ----------
@@ -76,4 +27,37 @@ class Runnable(RegisteredStatelessMap):
             An optional environment object.
 
         """
-        pass
+        raise NotImplementedError
+
+    def step(self) -> bool:
+        """Implement this method to enable hyperparameter search.
+
+        When used in an experiment, this computational step should
+        be on the order of tens of seconds to about 10 minutes of work
+        on your intended hardware; checkpoints will be performed in
+        between calls to run, and resources or search algorithms will
+        be updated. If you want to run everything all at once, make
+        sure a single call to run does all the work and return False.
+
+        Returns
+        -------
+        bool
+            True if should continue running later i.e. more work to do
+
+        """
+        raise NotImplementedError
+
+    def metric(self) -> float:
+        """Implement this method to enable hyperparameter search.
+
+        This method is called after every call to ``step``, and should
+        return a unique scalar representing the current performance,
+        which is used to compare against other variants.
+
+        Returns
+        -------
+        float
+            The metric to compare different variants of your searchable.
+
+        """
+        raise NotImplementedError

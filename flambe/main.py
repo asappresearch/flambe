@@ -78,13 +78,15 @@ def list_cmd(cluster):
 # ----------------- flambe exec ------------------ #
 @click.command()
 @click.argument('command', type=str)
+@click.option('-p', '--port-forward', type=int, default=None,
+              help='Port in which the site will be running url')
 @click.option('-c', '--cluster', type=str, default=FLAMBE_CLUSTER_DEFAULT,
               help="Cluster config.")
-def exec_cmd(command, cluster):
+def exec_cmd(command, port_forward, cluster):
     """Execute a command on the cluster head node."""
     logging.disable(logging.INFO)
     cluster = load_config_from_file(cluster)
-    cluster.exec(command=command)
+    cluster.exec(command=command, port_forward=port_forward)
 
 
 # ----------------- flambe attach ------------------ #

@@ -1,5 +1,5 @@
 import os
-from typing import Optional, Dict, List, Union
+from typing import Optional, Dict, List
 from ruamel.yaml import YAML
 import tempfile
 import subprocess
@@ -262,15 +262,35 @@ class Cluster(RegisteredStatelessMap):
 
         print(f"Job {name} killed")
 
-    def launch_site(self, port: Union[int, str], name: str = ''):
+    def exec(self, command: str, port_forward: Optional[int] = None):
+        """Run a command on the cluster.
+
+        Parameters
+        ----------
+        command: str
+            The command to run.
+        port_forward: int, optional
+            An optional port to use for port fowarding.
+
+        """
+        supress()
+
+        port_forward = port_forward if port_forward is not None else []
+
+        yaml = YAML()
+        with tempfile.NamedTemporaryFile() as fp:
+            yaml.dump(self.config, fp)
+            exec_cluster(fp.name, command, port_forward=port_forward)
+
+    def launch_site(self, name: str = '', port: int = 4444):
         """Launch the report website.
 
         Parameters
         ----------
-        port: Union[int, str]
-            The port to use in launching the site.
         name: str, optional
             If given, restricts the report to a single job.
+        port: int
+            The port to use in launching the site.
 
         """
         supress()
@@ -361,7 +381,6 @@ class Cluster(RegisteredStatelessMap):
             # Run Flambe
             env = {
                 'output_path': f"~/jobs/{name}",
-                'remote': True,
                 'head_node_ip': self.head_node_ip()
             }
             yaml = YAML()
@@ -399,7 +418,7 @@ class Cluster(RegisteredStatelessMap):
 
         Returns
         -------
-        str
+        List[str]
             The worker nodes IP addresses.
 
         """

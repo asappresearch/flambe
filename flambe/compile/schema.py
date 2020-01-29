@@ -431,6 +431,15 @@ class Schema(MutableMapping[str, Any]):
 
         return search_space
 
+    def extract_links(self) -> List[Link]:
+        links = []
+
+        for path, item in Schema.traverse(self, yield_schema='never'):
+            if isinstance(item, Link):
+                links.append(item)
+
+        return links
+
     def set_from_search_space(self, search_space: Dict[Tuple[str, ...], Any]) -> None:
         for path, value in search_space.items():
             self.set_param(path, value)
