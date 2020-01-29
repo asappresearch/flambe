@@ -960,9 +960,9 @@ class Component(Registrable):
         # modules, parameters or buffers
         # torch.optim.Optimizer does exist so ignore mypy
         for name, attr in self.__dict__.items():
+            current_path = prefix + name
             if isinstance(attr, Component) and not isinstance(attr, (
                     torch.optim.Optimizer, torch.optim.lr_scheduler._LRScheduler)):  # type: ignore
-                current_path = prefix + name
                 # If self is not nn.Module, need to recurse because
                 # that will not happen elsewhere
                 # If self *is* an nn.Module, don't need to recurse on
@@ -976,8 +976,16 @@ class Component(Registrable):
                                                 prefix=current_path + STATE_DICT_DELIMETER,
                                                 keep_vars=state_dict._metadata[KEEP_VARS_KEY])
                 state_dict._metadata[FLAMBE_DIRECTORIES_KEY].add(current_path)
-        # Iterate over modules to make sure Component
-        # nn.Modules are added to flambe directories
+            # Iterate over modules to make sure NON-Component
+            # nn.Modules' state is added. Only needed if self is not
+            # nn.Module, because otherwise this hook is being called
+            # via nn.Module.state_dict, and will already recurse to
+            # all children modules
+            if not isinstance(self, torch.nn.Module) and isinstance(attr, torch.nn.Module) \
+                    and not isinstance(attr, Component):
+                state_dict = attr.state_dict(destination=state_dict,
+                                             prefix=current_path + STATE_DICT_DELIMETER,
+                                             keep_vars=state_dict._metadata[KEEP_VARS_KEY])
         state_dict._metadata[FLAMBE_DIRECTORIES_KEY].add(prefix[:-1])
         state_dict = self._add_registered_attrs(state_dict, prefix)
         state_dict = self._state(state_dict, prefix, local_metadata)
