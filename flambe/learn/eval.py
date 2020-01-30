@@ -72,16 +72,13 @@ class Evaluator(Component):
         self.model.to(self.device)
         self.model.eval()
         with torch.no_grad():
-            preds, targets = [], []
+            metric_state = {}
 
             for batch in self._eval_iterator:
                 pred, target = self.model(*[t.to(self.device) for t in batch])
-                preds.append(pred.cpu())
-                targets.append(target.cpu())
+                self.metric_fn.aggregate(metric_state, pred, target)
 
-            preds = torch.cat(preds, dim=0)  # type: ignore
-            targets = torch.cat(targets, dim=0)  # type: ignore
-            self.eval_metric = self.metric_fn(preds, targets).item()
+            self.eval_metric = self.metric_fn.finalize(metric_state)
 
             tb_prefix = f"{self.tb_log_prefix} " if self.tb_log_prefix else ""
 

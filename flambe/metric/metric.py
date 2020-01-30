@@ -1,3 +1,4 @@
+from typing import Union, Tuple, Optional
 from abc import abstractmethod
 
 import torch
@@ -12,6 +13,18 @@ class Metric(Component):
     examples and provide as output a processd list of the same size.
 
     """
+    def __init__(self, name: Optional[str] = None):
+        """
+        Metrics can be initialized with a name, if required.
+
+        Parameters
+        ----------
+        name: Optional[str]
+            a name for this metric object
+        """
+        super().__init__()
+        self.name = name
+
     @abstractmethod
     def compute(self, pred: torch.Tensor, target: torch.Tensor) -> torch.Tensor:
         """Computes the metric over the given prediction and target.
@@ -32,10 +45,58 @@ class Metric(Component):
         """
         pass
 
+    def aggregate(self, state: dict, *args, **kwargs):
+        """
+
+        Parameters
+        ----------
+        state: dict
+            the state dictionary
+        args:
+            normally pred, target
+        kwargs
+
+        Returns
+        -------
+        The updated state (even though the update happens in-place)
+        """
+        score = self.compute(*args, **kwargs)
+        if isinstance(score, torch.Tensor):
+            score_np = score.cpu().detach().numpy()
+        else:
+            score_np = score
+        try:
+            num_samples = args[0].size(0)
+        except (ValueError, AttributeError):
+            raise ValueError('If the first arg to the metric function\'s incremental method is not a tensor,'
+                             'provide the num_samples kwarg')
+        if state == {}:
+            state['accumulated_score'] = 0.
+            state['sample_count'] = 0
+        state['accumulated_score'] = (state['sample_count'] * state['accumulated_score'] +
+                                      num_samples * score_np.item()) / (state['sample_count'] + num_samples)
+        state['sample_count'] = state['sample_count'] + num_samples
+        return state
+
+    def finalize(self, state) -> float:
+        """
+        FInalizes the metric computation
+        
+        Parameters
+        ----------
+        state: dict
+            the metric state
+
+        Returns
+        -------
+        The final score
+        """
+        return state['accumulated_score'] if 'accumulated_score' in state else None
+
     def __call__(self, *args, **kwargs):
         """Makes Featurizer a callable."""
         return self.compute(*args, **kwargs)
 
     def __str__(self) -> str:
         """Return the name of the Metric (for use in logging)."""
-        return self.__class__.__name__
+        return self.__class__.__name__ if self.name is None else self.name
