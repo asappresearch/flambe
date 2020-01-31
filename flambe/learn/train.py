@@ -210,7 +210,7 @@ class Trainer(Component):
         return loss
 
     def _compute_batch(self, batch: Tuple[torch.Tensor, ...],
-                       metrics: Optional[list] = ()) \
+                       metrics: List = ()) \
             -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
         """ Computes a batch.
 
@@ -348,7 +348,7 @@ class Trainer(Component):
     def _eval_step(self) -> None:
         """Run an evaluation step over the validation data."""
         self.model.eval()
-        metric_fn_state = {}
+        metric_fn_state: Dict[Metric, Dict] = {}
         metrics_with_states = [(metric, {}) for metric in self.validation_metrics]
 
         # Initialize a 1-epoch iteration through the validation set
@@ -366,7 +366,7 @@ class Trainer(Component):
         # Update best model
         sign = (-1)**(self.lower_is_better)
         if self._best_metric is None or (sign * val_metric > sign * self._best_metric):
-            self._best_metric = val_metric
+            self._best_metric: float = val_metric
             best_model_state = self.model.state_dict()
             for k, t in best_model_state.items():
                 best_model_state[k] = t.cpu().detach()

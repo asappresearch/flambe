@@ -1,4 +1,4 @@
-from typing import Optional
+from typing import Optional, Dict
 
 import torch
 
@@ -74,7 +74,7 @@ class Evaluator(Component):
         self.model.to(self.device)
         self.model.eval()
         with torch.no_grad():
-            metric_state = {}
+            metric_state: Dict = {}
 
             for batch in self._eval_iterator:
                 pred, target = self.model(*[t.to(self.device) for t in batch])
