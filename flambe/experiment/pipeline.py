@@ -16,7 +16,7 @@ logger = logging.getLogger(__name__)
 class Pipeline(Schema):
 
     def __init__(self,
-                 task: Schmea,
+                 task: Schema,
                  dependencies: Dict[str, Schema],
                  variant_ids: Optional[Dict[str, str]] = None,
                  checkpoints: Optional[Dict[str, Checkpoint]] = None):
@@ -41,10 +41,10 @@ class Pipeline(Schema):
         List[str]
             [description]
 
-        """ 
+        """
         return list(self.schemas.keys())[-1]
 
-     @property 
+    @property
     def dependencies(self) -> List[str]:
         """Get the dependencies for this pipeline.
 
