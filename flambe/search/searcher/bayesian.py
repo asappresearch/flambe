@@ -60,7 +60,7 @@ class BayesOptGPSearcher(ModelBasedSearcher):
         # Initialize BayesOpt library objects
         self.optimizer = BayesianOptimization(
             f=None,
-            pbounds={n: b for n, b in zip(self.space.dists.keys(), self.space.var_bounds)},
+            pbounds=self.space.var_bounds,
             verbose=0,
             random_state=self.seed
         )
@@ -96,11 +96,11 @@ class BayesOptGPSearcher(ModelBasedSearcher):
 
         """
         # Ensure there are no proposed trials awaiting result
-        if any(x is None for x in self.results.values()):
+        if any(k not in self.results for k in self.params):
             raise ValueError('Gaussian Process searcher cannot propose new\
                              configuration with missing result.')
 
-        rand_samp = self.space.sample(raw=True)
+        rand_samp = self.space.sample()
         if rand_samp is None:
             return self.optimizer.suggest(self.utility)
         else:
@@ -233,7 +233,7 @@ class BayesOptKDESearcher(ModelBasedSearcher):
             return self.space.normalize_to_space(rand_samp)
 
         if np.random.uniform() < self.random_fraction:
-            return self.space.normalize_to_space(self.space.sample(raw=True))
+            return self.space.normalize_to_space(self.space.sample())
 
         best = np.inf
         best_hp: List[int] = []
@@ -248,7 +248,7 @@ class BayesOptKDESearcher(ModelBasedSearcher):
             datum = self.good_kde.data[idx]  # type: ignore
             sample_hp: List[int] = []
 
-            for m, bw, dist in zip(datum, self.good_kde.bw, self.space.dists):  # type: ignore
+            for m, bw, dist in zip(datum, self.good_kde.bw, self.space.dists.values()):  # type: ignore
                 bw = max(bw, self.min_bw)
                 if isinstance(dist, Continuous):
                     bw = self.bw_factor * bw
@@ -303,8 +303,9 @@ class BayesOptKDESearcher(ModelBasedSearcher):
 
         if self.has_enough_configs_for_model:
 
-            train_data = [list(x.values()) for x in self.params.values()]
-            train_results = [x for x in self.results.values()]
+            finished = set([k for k in self.params if k in self.results])
+            train_data = [list(x.values()) for k, x in self.params.items() if k in finished]
+            train_results = [self.results[k] for k in finished]
 
             min_configs = self.min_configs_per_model
             n_good = max(min_configs, int(self.top_n_frac * min_configs))
@@ -315,7 +316,7 @@ class BayesOptKDESearcher(ModelBasedSearcher):
             bad_train_data = np.array(train_data)[idx[-n_bad:]]
 
             # Fit KDE
-            kde_vartypes = ["continous"] * len(self.space.dists)
+            kde_vartypes = ['c' if isinstance(x, Continuous) else 'u' for x in self.space.dists.values()]
             self.good_kde = KDEMultivariate(data=good_train_data,
                                             var_type=kde_vartypes,
                                             bw='normal_reference')

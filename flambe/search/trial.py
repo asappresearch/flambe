@@ -136,5 +136,6 @@ class Trial(object):
         self.status = Status.CREATED
 
     def __repr__(self):
-        name = self.generate_name()
-        return f'Trial[{name}][{self.status}]'
+        # name = self.generate_name()
+        # return f'Trial[{name}][{self.status}]'
+        return f'Trial[{self.status}]'
