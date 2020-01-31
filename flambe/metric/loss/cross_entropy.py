@@ -11,7 +11,8 @@ class MultiLabelCrossEntropy(Metric):
     def __init__(self,
                  weight: Optional[torch.Tensor] = None,
                  ignore_index: Optional[int] = None,
-                 reduction: str = 'mean') -> None:
+                 reduction: str = 'mean',
+                 name: Optional[str] = None) -> None:
         """Initialize the MultiLabelCrossEntropy.
 
         Parameters
@@ -30,8 +31,10 @@ class MultiLabelCrossEntropy(Metric):
             'none': no reduction will be applied,
             'mean': the output will be averaged
             'sum': the output will be summed.
-
+        name: Optional[str]
+            a name for this metric object
         """
+        super().__init__(name)
         self.weight = weight
         self.ignore_index = ignore_index
         self.reduction = reduction

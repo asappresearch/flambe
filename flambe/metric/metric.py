@@ -1,4 +1,4 @@
-from typing import Union, Tuple, Optional
+from typing import Dict, Optional
 from abc import abstractmethod
 
 import torch
@@ -45,7 +45,7 @@ class Metric(Component):
         """
         pass
 
-    def aggregate(self, state: dict, *args, **kwargs):
+    def aggregate(self, state: dict, *args, **kwargs) -> Dict:
         """
 
         Parameters
@@ -99,4 +99,4 @@ class Metric(Component):
 
     def __str__(self) -> str:
         """Return the name of the Metric (for use in logging)."""
-        return self.__class__.__name__ if self.name is None else self.name
+        return self.__class__.__name__ if getattr(self, 'name', None) is None else self.name

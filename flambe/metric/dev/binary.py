@@ -1,3 +1,4 @@
+from typing import Optional
 from abc import abstractmethod
 
 import torch
@@ -7,7 +8,7 @@ from flambe.metric.metric import Metric
 
 class BinaryMetric(Metric):
 
-    def __init__(self, threshold: float = 0.5) -> None:
+    def __init__(self, threshold: float = 0.5, name: Optional[str] = None) -> None:
         """Initialize the Binary metric.
 
         Parameters
@@ -17,8 +18,10 @@ class BinaryMetric(Metric):
             p < threshold will be considered tagged as Negative by
             the classifier when computing the metric.
             Defaults to 0.5
-
+        name: Optional[str]
+            a name for this metric object
         """
+        super().__init__(name)
         self.threshold = threshold
 
     def compute(self, pred: torch.Tensor, target: torch.Tensor) -> torch.Tensor:
