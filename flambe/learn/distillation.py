@@ -193,7 +193,7 @@ class DistillationTrainer(Trainer):
 
         return loss
 
-    def _aggregate_preds(self, data_iterator) -> Tuple[torch.Tensor, torch.Tensor]:
+    def _aggregate_preds(self, data_iterator) -> Tuple[torch.Tensor, torch.Tensor, float]:
         """Aggregate the predicitons and targets for the dataset.
 
         Parameters

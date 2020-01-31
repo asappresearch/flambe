@@ -1,4 +1,4 @@
-from typing import Optional, Dict
+from typing import Optional, Dict, Union
 
 import torch
 
@@ -59,7 +59,7 @@ class Evaluator(Component):
         # By default, no prefix applied to tb logs
         self.tb_log_prefix = None
 
-        self.eval_metric = None
+        self.eval_metric: Union[float, None] = None
         self.register_attrs('eval_metric')
 
     def run(self, block_name: str = None) -> bool:

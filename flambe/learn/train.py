@@ -1,5 +1,5 @@
 import math
-from typing import Dict, List, Optional, Any, Tuple, Iterator, Iterable
+from typing import Dict, List, Optional, Any, Tuple, Iterator, Iterable, Union
 
 import numpy as np
 import torch
@@ -164,7 +164,7 @@ class Trainer(Component):
         self.max_steps = max_steps
 
         self._step = 0
-        self._best_metric = None
+        self._best_metric: Union[float, None] = None
         self._last_train_log_step = 0
         self._best_model: Dict[str, torch.Tensor] = dict()
         self.register_attrs('_step', '_best_metric', '_best_model')
@@ -254,7 +254,7 @@ class Trainer(Component):
     def _train_step(self) -> None:
         """Run a training step over the training data."""
         self.model.train()
-        metrics_with_states = [(metric, {}) for metric in self.training_metrics]
+        metrics_with_states: Dict[Metric, Dict] = [(metric, {}) for metric in self.training_metrics]
         self._last_train_log_step = 0
 
         log_prefix = f"{self.tb_log_prefix} " if self.tb_log_prefix else ""
@@ -349,7 +349,8 @@ class Trainer(Component):
         """Run an evaluation step over the validation data."""
         self.model.eval()
         metric_fn_state: Dict[Metric, Dict] = {}
-        metrics_with_states = [(metric, {}) for metric in self.validation_metrics]
+        metrics_with_states: Dict[Metric, Dict] = \
+            [(metric, {}) for metric in self.validation_metrics]
 
         # Initialize a 1-epoch iteration through the validation set
         val_iterator = self.val_sampler.sample(self.dataset.val)
@@ -366,7 +367,7 @@ class Trainer(Component):
         # Update best model
         sign = (-1)**(self.lower_is_better)
         if self._best_metric is None or (sign * val_metric > sign * self._best_metric):
-            self._best_metric: float = val_metric
+            self._best_metric = val_metric
             best_model_state = self.model.state_dict()
             for k, t in best_model_state.items():
                 best_model_state[k] = t.cpu().detach()
