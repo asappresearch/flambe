@@ -26,7 +26,7 @@ class AUC(Metric):
     def aggregate(state: dict, *args, **kwargs):
         """
         Aggregates by simply storing preds and targets
-        
+
         Parameters
         ----------
         state: dict
@@ -48,7 +48,7 @@ class AUC(Metric):
     def finalize(self, state) -> float:
         """
         FInalizes the metric computation
-        
+
         Parameters
         ----------
         state: dict

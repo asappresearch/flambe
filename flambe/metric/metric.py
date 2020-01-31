@@ -1,4 +1,4 @@
-from typing import Dict, Optional
+from typing import Dict
 from abc import abstractmethod
 
 import torch
@@ -71,7 +71,7 @@ class Metric(Component):
     def finalize(self, state) -> float:
         """
         FInalizes the metric computation
-        
+
         Parameters
         ----------
         state: dict
