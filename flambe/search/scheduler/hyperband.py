@@ -1,7 +1,8 @@
 import numpy as np
 from typing import List, Dict, Tuple, Optional, Sequence
+from copy import deepcopy
 
-from flambe.search.searcher import Searcher
+from flambe.search.searcher.searcher import Searcher, ModelBasedSearcher
 from flambe.search.scheduler.scheduler import Scheduler
 from flambe.search.trial import Trial
 
@@ -37,14 +38,21 @@ class HyperBandScheduler(Scheduler):
         """
         super().__init__(searcher, max_steps)
 
+        if isinstance(searcher, ModelBasedSearcher):
+            self.searchers: Dict[int, Searcher] = dict()
+            self.searchers[min_steps] = searcher
+            self.max_fid = min_steps
+            self.base_searcher = deepcopy(searcher)
+
+        self.max_steps_by_trial: Dict[str, int] = dict()
+
         self.min_steps = min_steps
         self.drop_rate = drop_rate
 
         # Initialize HyperBand params
         self.max_drops = int(np.log(max_steps / min_steps) / np.log(drop_rate))
         n_drops_grid = np.arange(self.max_drops + 1)
-        self.n_trials_grid = np.ceil((self.max_drops + 1) / (n_drops_grid + 1) *
-                                     (drop_rate**n_drops_grid)).astype('int')
+        self.n_trials_grid = np.ceil((self.max_drops + 1) / (n_drops_grid + 1) * (drop_rate**n_drops_grid)).astype('int')
         self.n_res_grid = max_steps / (drop_rate**n_drops_grid)
 
         self.step_budget = step_budget
@@ -90,6 +98,11 @@ class HyperBandScheduler(Scheduler):
             objects, with newly released trials.
 
         """
+        for trial_id, trial in trials.items():
+            if trial.has_result():
+                trial.set_resume()
+                n -= 1
+
         for br, bracket in enumerate(self.brackets):
             s = bracket.max_halvings
 
@@ -99,20 +112,19 @@ class HyperBandScheduler(Scheduler):
 
                 if trial_id is None:
                     # Create new trial
-                    new = self._create_trial(int(n_res_init))
+                    new = self._create_trial()
                     if new is None:
                         self.done = True
                     else:
                         trial_id, trial = new
                         trials[trial_id] = trial
+                        self.max_steps_by_trial[trial_id] = int(n_res_init)
                 else:
                     # Resume previously paused trial
                     trial = trials[trial_id]
                     # TODO
-                    # n_res_curr = len(trial.metrics)
-                    # n_res_total = n_res_init *
-                    # (self.drop_rate**bracket.n_halvings)
-                    # trial.append_steps(int(n_res_total - n_res_curr))
+                    n_res_total = n_res_init * (self.drop_rate ** bracket.n_halvings)
+                    self.max_steps_by_trial[trial_id] = int(n_res_total)
                     trial.set_resume()
 
                 self.bracket_ids[trial_id] = br
@@ -136,14 +148,54 @@ class HyperBandScheduler(Scheduler):
             objects.
 
         """
-        # Send results back to searcher
         trials_with_result = {trial_id: trial for trial_id,
                               trial in trials.items() if trial.has_result()}
-        results_dict = {t_id: trial.best_metric for t_id, trial in trials_with_result.items()}
-        self.searcher.register_results(results_dict)  # type: ignore
+
+        trials_with_max_steps: Dict[str, Trial] = dict()
+        for trial_id, trial in trials_with_result.items():
+            n_metrics = len(trial.metrics)
+            assert n_metrics <= self.max_steps_by_trial[trial_id]
+            if n_metrics == self.max_steps_by_trial[trial_id]:
+                trials_with_max_steps[trial_id] = trial
+                trial.set_paused()
+
+        if isinstance(self.searcher, ModelBasedSearcher):
+            # Register results with appropriate model-based searcher
+            results_groups: Dict[int, Dict[str: float]] = dict()
+            for trial_id, trial in trials_with_max_steps.items():
+                fid = self.max_steps_by_trial[trial_id]
+                result = trial.best_metric
+                if fid in results_groups:
+                    results_groups[fid][trial_id] = result
+                else:
+                    results_groups[fid] = {trial_id: result}
+
+            for fid, results in results_groups.items():
+                # Create new searcher if necessary
+                if fid not in self.searchers:
+                    self.searchers[fid] = deepcopy(self.base_searcher)
+                searcher = self.searchers[fid]
+
+                # Make sure searcher has parameter configuration saved
+                for trial_id in results.keys():
+                    if trial_id not in searcher.params:
+                        params = trials[trial_id].params
+                        searcher.params[trial_id] = params
+
+                # Update searcher with results
+                searcher.register_results(results)
+
+                # Update best searcher
+                if fid > self.max_fid and searcher.has_enough_configs_for_model:
+                    self.max_fid = fid
+                    self.searcher = searcher
+        else:
+            # Register results with searcher
+            results_dict = {tid: trial.best_metric for tid, trial in trials_with_max_steps.items()}
+            self.searcher.register_results(results_dict)
 
         # Update brackets with results
-        for trial_id, trial in trials_with_result.items():
+        for trial_id, trial in trials_with_max_steps.items():
             br = self.bracket_ids[trial_id]
             bracket = self.brackets[br]
             s = bracket.max_halvings

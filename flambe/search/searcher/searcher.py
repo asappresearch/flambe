@@ -73,7 +73,7 @@ class Space(object):
             else:
                 self.var_bounds[name] = (np.nan, np.nan)
 
-    def sample(self, raw: bool = False) -> Dict[str, Any]:
+    def sample(self) -> Dict[str, Any]:
         """Sample from the search space.
 
         Returns
@@ -215,7 +215,7 @@ class Searcher(ABC):
         self.check_space(space)
         self.space = space
         self.params: Dict[str, Dict[str, Any]] = dict()
-        self.results: Dict[str, float] = dict()
+        self.results: Dict[str, Optional[float]] = dict()
 
     def propose_new_params(self) -> Optional[Tuple[str, Dict[str, Any]]]:
         """Propose a new hyperparameter configuration.
@@ -338,7 +338,7 @@ class ModelBasedSearcher(Searcher):
             Number of recorded points by searcher.
 
         """
-        return sum([1 for key in self.params if key in self.results])
+        return len(self.results)
 
     @property
     def has_enough_configs_for_model(self) -> bool:
@@ -364,6 +364,6 @@ class ModelBasedSearcher(Searcher):
 
         """
         if not self.has_enough_configs_for_model:
-            return self.space.sample(raw=True)
+            return self.space.sample()
 
         return None

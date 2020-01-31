@@ -42,13 +42,8 @@ class Scheduler(ABC):
         """
         return self.done
 
-    def _create_trial(self, n_steps: int, **kwargs) -> Optional[Tuple[str, Trial]]:
+    def _create_trial(self) -> Optional[Tuple[str, Trial]]:
         """Create a new trial.
-
-        Parameters
-        ----------
-        n_steps: int
-            The number of steps to initially assign the new trial.
 
         Returns
         ----------
@@ -59,7 +54,7 @@ class Scheduler(ABC):
 
         """
         # Create trial
-        new = self.searcher.propose_new_params(**kwargs)
+        new = self.searcher.propose_new_params()
         if new is None:
             return None
         else:
