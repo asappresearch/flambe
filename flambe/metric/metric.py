@@ -13,17 +13,6 @@ class Metric(Component):
     examples and provide as output a processd list of the same size.
 
     """
-    def __init__(self, name: Optional[str] = None):
-        """
-        Metrics can be initialized with a name, if required.
-
-        Parameters
-        ----------
-        name: Optional[str]
-            a name for this metric object
-        """
-        super().__init__()
-        self.name = name
 
     @abstractmethod
     def compute(self, pred: torch.Tensor, target: torch.Tensor) -> torch.Tensor:
@@ -68,13 +57,14 @@ class Metric(Component):
         try:
             num_samples = args[0].size(0)
         except (ValueError, AttributeError):
-            raise ValueError('If the first arg to the metric function\'s incremental method is not a tensor,'
-                             'provide the num_samples kwarg')
+            raise ValueError(f'Cannot get size from {type(args[0])}')
         if state == {}:
             state['accumulated_score'] = 0.
             state['sample_count'] = 0
-        state['accumulated_score'] = (state['sample_count'] * state['accumulated_score'] +
-                                      num_samples * score_np.item()) / (state['sample_count'] + num_samples)
+        state['accumulated_score'] = \
+            (state['sample_count'] * state['accumulated_score'] +
+             num_samples * score_np.item()) / \
+            (state['sample_count'] + num_samples)
         state['sample_count'] = state['sample_count'] + num_samples
         return state
 
@@ -99,4 +89,4 @@ class Metric(Component):
 
     def __str__(self) -> str:
         """Return the name of the Metric (for use in logging)."""
-        return self.__class__.__name__ if getattr(self, 'name', None) is None else self.name
+        return self.__class__.__name__

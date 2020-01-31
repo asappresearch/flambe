@@ -53,4 +53,4 @@ class NoamScheduler(LambdaLR):
             if step > self.warmup:
                 return 1. / (self.d_model ** 0.5) / (step ** 0.5)
             else:
-                return (step + 1) / (self.d_model ** 0.5) / (self.warmup ** 1.5)
+                return step / (self.d_model ** 0.5) / (self.warmup ** 1.5)

@@ -11,8 +11,7 @@ class MultiLabelCrossEntropy(Metric):
     def __init__(self,
                  weight: Optional[torch.Tensor] = None,
                  ignore_index: Optional[int] = None,
-                 reduction: str = 'mean',
-                 name: Optional[str] = None) -> None:
+                 reduction: str = 'mean',) -> None:
         """Initialize the MultiLabelCrossEntropy.
 
         Parameters
@@ -31,15 +30,20 @@ class MultiLabelCrossEntropy(Metric):
             'none': no reduction will be applied,
             'mean': the output will be averaged
             'sum': the output will be summed.
-        name: Optional[str]
-            a name for this metric object
         """
-        super().__init__(name)
         self.weight = weight
         self.ignore_index = ignore_index
         self.reduction = reduction
 
-    def compute(self, pred: torch.Tensor, target: torch.Tensor) -> torch.Tensor:
+    def __str__(self) -> str:
+        """Return the name of the Metric (for use in logging)."""
+        if self.weight is None:
+            return 'MultiLabelCrossEntropy'
+        else:
+            return 'WeightedMultiLabelCrossEntropy'
+
+    def compute(self, pred: torch.Tensor, target: torch.Tensor) \
+            -> torch.Tensor:
         """Computes the multilabel cross entropy loss.
 
         Parameters
@@ -62,7 +66,8 @@ class MultiLabelCrossEntropy(Metric):
             self.weight = torch.ones(pred.size(1)).to(pred)
 
         norm_target = F.normalize(target.float(), p=1, dim=1)
-        loss = - (self.weight * norm_target * F.log_softmax(pred, dim=1)).sum(dim=1)
+        loss = - (self.weight * norm_target *
+                  F.log_softmax(pred, dim=1)).sum(dim=1)
 
         if self.reduction == 'mean':
             loss = loss.mean()

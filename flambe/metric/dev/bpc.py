@@ -1,4 +1,3 @@
-from typing import Optional
 import torch
 
 from flambe.metric import Metric
@@ -7,15 +6,10 @@ from flambe.metric import Metric
 class BPC(Metric):
     """Bits per character. Computed as log_2(perplexity)"""
 
-    def __init__(self, name: Optional[str] = None):
+    def __init__(self):
         """
         Bits per character. Computed as log2(crossentropy).
-        Parameters
-        ----------
-        name: Optional[str]
-            a name for this metric object
         """
-        super().__init__(name)
         self.entropy = torch.nn.CrossEntropyLoss()
 
     def compute(self, pred: torch.Tensor, target: torch.Tensor) -> torch.Tensor:

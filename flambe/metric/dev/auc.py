@@ -1,5 +1,3 @@
-from typing import Optional
-
 import torch
 import sklearn.metrics
 import numpy as np
@@ -9,18 +7,15 @@ from flambe.metric.metric import Metric
 
 class AUC(Metric):
 
-    def __init__(self, max_fpr=1.0, name: Optional[str] = None):
+    def __init__(self, max_fpr=1.0):
         """Initialize the AUC metric.
 
         Parameters
         ----------
-        name: Optional[str]
-            the name
         max_fpr : float, optional
             Maximum false positive rate to compute the area under
 
         """
-        super().__init__(name)
         self.max_fpr = max_fpr
 
     def __str__(self) -> str:
@@ -63,6 +58,9 @@ class AUC(Metric):
         -------
         The final score
         """
+        if 'pred' not in state:
+            # call on empty state
+            return np.NaN
         pred = torch.cat(state['pred'], dim=0)
         target = torch.cat(state['target'], dim=0)
         state['accumulated_score'] = self.compute(pred, target)

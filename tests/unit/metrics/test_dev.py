@@ -58,7 +58,7 @@ def test_accuracy():
     metric_test_case(torch.tensor([[1.0, 0.0], [0.6, 0.4]]), torch.tensor([1, 1]), Accuracy(), 0)
 
 
-def test_aggregation():
+def test_aggregation_accuracy():
     """ Test the aggregation functionality """
     metric_state = {}
     metric = Accuracy()
@@ -69,6 +69,8 @@ def test_aggregation():
     assert metric_state['sample_count'] == 4
     assert metric.finalize(metric_state) == 0.25
 
+
+def test_aggregation_auc():
     # for AUC (different aggregation functionality)
     metric_state = {}
     metric = AUC()
