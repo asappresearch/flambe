@@ -199,8 +199,5 @@ def test_bohb():
         trials = scheduler.update_trials(trials)
 
     assert len(scheduler.searchers) == 2
-    print(scheduler.searchers[3].results)
-    print(scheduler.searchers[3].min_configs_in_model)
-    print(scheduler.searchers[3].has_enough_configs_for_model)
     assert scheduler.max_fid == 3
     assert scheduler.is_done()
