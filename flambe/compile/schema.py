@@ -385,7 +385,7 @@ class Schema(MutableMapping[str, Any]):
                 yield from Schema.traverse(v, next_path, fn, yield_schema)
         elif isinstance(obj, (list, tuple)):
             for i, e in enumerate(obj):
-                next_path = current_path[:] + (i,)
+                next_path = current_path[:] + (str(i),)
                 yield from Schema.traverse(e, next_path, fn, yield_schema)
         elif isinstance(obj, inspect.BoundArguments):
             params = obj.signature.parameters
@@ -397,43 +397,85 @@ class Schema(MutableMapping[str, Any]):
                 elif params[k].kind == inspect.Parameter.VAR_KEYWORD:
                     raise NotImplementedError('Variable keyword arguments not supported')
                 else:
-                    raise Exception('')
+                    raise Exception(f'Invalid state for Schema. Invalid argument types at {obj}')
         else:
             yield (current_path, obj)
 
     def set_param(self, path: Optional[Tuple[str]], value: Any) -> None:
-        print("setting param path ", path, " to value ", value)
+        """Set path in schema to value
+
+        Convenience method for setting a value deep in a schema. For
+        example `root.set_param(('a', 'b', 'c'), val)` is the
+        equivalent of `root['a']['b']['c'] = val`. NOTE: you can only
+        use set_param on existing paths in the schema. If `c` does not
+        already exist in the above example, a `KeyError` is raised.
+
+        Parameters
+        ----------
+        path : Optional[Tuple[str]]
+            Description of parameter `path`.
+        value : Any
+            Description of parameter `value`.
+
+        Raises
+        -------
+        KeyError
+            If any value in the path does not exist as the name of a
+            child schema
+
+        """
         current_obj = self
-        for item in path[:-1]:
-            current_obj = current_obj[item]
-        current_obj[path[-1]] = value
+        last_item = None
+        try:
+            for item in path[:-1]:
+                last_item = item
+                current_obj = current_obj[item]
+            last_item = path[-1]
+            if last_item not in current_obj:
+                raise KeyError()
+            current_obj[last_item] = value
+        except KeyError:
+            raise KeyError(f'{self} has no path {path}. Failed at {last_item}')
+
+    def get_param(self, path: Optional[Tuple[str]]) -> None:
+        current_obj = self
+        last_item = None
+        try:
+            for item in path[:-1]:
+                last_item = item
+                current_obj = current_obj[item]
+            last_item = path[-1]
+            return current_obj[last_item]
+        except KeyError:
+            raise KeyError(f'{self} has no path {path}. Failed at {last_item}')
 
     def initialize(self,
                    path: Optional[Tuple[str]] = None,
                    cache: Optional[Dict[str, Any]] = None,
                    root: Optional['Schema'] = None) -> Any:
+        # Set defaults for values that will be used in recursion
         cache = cache if cache is not None else {}
         path = path if path is not None else tuple()
         new_root = root is None
-        if new_root:
-            print(">>>>>>>> New root")
+        # Need to keep a reference to the first caller
+        #  for set_param updates later
         root = root if root is not None else copy.deepcopy(self)
         initialized = root if new_root else self
+        # If object has already been initialized, return that value
         if path in cache:
             return cache[path]
-
+        # Else, recursively initialize all children (bound arguments)
         for current_path, obj in self.traverse(initialized.bound_arguments, current_path=path, yield_schema='only'):
-            print("traversing on current path: ", current_path)
             if isinstance(obj, Link):
                 new_value = obj(cache=cache)
                 cache[current_path] = new_value
                 root.set_param(current_path, new_value)
             elif isinstance(obj, Schema):
-                print("is schema, recursing-")
                 new_value = obj(path=current_path, cache=cache, root=root)
-                print("-returned object: ", new_value)
                 cache[current_path] = new_value
                 root.set_param(current_path, new_value)
+            else:
+                cache[current_path] = obj
         initialized_arguments = initialized.bound_arguments
 
         for k, v in initialized_arguments.arguments.items():
@@ -442,14 +484,8 @@ class Schema(MutableMapping[str, Any]):
                 msg += f"This could be because of a typo or the class is not registered properly"
                 warn(msg)
         try:
-            print(f'*** {path} init args:', initialized_arguments)
-            # print(f"     update bargs: {self.bound_arguments}")
-            print(f"       id: {id(initialized_arguments)}")
-            # TODO make sure redundant cache update is really redundant
             cache[path] = initialized.factory_method(*initialized_arguments.args,
-                                              **initialized_arguments.kwargs)
-            # if len(path) > 0:
-                # root.set_param(path, cache[path])
+                                                     **initialized_arguments.kwargs)
         except TypeError as te:
             print(f"Constructor {self.factory_method} failed with "
                   f"arguments:\n{initialized_arguments.arguments.items()}")
