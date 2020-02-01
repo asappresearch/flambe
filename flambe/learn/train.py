@@ -210,7 +210,7 @@ class Trainer(Component):
         return loss
 
     def _compute_batch(self, batch: Tuple[torch.Tensor, ...],
-                       metrics: List = ()) \
+                       metrics: List[Tuple] = []) \
             -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
         """ Computes a batch.
 
@@ -232,7 +232,7 @@ class Trainer(Component):
 
     @staticmethod
     def _log_metrics(log_prefix: str,
-                     metrics_with_states: List[Tuple[Metric, Dict]],
+                     metrics_with_states: List[Tuple],
                      global_step: int) -> None:
         """Logs all provided metrics
 
@@ -254,7 +254,7 @@ class Trainer(Component):
     def _train_step(self) -> None:
         """Run a training step over the training data."""
         self.model.train()
-        metrics_with_states: Dict[Metric, Dict] = [(metric, {}) for metric in self.training_metrics]
+        metrics_with_states: List[Tuple] = [(metric, {}) for metric in self.training_metrics]
         self._last_train_log_step = 0
 
         log_prefix = f"{self.tb_log_prefix} " if self.tb_log_prefix else ""
@@ -349,7 +349,7 @@ class Trainer(Component):
         """Run an evaluation step over the validation data."""
         self.model.eval()
         metric_fn_state: Dict[Metric, Dict] = {}
-        metrics_with_states: Dict[Metric, Dict] = \
+        metrics_with_states: List[Tuple] = \
             [(metric, {}) for metric in self.validation_metrics]
 
         # Initialize a 1-epoch iteration through the validation set
