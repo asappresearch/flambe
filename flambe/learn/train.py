@@ -311,7 +311,7 @@ class Trainer(Component):
                     self._last_train_log_step = i
             if self._last_train_log_step != i:
                 # log again at end of step, if not logged at the end of
-                # epoch before
+                # step before
                 self._log_metrics(log_prefix, metrics_with_states, global_step)
 
     def _aggregate_preds(self, data_iterator: Iterator) \

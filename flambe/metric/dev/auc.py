@@ -46,7 +46,7 @@ class AUC(Metric):
         state['target'].append(target.cpu().detach())
         return state
 
-    def finalize(self, state) -> float:
+    def finalize(self, state: Dict) -> float:
         """Finalizes the metric computation
 
         Parameters
