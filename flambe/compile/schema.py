@@ -1,7 +1,7 @@
 import inspect
 from reprlib import recursive_repr
-from typing import MutableMapping, Any, Callable, Optional, Dict, Sequence, Tuple, List, \
-                   Iterable, Type, Mapping
+from typing import MutableMapping, Any, Callable, Optional, Dict, Sequence
+from typing import Tuple, List, Iterable, Type, Mapping
 from warnings import warn
 import copy
 import functools
@@ -11,7 +11,7 @@ from ruamel.yaml.comments import (CommentedMap, CommentedOrderedMap, CommentedSe
                                   CommentedKeySeq, CommentedSeq, TaggedScalar,
                                   CommentedKeyMap)
 
-from flambe.compile.registry import get_registry, get_class_namespace
+from flambe.compile.registry import get_registry
 from flambe.compile.registered_types import Registrable
 
 
@@ -114,6 +114,7 @@ def parse_link_str(link_str: str) -> Tuple[Sequence[str], Sequence[str]]:
     -------
     Examples should be written in doctest format, and
     should illustrate how to use the function/class.
+
     >>> parse_link_str('obj[key1][key2].attr1.attr2')
     (['obj', 'key1', 'key2'], ['attr1', 'attr2'])
 
@@ -185,10 +186,10 @@ class Variants(Registrable, tag_override="v"):
 
     @classmethod
     def from_yaml(cls, constructor: Any, node: Any, factory_name: str, tag: str) -> 'Link':
-         # construct_yaml_seq returns wrapper tuple, need to unpack;
-         #  will also recurse so items in options can also be links
-         options, = list(constructor.construct_yaml_seq(node))
-         return Variants(options)
+        # construct_yaml_seq returns wrapper tuple, need to unpack;
+        # will also recurse so items in options can also be links
+        options, = list(constructor.construct_yaml_seq(node))
+        return Variants(options)
 
 
 class GridVariants(Registrable, tag_override="g"):
@@ -202,10 +203,10 @@ class GridVariants(Registrable, tag_override="g"):
 
     @classmethod
     def from_yaml(cls, constructor: Any, node: Any, factory_name: str, tag: str) -> 'Link':
-         # construct_yaml_seq returns wrapper tuple, need to unpack;
-         #  will also recurse so items in options can also be links
-         options, = list(constructor.construct_yaml_seq(node))
-         return GridVariants(options)
+        # construct_yaml_seq returns wrapper tuple, need to unpack;
+        # will also recurse so items in options can also be links
+        options, = list(constructor.construct_yaml_seq(node))
+        return GridVariants(options)
 
 
 class Link(Registrable, tag_override="@"):
@@ -276,13 +277,18 @@ class Schema(MutableMapping[str, Any]):
         self.callable = callable
         registry = get_registry()
         if callable not in registry:
-            # TODO auto-register logic? for functions?
             pass
-            # registry.create(callable,
-            #                 namespace=get_class_namespace(callable),
-            #                 factories=[factory_name],
-            #                 from_yaml=add_callable_from_yaml(Schema.from_yaml, callable=callable),
-            #                 to_yaml=Schema.to_yaml)
+            # TODO auto-register logic? for functions?
+            # registry.create(
+            #   callable,
+            #   namespace=get_class_namespace(callable),
+            #   factories=[factory_name],
+            #   from_yaml=add_callable_from_yaml(
+            #       Schema.from_yaml,
+            #       callable=callable
+            #   ),
+            #   to_yaml=Schema.to_yaml
+            # )
         if factory_name is None:
             self.factory_method = callable
         else:
@@ -458,14 +464,18 @@ class Schema(MutableMapping[str, Any]):
         path = path if path is not None else tuple()
         new_root = root is None
         # Need to keep a reference to the first caller
-        #  for set_param updates later
+        # for set_param updates later
         root = root if root is not None else copy.deepcopy(self)
         initialized = root if new_root else self
         # If object has already been initialized, return that value
         if path in cache:
             return cache[path]
         # Else, recursively initialize all children (bound arguments)
-        for current_path, obj in self.traverse(initialized.bound_arguments, current_path=path, yield_schema='only'):
+        for current_path, obj in self.traverse(
+            initialized.bound_arguments,
+            current_path=path,
+            yield_schema='only'
+        ):
             if isinstance(obj, Link):
                 new_value = obj(cache=cache)
                 cache[current_path] = new_value
@@ -525,22 +535,6 @@ class Schema(MutableMapping[str, Any]):
                     value = item[selection_index]
                     variant_schema.set_param(path, value)
             yield variant_schema
-
-    def merge_union(self, *others) -> None:
-        """Merge into self keeping all options in parallel"""
-        raise NotImplementedError()
-
-    def merge_intersect(self, *others) -> None:
-        """Merge into self keeping options that appear in all others"""
-        raise NotImplementedError()
-
-    def remove(self, lookup_fn: Callable[['Schema'], bool]) -> None:
-        """Remove options according to lookup function"""
-        raise NotImplementedError()
-
-    def reduce(self, objective_fn: Callable[['Schema'], bool]) -> None:
-        """Sort options according to objectiv function"""
-        raise NotImplementedError()
 
     @recursive_repr()
     def __repr__(self) -> str:

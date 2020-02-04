@@ -161,7 +161,7 @@ class HyperBandScheduler(Scheduler):
 
         if isinstance(self.searcher, ModelBasedSearcher):
             # Register results with appropriate model-based searcher
-            results_groups: Dict[int, Dict[str: float]] = dict()
+            results_groups: Dict[int, Dict[str, float]] = dict()
             for trial_id, trial in trials_with_max_steps.items():
                 fid = self.max_steps_by_trial[trial_id]
                 result = trial.best_metric
