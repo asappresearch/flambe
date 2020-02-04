@@ -1,5 +1,4 @@
 from typing import Dict
-from collections import defaultdict
 
 import torch
 import sklearn.metrics
