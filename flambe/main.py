@@ -47,7 +47,7 @@ def down(cluster):
 @click.option('-c', '--cluster', type=str, default=FLAMBE_CLUSTER_DEFAULT,
               help="Cluster config.")
 def rsync_up(source, target, cluster):
-    """Launch / update the cluster based on the given config"""
+    """Upload files to the cluster."""
     cluster = load_config_from_file(cluster)
     cluster.rsync_up(source, target)
 
@@ -59,7 +59,7 @@ def rsync_up(source, target, cluster):
 @click.option('-c', '--cluster', type=str, default=FLAMBE_CLUSTER_DEFAULT,
               help="Cluster config.")
 def rsync_down(source, target, cluster):
-    """Teardown the cluster."""
+    """Download files from the cluster."""
     cluster = load_config_from_file(cluster)
     cluster.rsync_down(source, target)
 

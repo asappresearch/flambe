@@ -1,45 +1,42 @@
-import logging
 import copy
-from typing import Optional, Dict, List, NamedTuple, Tuple, Set
-
-import ray
+from typing import Optional, Dict, List, Set
 
 from flambe.compile import Schema, Link
-from flambe.search import Algorithm, Search, Trial, Choice
 from flambe.search.search import Checkpoint
-from flambe.runner.runnable import Runnable, Environment
-
-
-logger = logging.getLogger(__name__)
 
 
 class Pipeline(Schema):
 
     def __init__(self,
-                 task: Schema,
-                 dependencies: Dict[str, Schema],
+                 schemas: Dict[str, Schema],
                  variant_ids: Optional[Dict[str, str]] = None,
                  checkpoints: Optional[Dict[str, Checkpoint]] = None):
-        """[summary]
+        """Initialize a Pipeline.
 
         Parameters
         ----------
         schemas : Dict[str, Schema]
             [description]
+        variant_ids : Optional[Dict[str, str]], optional
+            [description], by default None
+        checkpoints : Optional[Dict[str, Checkpoint]], optional
+            [description], by default None
+
         """
         self.schemas = schemas
-        self.deps = dependencies
-        self.var_ids = variant_ids if variant_ids is not None else dict() 
+        self.var_ids = variant_ids if variant_ids is not None else dict()
         self.checkpoints = checkpoints if checkpoints is not None else dict()
+        self.error = False
+        self.metric = None
 
     @property
     def task(self) -> str:
-        """Get the dependencies for this pipeline.
+        """Get the stage that will be executed.
 
         Returns
         -------
-        List[str]
-            [description]
+        str
+            The stage name to be executed.
 
         """
         return list(self.schemas.keys())[-1]
@@ -51,10 +48,22 @@ class Pipeline(Schema):
         Returns
         -------
         List[str]
-            [description]
+            A list of dependencies, as stage names.
 
         """
         return list(self.schemas.keys())[:-1]
+
+    def initialize(self):
+        """Override intialization."""
+        cache = {}
+        for name, schema in self.schemas.items():
+            obj = schema.initialize(cache=cache)
+            if name in self.checkpoints:
+                # TODO: what if we don't save states but the
+                # full object? How do we handle links then?
+                obj.load_state(self.checkpoints[name].get())
+
+        return obj
 
     def sub_pipeline(self, stage_name: str) -> 'Pipeline':
         """Return subset of the pipeline stages ending in stage_name
@@ -95,21 +104,95 @@ class Pipeline(Schema):
 
         deps = get_deps(self)
         sub_stages = {k: v for k, v in self.schemas.items() if k in deps}
+        var_ids = {k: v for k, v in self.var_ids.items() if k in deps}
         checkpoints = {k: v for k, v in self.checkpoints.items() if k in deps}
         sub_stages[self.task] = self.schemas[self.task]
-        return Pipeline(sub_stages, checkpoints)
+        return Pipeline(sub_stages, var_ids, checkpoints)
 
-    def matches(self, other: 'Pipeline') -> bool:
-        """Check for matches."""
-        for key in self.schemas.keys():
-            if key in other.schemas and self.var_ids[key] != other.var_ids[key]:
-                return False
-        return True
+    def append(self,
+               name: str,
+               schema: Schema,
+               var_id: Optional[str] = None,
+               checkpoint: Optional[Checkpoint] = None):
+        """Append a new schema.
 
-    def merge(self, other: 'Pipeline') -> 'Pipeline':
-        """Check for matches."""
-        pipeline = copy.deepcopy(self)
+        Parameters
+        ----------
+        schema : Schema
+            [description]
+        var_id : Optional[str], optional
+            [description], by default None
+        checkpoint : Optional[Checkpoint], optional
+            [description], by default None
+
+        """
+        if name is self.schemas:
+            raise ValueError("{name} already in pipeline.")
+
+        self.schemas[name] = schema
+        if var_id is not None:
+            self.var_ids[name] = var_id
+        if checkpoint is not None:
+            self.checkpoints[name] = checkpoint
+
+    def merge(self, other: 'Pipeline', in_place: bool = False) -> 'Pipeline':
+        """Updates internals with the provided pipeline.
+
+        Parameters
+        ----------
+        other: Pipeline
+            The pipeline to merge in.
+
+        in_place: bool, optional
+            Whether to perform the merge in place. Default ``False``.
+
+        Returns
+        -------
+        Pipeline
+            A new merged pipeline.
+
+        """
+        pipeline = self if in_place else copy.deepcopy(self)
         pipeline.schemas.update(other.schemas)
         pipeline.var_ids.update(other.var_ids)
         pipeline.checkpoints.update(other.checkpoints)
         return pipeline
+
+    def flatten(self) -> 'Pipeline':
+        """Check for matches.
+
+        Returns
+        -------
+        Pipeline
+            A flattened versiion of this pipeline.
+
+        """
+        schemas, checkpoints, var_ids = {}, {}, {}
+        for name, schema in self.schemas.items():
+            if isinstance(schema, Pipeline):
+                schemas.update(schema.schemas)
+                checkpoints.update(schema.checkpoints)
+                var_ids.update(schema.var_ids)
+            else:
+                schemas[name] = schema
+
+        return Pipeline(schemas, var_ids, checkpoints)
+
+    def matches(self, other: 'Pipeline') -> bool:
+        """Check for matches.
+
+        Parameters
+        ----------
+        other : [type]
+            [description]
+
+        Returns
+        -------
+        bool
+            [description]
+
+        """
+        for key in self.schemas.keys():
+            if key in other.schemas and self.var_ids[key] != other.var_ids[key]:
+                return False
+        return True

@@ -430,17 +430,14 @@ class BOHB(BaseAlgorithm):
         """
         super().initialize(space)
 
-        searcher = MultiFidSearcher(
+        searcher = BayesOptKDESearcher(
             space=space,
-            searcher_class=BayesOptKDESearcher,
-            search_kwargs={
-                'min_configs_per_model': self.min_configs_per_model,
-                'top_n_frac': self.top_n_frac,
-                'num_samples': self.num_samples,
-                'random_fraction': self.random_fraction,
-                'bandwidth_factor': self.bandwidth_factor,
-                'min_bandwidth': self.min_bandwidth
-            }
+            min_configs_per_model=self.min_configs_per_model,
+            top_n_frac=self.top_n_frac,
+            num_samples=self.num_samples,
+            random_fraction=self.random_fraction,
+            bandwidth_factor=self.bandwidth_factor,
+            min_bandwidth=self.min_bandwidth
         )
         self.scheduler = HyperBandScheduler(
             searcher=searcher,

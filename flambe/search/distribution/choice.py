@@ -1,4 +1,4 @@
-from typing import List, Any
+from typing import List, Any, Optional
 
 import numpy as np
 
@@ -8,7 +8,9 @@ from flambe.search.distribution.distribution import Distribution
 class Choice(Distribution, tag_override="~c"):
     """A discrete choice distribution."""
 
-    def __init__(self, options: List, probs: List[float] = None):
+    def __init__(self,
+                 options: List,
+                 probs: Optional[List[float]] = None):
         """Initialize the distribution.
 
         Parameters
@@ -20,6 +22,7 @@ class Choice(Distribution, tag_override="~c"):
 
         """
         self.options = np.array(options)
+        self.n_options = len(options)
         if probs is None:
             self.probs = np.array([1 / len(options)] * len(options))
         else:

@@ -10,8 +10,10 @@ import ray
 import torch
 
 from flambe.runner import Runnable, Environment
+from flambe.compile.registered_types import RegisteredStatelessMap
 from flambe.compile.schema import Schema, Variants
 from flambe.search.trial import Trial
+from flambe.search.protocol import Searchable
 from flambe.search.algorithm import Algorithm, GridSearch
 
 
@@ -40,13 +42,13 @@ class Checkpoint(object):
         self.checkpoint_path = os.path.join(self.path, 'checkpoint.pt')
         self.remote = f"{user}@{host}:{self.checkpoint_path}" if host else None
 
-    def get(self) -> Runnable:
+    def get(self) -> Searchable:
         """Retrieve the object from a checkpoint.
 
         Returns
         -------
         Runnable
-            The restored searchable object.
+            The restored Searchable object.
 
         """
         if os.path.exists(self.checkpoint_path):
@@ -62,13 +64,13 @@ class Checkpoint(object):
                 raise ValueError(f"Checkpoint {self.checkpoint_path} couldn't be found.")
         return searchable
 
-    def set(self, searchable: Runnable):
+    def set(self, searchable: Searchable):
         """Retrieve the object from a checkpoint.
 
         Parameters
         ----------
-        Runnable
-            The runnable object to save.
+        Searchable
+            The Searchable object to save.
 
         """
         if not os.path.exists(self.path):
@@ -88,21 +90,22 @@ class RayAdapter:
     def __init__(self, schema: Schema, checkpoint: Checkpoint) -> None:
         """Initialize the Trial."""
         self.schema = schema
-        self.runnable: Optional[Runnable] = None
+        self.searchable: Optional[Searchable] = None
         self.checkpoint = checkpoint
 
+    # @ray.remote(num_return_values=2)
     def step(self) -> Tuple[bool, Optional[float]]:
         """Run a step of the Trial"""
-        if self.runnable is None:
-            self.runnable = self.schema()
+        if self.searchable is None:
+            self.searchable = self.schema()
 
-        continue_ = self.runnable.step()
-        metric = self.runnable.metric()
-        self.checkpoint.set(self.runnable)
+        continue_ = self.searchable.step()
+        metric = self.searchable.metric()
+        self.checkpoint.set(self.searchable)
         return continue_, metric
 
 
-class Search(Runnable):
+class Search(Runnable, RegisteredStatelessMap):
     """Implement a hyperparameter search over any schema.
 
     Use a Search to construct a hyperparameter search over any
@@ -156,7 +159,7 @@ class Search(Runnable):
         self.schema = schema
         self.algorithm = GridSearch() if algorithm is None else algorithm
 
-    def run(self, env: Optional[Environment] = None) -> Dict[str, Dict]:
+    def run(self, env: Optional[Environment] = None) -> List[Dict[str, Any]]:
         """Execute the search.
 
         Parameters
@@ -166,7 +169,7 @@ class Search(Runnable):
 
         Returns
         -------
-        Dict[str, Dict]
+        List[Dict[str, Any]
             A dictionary pointing from trial name to sub-dicionary
             containing the keys 'trial' and 'checkpoint' pointing to
             a Trial and a Checkpoint object respecitvely.
@@ -191,6 +194,7 @@ class Search(Runnable):
         trials: Dict[str, Trial] = dict()
         state: Dict[str, Dict[str, Any]] = dict()
         object_id_to_trial_id: Dict[str, str] = dict()
+        trial_id_to_object_id: Dict[str, str] = dict()
 
         while running or (not self.algorithm.is_done()):
             # Get all the current object ids running
@@ -249,21 +253,27 @@ class Search(Runnable):
                     )
                     state[trial_id]['checkpoint'] = checkpoint
                     state[trial_id]['actor'] = RayAdapter.remote(  # type: ignore
-                        schema_copy,
-                        checkpoint
+                        schema=schema_copy,
+                        checkpoint=checkpoint
                     )
 
                 # Launch created and resumed
                 if trial.is_resuming():
                     object_id = state[trial_id]['actor'].step.remote()
                     object_id_to_trial_id[str(object_id)] = trial_id
+                    trial_id_to_object_id[trial_id] = str(object_id)
                     running.append(object_id)
                     trial.set_running()
 
         # Construct result output
-        result = dict()
+        results = []
         for trial_id, trial in trials.items():
-            checkpoint = state[trial_id].get('checkpoint', None)
-            result[trial_id] = dict(trial=trial, checkpoint=checkpoint)
-
-        return result
+            results.append({
+                'pipeline': state[trial_id].get('schema'),
+                'checkpoint': state[trial_id].get('checkpoint', None),
+                'error': trial.is_error(),
+                'metric': trial.best_metric,
+                # The ray object id is guarenteed to be unique
+                'var_id': str(trial_id_to_object_id[trial_id])
+            })
+        return results

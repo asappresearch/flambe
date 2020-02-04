@@ -15,7 +15,7 @@ class BlackBoxScheduler(Scheduler):
 
     def __init__(self,
                  searcher: Searcher,
-                 trial_budget: float,
+                 trial_budget: int,
                  max_steps: int = 1) -> None:
         """Initialize the BlackBoxScheduler.
 
@@ -23,7 +23,7 @@ class BlackBoxScheduler(Scheduler):
         ----------
         searcher: Searcher
             The searcher object to use to explore the search space.
-        trial_budget: float
+        trial_budget: int
             The maximum number of trials to create.
         max_steps: int
             The maximum number of steps to give each trial.
@@ -31,7 +31,7 @@ class BlackBoxScheduler(Scheduler):
         """
         super().__init__(searcher, max_steps)
         self.trial_budget = trial_budget
-        self.num_released = 0
+        self.num_terminated = 0
 
     def is_done(self) -> bool:
         """Whether the algorithm has finished producing trials.
@@ -42,7 +42,7 @@ class BlackBoxScheduler(Scheduler):
             ``True`` if the algorithm has terminated.
 
         """
-        return self.done or (self.num_released >= self.trial_budget)
+        return self.done or (self.num_terminated >= self.trial_budget)
 
     def release_trials(self, n: int, trials: Dict[str, Trial]) -> Dict[str, Trial]:
         """Update the list of trials with new ones.
@@ -63,8 +63,13 @@ class BlackBoxScheduler(Scheduler):
             objects, including newly released trials.
 
         """
+        for trial_id, trial in trials.items():
+            if trial.has_result():
+                trial.set_resume()
+                n -= 1
+
         while n > 0 and len(trials) < self.trial_budget:
-            new = self._create_trial(self.max_steps)
+            new = self._create_trial()
             if new is None:
                 self.done = True
                 break
@@ -72,7 +77,6 @@ class BlackBoxScheduler(Scheduler):
                 trial_id, trial = new
                 trials[trial_id] = trial
                 n -= 1
-                self.num_released += 1
         return trials
 
     def update_trials(self, trials: Dict[str, Trial]) -> Dict[str, Trial]:
@@ -93,8 +97,15 @@ class BlackBoxScheduler(Scheduler):
         """
         trials_with_result = {trial_id: trial for trial_id,
                               trial in trials.items() if trial.has_result()}
-        results_dict = {t_id: trial.best_metric for t_id, trial in trials_with_result.items()}
+
+        finished_trials: Dict[str, float] = dict()
+        for trial_id, trial in trials_with_result.items():
+            n_metrics = len(trial.metrics)
+            if n_metrics == self.max_steps:
+                finished_trials[trial_id] = trial
+                trial.set_terminated()
+                self.num_terminated += 1
+
+        results_dict = {t_id: trial.best_metric for t_id, trial in finished_trials.items()}
         self.searcher.register_results(results_dict)  # type: ignore
-        for trial in trials_with_result.values():
-            trial.set_resume()
         return trials
