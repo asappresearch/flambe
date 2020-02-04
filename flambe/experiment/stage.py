@@ -108,14 +108,14 @@ class Stage(object):
         variants: List[Pipeline] = []
 
         for pipe in pipelines:
-            found_match = False
-            for var in variants:
+            match_found = False
+            for i, var in enumerate(variants):
                 # If all the matching stages have matching schemas
                 if pipe.matches(var):
-                    found_match = True
-                    variants.append(pipe.merge(var))
+                    match_found = True
+                    variants[i] = pipe.merge(var)
             # If no match was found, then just add to variants
-            if not found_match:
+            if not match_found:
                 variants.append(pipe)
 
         return variants
