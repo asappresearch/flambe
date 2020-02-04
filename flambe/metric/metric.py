@@ -1,5 +1,4 @@
 from typing import Dict
-from collections import defaultdict
 from abc import abstractmethod
 
 import torch
@@ -58,7 +57,9 @@ class Metric(Component):
             num_samples = args[0].size(0)
         except (ValueError, AttributeError):
             raise ValueError(f'Cannot get size from {type(args[0])}')
-        state = defaultdict(float) if not state else state
+        if state == {}:
+            state['accumulated_score'] = 0.
+            state['sample_count'] = 0
         state['accumulated_score'] = \
             (state['sample_count'] * state['accumulated_score'] +
              num_samples * score_np.item()) / \

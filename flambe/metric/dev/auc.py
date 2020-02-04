@@ -41,7 +41,9 @@ class AUC(Metric):
 
         """
         pred, target = args
-        state = state if state else defaultdict(list)
+        if state == {}:
+            state['pred'] = []
+            state['target'] = []
         state['pred'].append(pred.cpu().detach())
         state['target'].append(target.cpu().detach())
         return state
