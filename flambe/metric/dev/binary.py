@@ -17,11 +17,15 @@ class BinaryMetric(Metric):
             p < threshold will be considered tagged as Negative by
             the classifier when computing the metric.
             Defaults to 0.5
-
         """
         self.threshold = threshold
 
-    def compute(self, pred: torch.Tensor, target: torch.Tensor) -> torch.Tensor:
+    def __str__(self) -> str:
+        """Return the name of the Metric (for use in logging)."""
+        return f'{self.__class__.__name__}@{self.threshold}'
+
+    def compute(self, pred: torch.Tensor, target: torch.Tensor) \
+            -> torch.Tensor:
         """Compute the metric given predictions and targets
 
         Parameters
@@ -37,11 +41,9 @@ class BinaryMetric(Metric):
             The computed binary metric
 
         """
-        # Cast because pytorch's byte method returns a Tensor type
         pred = pred.squeeze()
-        target = target.squeeze()
-        pred = (pred > self.threshold).byte()
-        target = target.byte()
+        target = target.squeeze().bool()
+        pred = (pred > self.threshold)
 
         return self.compute_binary(pred, target)
 
