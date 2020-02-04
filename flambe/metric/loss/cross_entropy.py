@@ -11,7 +11,7 @@ class MultiLabelCrossEntropy(Metric):
     def __init__(self,
                  weight: Optional[torch.Tensor] = None,
                  ignore_index: Optional[int] = None,
-                 reduction: str = 'mean',) -> None:
+                 reduction: str = 'mean') -> None:
         """Initialize the MultiLabelCrossEntropy.
 
         Parameters

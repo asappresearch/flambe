@@ -47,7 +47,8 @@ class Metric(Component):
 
         Returns
         -------
-        The updated state (even though the update happens in-place)
+        dict
+            The updated state (even though the update happens in-place)
         """
         score = self.compute(*args, **kwargs)
         score_np = score.cpu().detach().numpy() \
@@ -57,7 +58,7 @@ class Metric(Component):
             num_samples = args[0].size(0)
         except (ValueError, AttributeError):
             raise ValueError(f'Cannot get size from {type(args[0])}')
-        if state == {}:
+        if not state:
             state['accumulated_score'] = 0.
             state['sample_count'] = 0
         state['accumulated_score'] = \
@@ -78,7 +79,8 @@ class Metric(Component):
 
         Returns
         -------
-        The final score
+        Any
+            The final score. Can be anything, depending on metric.
         """
         return state.get('accumulated_score')
 

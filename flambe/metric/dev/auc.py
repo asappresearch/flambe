@@ -16,7 +16,6 @@ class AUC(Metric):
         ----------
         max_fpr : float, optional
             Maximum false positive rate to compute the area under
-
         """
         self.max_fpr = max_fpr
 
@@ -26,8 +25,7 @@ class AUC(Metric):
 
     @staticmethod
     def aggregate(state: dict, *args, **kwargs) -> Dict:
-        """
-        Aggregates by simply storing preds and targets
+        """Aggregates by simply storing preds and targets
 
         Parameters
         ----------
@@ -37,10 +35,11 @@ class AUC(Metric):
 
         Returns
         -------
-
+        dict
+            the state dict
         """
         pred, target = args
-        if state == {}:
+        if not state:
             state['pred'] = []
             state['target'] = []
         state['pred'].append(pred.cpu().detach())
@@ -48,8 +47,7 @@ class AUC(Metric):
         return state
 
     def finalize(self, state) -> float:
-        """
-        FInalizes the metric computation
+        """Finalizes the metric computation
 
         Parameters
         ----------
@@ -58,9 +56,10 @@ class AUC(Metric):
 
         Returns
         -------
-        The final score
+        float
+            The final score.
         """
-        if 'pred' not in state:
+        if not state:
             # call on empty state
             return np.NaN
         pred = torch.cat(state['pred'], dim=0)
