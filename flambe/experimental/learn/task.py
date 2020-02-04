@@ -1,2 +1,0 @@
-class Learner(Component):
-    pass

@@ -23,10 +23,10 @@ class Stage(object):
                  name: str,
                  pipeline: Pipeline,
                  algorithm: Algorithm,
-                 cpus_per_trial: int,
-                 gpus_per_trial: int,
                  dependencies: List[Pipeline],
                  reductions: Dict[str, int],
+                 cpus_per_trial: int,
+                 gpus_per_trial: int,
                  envrionmnent: Environment):
         """Initialize a Stage.
 
