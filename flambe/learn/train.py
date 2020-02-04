@@ -358,7 +358,7 @@ class Trainer(Component):
         with torch.no_grad():
             loss = []
             for batch in val_iterator:
-                pred, target, batch_loss = self._compute_batch(
+                _, _, batch_loss = self._compute_batch(
                     batch, [(self.metric_fn, metric_fn_state), *metrics_with_states])
                 loss.append(batch_loss.item())
             val_loss = np.NaN if loss == [] else sum(loss) / len(loss)
