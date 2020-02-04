@@ -92,5 +92,6 @@ class Experiment(Runnable):
             stage_to_id[name] = object_id
 
         # Wait until the extperiment is done
-        ray.wait(stage_to_id.values(), num_returns=1)
+        # TODO progress tracking
+        ray.wait(stage_to_id.values(), num_returns=len(stage_to_id))
         logger.info('Experiment ended.')
