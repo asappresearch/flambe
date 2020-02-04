@@ -1,5 +1,5 @@
 import enum
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, List
 
 
 class Status(enum.Enum):
@@ -49,9 +49,9 @@ class Trial(object):
         return self.params
 
     @property
-    def best_metric(self) -> Optional[float]:
+    def best_metric(self) -> float:
         """Get the best metric recorded so far."""
-        return max(self.metrics) if self.metrics else None
+        return max(self.metrics) if self.metrics else 0
 
     def get_metric(self, step: int) -> float:
         """Get the current trial results."""

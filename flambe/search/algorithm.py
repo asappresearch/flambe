@@ -5,7 +5,7 @@ from flambe.compile import RegisteredStatelessMap
 from flambe.search.distribution import Distribution
 from flambe.search.trial import Trial
 from flambe.search.searcher import GridSearcher, RandomSearcher,\
-    BayesOptGPSearcher, BayesOptKDESearcher, MultiFidSearcher
+    BayesOptGPSearcher, BayesOptKDESearcher
 from flambe.search.scheduler import Scheduler, BlackBoxScheduler, HyperBandScheduler
 
 
@@ -133,7 +133,7 @@ class GridSearch(BaseAlgorithm):
         searcher = GridSearcher(space)
         self.scheduler = BlackBoxScheduler(
             searcher=searcher,
-            trial_budget=float('inf'),
+            trial_budget=float('inf'),  # type: ignore
             max_steps=self.max_steps,
 
         )

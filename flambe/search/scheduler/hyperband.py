@@ -52,7 +52,8 @@ class HyperBandScheduler(Scheduler):
         # Initialize HyperBand params
         self.max_drops = int(np.log(max_steps / min_steps) / np.log(drop_rate))
         n_drops_grid = np.arange(self.max_drops + 1)
-        self.n_trials_grid = np.ceil((self.max_drops + 1) / (n_drops_grid + 1) * (drop_rate**n_drops_grid)).astype('int')
+        n_trials_grid = (self.max_drops + 1) / (n_drops_grid + 1) * (drop_rate**n_drops_grid)
+        self.n_trials_grid = np.ceil(n_trials_grid).astype('int')
         self.n_res_grid = max_steps / (drop_rate**n_drops_grid)
 
         self.step_budget = step_budget
@@ -186,7 +187,7 @@ class HyperBandScheduler(Scheduler):
                 searcher.register_results(results)
 
                 # Update best searcher
-                if fid > self.max_fid and searcher.has_enough_configs_for_model:
+                if fid > self.max_fid and searcher.has_enough_configs_for_model:  # type: ignore
                     self.max_fid = fid
                     self.searcher = searcher
         else:
