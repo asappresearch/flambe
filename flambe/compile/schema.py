@@ -174,14 +174,14 @@ def parse_link_str(link_str: str) -> Tuple[Sequence[str], Sequence[str]]:
     return schematic_path, attr_path
 
 
-class Variants(Registrable, tag_override="g"):
+class Variants(Registrable, tag_override="v"):
 
     def __init__(self, options: Iterable[Any]):
         self.options = options
 
     @classmethod
     def to_yaml(cls, representer: Any, node: Any, tag: str) -> Any:
-        raise NotImplementedError()
+        return representer.represent_sequence(tag, node.options)
 
     @classmethod
     def from_yaml(cls, constructor: Any, node: Any, factory_name: str, tag: str) -> 'Link':
@@ -189,6 +189,23 @@ class Variants(Registrable, tag_override="g"):
          #  will also recurse so items in options can also be links
          options, = list(constructor.construct_yaml_seq(node))
          return Variants(options)
+
+
+class GridVariants(Registrable, tag_override="g"):
+
+    def __init__(self, options: Iterable[Any]):
+        self.options = options
+
+    @classmethod
+    def to_yaml(cls, representer: Any, node: Any, tag: str) -> Any:
+        return representer.represent_sequence(tag, node.options)
+
+    @classmethod
+    def from_yaml(cls, constructor: Any, node: Any, factory_name: str, tag: str) -> 'Link':
+         # construct_yaml_seq returns wrapper tuple, need to unpack;
+         #  will also recurse so items in options can also be links
+         options, = list(constructor.construct_yaml_seq(node))
+         return GridVariants(options)
 
 
 class Link(Registrable, tag_override="@"):
@@ -219,30 +236,31 @@ class Link(Registrable, tag_override="@"):
                 try:
                     obj = getattr(obj, attr)
                 except AttributeError:
-                    raise MalformedLinkError(f'Link {self} failed when resolving '
-                                             f'on object {obj}. Failed at attribute {attr}')
+                    raise MalformedLinkError(f'Link {self} failed. {obj} has no attribute {attr}')
         return obj
 
     @classmethod
     def from_yaml(cls, constructor: Any, node: Any, factory_name: str, tag: str) -> 'Link':
-        if isinstance(node, ScalarNode):
-            link_str = constructor.construct_scalar(node)
-            return cls(link_str)
-        # elif isinstance(node, SequenceNode):
-            # # construct_yaml_seq returns wrapper tuple, need to unpack;
-            # #  will also recurse so items in options can also be links
-            # options, = list(constructor.construct_yaml_seq(node))
-            # return Variants(options)
+        link_str = constructor.construct_scalar(node)
+        return cls(link_str)
 
     @classmethod
     def to_yaml(cls, representer: Any, node: Any, tag: str) -> Any:
-        raise NotImplementedError()
+        link_str = create_link_str(node.schematic_path, node.attr_path)
+        return representer.represent_scalar(tag, link_str)
 
     def __call__(self, cache: Dict[str, Any]) -> Any:
         return self.resolve(cache)
 
     def __repr__(self) -> str:
         return f'link({create_link_str(self.schematic_path, self.attr_path)})'
+
+
+class CopyLink(Link, tag_override='#'):
+
+    def resolve(self, cache: Dict[str, Any]) -> Any:
+        obj = super().resolve(cache)
+        return copy.deepcopy(obj)
 
 
 class Schema(MutableMapping[str, Any]):
@@ -292,6 +310,8 @@ class Schema(MutableMapping[str, Any]):
         return self.bound_arguments.arguments
 
     def __setitem__(self, key: str, value: Any) -> None:
+        print(f"     update bargs: {self.bound_arguments}")
+        print(f"       id: {id(self.bound_arguments)}")
         self.bound_arguments.arguments[key] = value
 
     def __getitem__(self, key: str) -> Any:
@@ -308,8 +328,9 @@ class Schema(MutableMapping[str, Any]):
 
     def __call__(self,
                  path: Optional[List[str]] = None,
-                 cache: Optional[Dict[str, Any]] = None):
-        return self.initialize(path, cache)
+                 cache: Optional[Dict[str, Any]] = None,
+                 root: Optional['Schema'] = None):
+        return self.initialize(path, cache, root)
 
     @classmethod
     def from_yaml(cls,
@@ -350,21 +371,21 @@ class Schema(MutableMapping[str, Any]):
         elif isinstance(obj, Schema):
             if yield_schema is None or yield_schema == 'before':
                 yield (current_path, fn(obj))
-                yield from Schema.traverse(obj.arguments, current_path, fn, yield_schema)
+                yield from Schema.traverse(obj.bound_arguments, current_path, fn, yield_schema)
             elif yield_schema == 'only':
                 yield (current_path, fn(obj))
             elif yield_schema == 'after':
-                yield from Schema.traverse(obj.arguments, current_path, fn, yield_schema)
+                yield from Schema.traverse(obj.bound_arguments, current_path, fn, yield_schema)
                 yield (current_path, fn(obj))
             elif yield_schema == 'never':
-                yield from Schema.traverse(obj.arguments, current_path, fn, yield_schema)
+                yield from Schema.traverse(obj.bound_arguments, current_path, fn, yield_schema)
         elif isinstance(obj, dict):
             for k, v in obj.items():
                 next_path = current_path + (k,)
                 yield from Schema.traverse(v, next_path, fn, yield_schema)
         elif isinstance(obj, (list, tuple)):
             for i, e in enumerate(obj):
-                next_path = current_path[:] + (i,)
+                next_path = current_path[:] + (str(i),)
                 yield from Schema.traverse(e, next_path, fn, yield_schema)
         elif isinstance(obj, inspect.BoundArguments):
             params = obj.signature.parameters
@@ -376,33 +397,85 @@ class Schema(MutableMapping[str, Any]):
                 elif params[k].kind == inspect.Parameter.VAR_KEYWORD:
                     raise NotImplementedError('Variable keyword arguments not supported')
                 else:
-                    raise Exception('')
+                    raise Exception(f'Invalid state for Schema. Invalid argument types at {obj}')
         else:
             yield (current_path, obj)
 
     def set_param(self, path: Optional[Tuple[str]], value: Any) -> None:
+        """Set path in schema to value
+
+        Convenience method for setting a value deep in a schema. For
+        example `root.set_param(('a', 'b', 'c'), val)` is the
+        equivalent of `root['a']['b']['c'] = val`. NOTE: you can only
+        use set_param on existing paths in the schema. If `c` does not
+        already exist in the above example, a `KeyError` is raised.
+
+        Parameters
+        ----------
+        path : Optional[Tuple[str]]
+            Description of parameter `path`.
+        value : Any
+            Description of parameter `value`.
+
+        Raises
+        -------
+        KeyError
+            If any value in the path does not exist as the name of a
+            child schema
+
+        """
         current_obj = self
-        for item in path[:-1]:
-            current_obj = current_obj[item]
-        current_obj[path[-1]] = value
+        last_item = None
+        try:
+            for item in path[:-1]:
+                last_item = item
+                current_obj = current_obj[item]
+            last_item = path[-1]
+            if last_item not in current_obj:
+                raise KeyError()
+            current_obj[last_item] = value
+        except KeyError:
+            raise KeyError(f'{self} has no path {path}. Failed at {last_item}')
+
+    def get_param(self, path: Optional[Tuple[str]]) -> None:
+        current_obj = self
+        last_item = None
+        try:
+            for item in path[:-1]:
+                last_item = item
+                current_obj = current_obj[item]
+            last_item = path[-1]
+            return current_obj[last_item]
+        except KeyError:
+            raise KeyError(f'{self} has no path {path}. Failed at {last_item}')
 
     def initialize(self,
                    path: Optional[Tuple[str]] = None,
-                   cache: Optional[Dict[str, Any]] = None) -> Any:
+                   cache: Optional[Dict[str, Any]] = None,
+                   root: Optional['Schema'] = None) -> Any:
+        # Set defaults for values that will be used in recursion
         cache = cache if cache is not None else {}
         path = path if path is not None else tuple()
+        new_root = root is None
+        # Need to keep a reference to the first caller
+        #  for set_param updates later
+        root = root if root is not None else copy.deepcopy(self)
+        initialized = root if new_root else self
+        # If object has already been initialized, return that value
         if path in cache:
             return cache[path]
-        initialized = copy.deepcopy(self)
-        for current_path, obj in self.traverse(self.bound_arguments, current_path=path, yield_schema='only'):
+        # Else, recursively initialize all children (bound arguments)
+        for current_path, obj in self.traverse(initialized.bound_arguments, current_path=path, yield_schema='only'):
             if isinstance(obj, Link):
                 new_value = obj(cache=cache)
                 cache[current_path] = new_value
-                initialized.set_param(current_path, new_value)
+                root.set_param(current_path, new_value)
             elif isinstance(obj, Schema):
-                new_value = obj(path=current_path, cache=cache)
+                new_value = obj(path=current_path, cache=cache, root=root)
                 cache[current_path] = new_value
-                initialized.set_param(current_path, new_value)
+                root.set_param(current_path, new_value)
+            else:
+                cache[current_path] = obj
         initialized_arguments = initialized.bound_arguments
 
         for k, v in initialized_arguments.arguments.items():
@@ -411,12 +484,11 @@ class Schema(MutableMapping[str, Any]):
                 msg += f"This could be because of a typo or the class is not registered properly"
                 warn(msg)
         try:
-            # TODO make sure redundant cache update is really redundant
-            cache[path] = self.factory_method(*initialized_arguments.args,
-                                              **initialized_arguments.kwargs)
+            cache[path] = initialized.factory_method(*initialized_arguments.args,
+                                                     **initialized_arguments.kwargs)
         except TypeError as te:
             print(f"Constructor {self.factory_method} failed with "
-                  f"arguments:\n{initialized.kwargs}")
+                  f"arguments:\n{initialized_arguments.arguments.items()}")
             raise te
         return cache[path]
 
@@ -472,7 +544,7 @@ class Schema(MutableMapping[str, Any]):
 
     @recursive_repr()
     def __repr__(self) -> str:
-        args = ", ".join("{}={!r}".format(k, v) for k, v in sorted(self.bound_arguments.arguments))
+        args = ", ".join("{}={!r}".format(k, v) for k, v in sorted(self.arguments.items()))
         format_string = "{module}.{cls}({callable}, {args})"
         return format_string.format(module=self.__class__.__module__,
                                     cls=self.__class__.__qualname__,
