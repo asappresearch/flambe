@@ -6,7 +6,7 @@ from flambe.search.search import Search
 from flambe.search.trial import Trial
 
 
-__all__ = ['Beta', 'beta', 'Normal', 'normal',
+__all__ = ['Beta', 'beta', 'Normal', 'normal', 'Checkpoint',
            'Choice', 'choice', 'Uniform', 'uniform', 'QUniform', 'quniform',
            'Algorithm', 'BayesOptGP', 'BayesOptKDE', 'BOHB', 'GridSearch',
            'RandomSearch', 'Hyperband', 'Search', 'Trial']
