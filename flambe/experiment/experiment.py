@@ -1,12 +1,10 @@
 import logging
-import copy
-from typing import Optional, Dict, List, NamedTuple, Tuple, Set
+from typing import Optional, Dict
 
 import ray
 
-from flambe.compile import Schema, Link
-from flambe.search import Algorithm, Search, Trial, Choice
-from flambe.search.search import Checkpoint
+from flambe.compile import Schema
+from flambe.search import Algorithm
 from flambe.runner.runnable import Runnable, Environment
 from flambe.experiment.pipeline import Pipeline
 from flambe.experiment.stage import Stage
@@ -21,7 +19,8 @@ class Experiment(Runnable):
                  name: str,
                  save_path: str = 'flambe_output',
                  pipeline: Optional[Dict[str, Schema]] = None,
-                 devices: Dict[str, int] = None,
+                 num_cpus: Dict[str, int] = None,
+                 num_gpus: Dict[str, int] = None,
                  algorithm: Optional[Dict[str, Algorithm]] = None,
                  reduce: Optional[Dict[str, int]] = None) -> None:
         """Iniatilize an experiment.
@@ -29,15 +28,11 @@ class Experiment(Runnable):
         Parameters
         ----------
         name : str
-            [description]
+            The name of the experiment to run.
         pipeline : Optional[Dict[str, Schema]], optional
             [description], by default None
         resources : Optional[Dict[str, str]], optional
             [description], by default None
-        resume : Optional[Union[str, Sequence[str]]], optional
-            [description], by default None
-        debug : bool, optional
-            [description], by default False
         devices : Dict[str, int], optional
             [description], by default None
         save_path : Optional[str], optional
@@ -67,6 +62,7 @@ class Experiment(Runnable):
         """
         logger.info('Experiment started.')
 
+        # Set up envrionment
         env = env if env is not None else Environment(self.save_path)
         if not ray.is_initialized():
             ray.init("auto", local_mode=env.debug)
@@ -74,19 +70,20 @@ class Experiment(Runnable):
         stage_to_id: Dict[str, int] = {}
         pipeline = Pipeline(self.pipeline)
 
-        for name, schema in pipeline.items():
+        # Construct and execute stages as a DAG
+        for name, schema in pipeline.schemas.items():
             # Get dependencies
             sub_pipeline = pipeline.sub_pipeline(name)
-            depedency_ids = [stage_to_id[d] for d in sub_pipeline.dependencies()]
+            depedency_ids = [stage_to_id[d] for d in sub_pipeline.dependencies]
 
-            # Construct the state
+            # Construct the stage
             stage = ray.remote(Stage).remote(
                 name=name,
                 pipeline=sub_pipeline,
                 reductions=self.reduce[name],
                 dependencies=depedency_ids,  # Passing object ids sets the order of computation
                 devices=self.devices[name],
-                resume=False  # TODO
+                environment=env
             )
 
             # Execute the stage remotely
