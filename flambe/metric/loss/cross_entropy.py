@@ -37,10 +37,8 @@ class MultiLabelCrossEntropy(Metric):
 
     def __str__(self) -> str:
         """Return the name of the Metric (for use in logging)."""
-        if self.weight is None:
-            return 'MultiLabelCrossEntropy'
-        else:
-            return 'WeightedMultiLabelCrossEntropy'
+        return 'MultiLabelCrossEntropy' if self.weight is None \
+            else 'WeightedMultiLabelCrossEntropy'
 
     def compute(self, pred: torch.Tensor, target: torch.Tensor) \
             -> torch.Tensor:

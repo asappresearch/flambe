@@ -1,3 +1,6 @@
+from typing import Dict
+from collections import defaultdict
+
 import torch
 import sklearn.metrics
 import numpy as np
@@ -23,7 +26,7 @@ class AUC(Metric):
         return f'AUC@{self.max_fpr}'
 
     @staticmethod
-    def aggregate(state: dict, *args, **kwargs):
+    def aggregate(state: dict, *args, **kwargs) -> Dict:
         """
         Aggregates by simply storing preds and targets
 
@@ -38,9 +41,7 @@ class AUC(Metric):
 
         """
         pred, target = args
-        if state == {}:
-            state['pred'] = []
-            state['target'] = []
+        state = state if state else defaultdict(list)
         state['pred'].append(pred.cpu().detach())
         state['target'].append(target.cpu().detach())
         return state

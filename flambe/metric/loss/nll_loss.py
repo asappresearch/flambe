@@ -11,7 +11,7 @@ class MultiLabelNLLLoss(Metric):
     def __init__(self,
                  weight: Optional[torch.Tensor] = None,
                  ignore_index: Optional[int] = None,
-                 reduction: str = 'mean',) -> None:
+                 reduction: str = 'mean') -> None:
         """Initialize the MultiLabelNLLLoss.
 
         Parameters
@@ -38,10 +38,8 @@ class MultiLabelNLLLoss(Metric):
 
     def __str__(self) -> str:
         """Return the name of the Metric (for use in logging)."""
-        if self.weight is None:
-            return 'MultiLabelNLLLoss'
-        else:
-            return 'WeightedMultiLabelNLLLoss'
+        return 'MultiLabelNLLLoss' if self.weight is None \
+            else 'WeightedMultiLabelNLLLoss'
 
     def compute(self, pred: torch.Tensor, target: torch.Tensor) \
             -> torch.Tensor:

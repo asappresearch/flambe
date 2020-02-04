@@ -1,4 +1,5 @@
 from typing import Dict
+from collections import defaultdict
 from abc import abstractmethod
 
 import torch
@@ -50,17 +51,14 @@ class Metric(Component):
         The updated state (even though the update happens in-place)
         """
         score = self.compute(*args, **kwargs)
-        if isinstance(score, torch.Tensor):
-            score_np = score.cpu().detach().numpy()
-        else:
-            score_np = score
+        score_np = score.cpu().detach().numpy() \
+            if isinstance(score, torch.Tensor) \
+            else score
         try:
             num_samples = args[0].size(0)
         except (ValueError, AttributeError):
             raise ValueError(f'Cannot get size from {type(args[0])}')
-        if state == {}:
-            state['accumulated_score'] = 0.
-            state['sample_count'] = 0
+        state = defaultdict(float) if not state else state
         state['accumulated_score'] = \
             (state['sample_count'] * state['accumulated_score'] +
              num_samples * score_np.item()) / \
@@ -81,7 +79,7 @@ class Metric(Component):
         -------
         The final score
         """
-        return state['accumulated_score'] if 'accumulated_score' in state else None
+        return state.get('accumulated_score')
 
     def __call__(self, *args, **kwargs):
         """Makes Featurizer a callable."""
