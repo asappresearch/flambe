@@ -1,11 +1,12 @@
 import copy
-from typing import Optional, Dict, List, Set, Callable
+from typing import Optional, Dict, List, Callable, Set, Any
 
-from flambe.compile import Schema, Link
+from flambe.compile import Schema
 from flambe.search.search import Checkpoint
 
 
 def pipeline_builder(**kwargs):
+    """Get the last initialized object in the pipeline."""
     return kwargs.values()[-1]
 
 
@@ -15,29 +16,36 @@ class Pipeline(Schema):
     NOTE: All arguments of this schema must also be schemas, which is
     not a requirement for Schema in general.
 
-    Parameters
-    ----------
-    schemas : Dict[str, Schema]
-        Description of parameter `schemas`.
-    variant_ids : Optional[Dict[str, str]]
-        Description of parameter `variant_ids` (the default is None).
-    checkpoints : Optional[Dict[str, Checkpoint]]
-        Description of parameter `checkpoints` (the default is None).
-
     """
 
     def __init__(self,
                  schemas: Dict[str, Schema],
                  variant_ids: Optional[Dict[str, str]] = None,
                  checkpoints: Optional[Dict[str, Checkpoint]] = None):
+        """Initialize a Pipeline.
+
+        Parameters
+        ----------
+        schemas : Dict[str, Schema]
+            Description of parameter `schemas`.
+        variant_ids : Optional[Dict[str, str]]
+            Description of parameter `variant_ids` (default is None).
+        checkpoints : Optional[Dict[str, Checkpoint]]
+            Description of parameter `checkpoints` (default is None).
+
+        """
         for stage_name, schema in schemas:
             if not isinstance(schema, Schema):
                 raise TypeError(f'Value at {stage_name} is not a Schema')
+
         # TODO check keys in variants and checkpoints
         super().__init__(callable=pipeline_builder, kwargs=schemas)
+
         # Precompute dependencies for each stage
+        self.deps: Dict[str, Set] = dict()
         for stage_name in self.arguments:
             self._update_deps(stage_name)
+
         last_stage = list(schemas.keys())[-1]
         self.is_subpipeline = len(self.deps[last_stage]) == (len(schemas) - 1)
         self.var_ids = variant_ids if variant_ids is not None else dict()
@@ -45,22 +53,20 @@ class Pipeline(Schema):
         self.error = False
         self.metric = None
 
-    def _update_deps(self, stage_name: str) -> None:
+    def _update_deps(self, stage_name: str):
+        """[summary]
+
+        Parameters
+        ----------
+        stage_name : str
+            [description]
+
+        """
         schema = self.arguments[stage_name]
         immediate_deps = set(map(lambda x: x.schematic_path[0], schema.extract_links()))
         self.deps[stage_name] = immediate_deps
         for dep_name in immediate_deps:
             self.deps[stage_name] |= self.deps[dep_name]
-
-    def initialize(self,
-                   path: Optional[Tuple[str]] = None,
-                   cache: Optional[Dict[str, Any]] = None,
-                   root: Optional['Schema'] = None) -> Any:
-        assert path is None
-        assert cache is None
-        assert root is None
-        assert self.is_subpipeline
-        return super().initialize()
 
     @property
     def task(self) -> Optional[str]:
@@ -87,7 +93,10 @@ class Pipeline(Schema):
             A list of dependencies, as stage names.
 
         """
-        return self.deps[self.task]
+        if self.task is not None:
+            return list(self.deps[self.task])
+        else:
+            return []
 
     def sub_pipeline(self, stage_name: str) -> 'Pipeline':
         """Return subset of the pipeline stages ending in stage_name
@@ -95,6 +104,16 @@ class Pipeline(Schema):
         The subset of pipeline stages will include all dependencies
         needed for stage the given stage and all their dependencies
         and so on.
+
+        Parameters
+        ----------
+        stage_name: str
+            The name of the stage to construct the subpipeline over.
+
+        Returns
+        -------
+        Pipeline
+            The output subpipeline.
 
         """
         deps = self.deps[stage_name]
@@ -125,8 +144,8 @@ class Pipeline(Schema):
         """
         if name in self.arguments:
             raise ValueError(f"{name} already in pipeline.")
-        self.schemas[name] = schema
-        self._update_deps[name]
+        self.arguments[name] = schema
+        self._update_deps(name)
         if var_id is not None:
             self.var_ids[name] = var_id
         if checkpoint is not None:
@@ -152,7 +171,11 @@ class Pipeline(Schema):
         return Pipeline(schemas=stages, variant_ids=var_ids, checkpoints=checkpoints)
 
     def flatten(self) -> 'Pipeline':
-        """Check for matches.
+        """Flatten the pipeline.
+
+        Flattening a pipeline means taking all child pipelines
+        and surfacing their stages at the top level. This method
+        is used to construct the pipelines post-execution.
 
         Returns
         -------
@@ -160,7 +183,10 @@ class Pipeline(Schema):
             A flattened versiion of this pipeline.
 
         """
-        schemas, checkpoints, var_ids = {}, {}, {}
+        schemas: Dict[str, Schema] = dict()
+        checkpoints: Dict[str, Checkpoint] = dict()
+        var_ids: Dict[str, str] = dict()
+
         for name, schema in self.arguments.items():
             if isinstance(schema, Pipeline):
                 schemas.update(schema.arguments)
@@ -174,15 +200,19 @@ class Pipeline(Schema):
     def matches(self, other: 'Pipeline') -> bool:
         """Check for matches.
 
+        A match occurs when all matching stage names have the same
+        variant id. This method is used to construct pipelines in
+        the Stage object.
+
         Parameters
         ----------
-        other : [type]
-            [description]
+        other : Pipeline
+            The pipeline to compare with.
 
         Returns
         -------
         bool
-            [description]
+            Whether the given pipeline is a match.
 
         """
         for key in self.arguments.keys():
@@ -197,4 +227,5 @@ class Pipeline(Schema):
                   factory_name: str,
                   tag: str,
                   callable: Callable) -> Any:
+        """Override to disable."""
         raise NotImplementedError('Pipeline YAML not supported')

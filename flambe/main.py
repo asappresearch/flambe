@@ -130,6 +130,7 @@ def kill(name, cluster):
               help='Verbose console output')
 def run(runnable, output, force, debug, env):
     """Execute a runnable config."""
+
     # Check if previous job exists
     if env:
         env_config = load_config_from_file(env)

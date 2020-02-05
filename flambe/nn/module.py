@@ -1,6 +1,7 @@
 import math
 from typing import Iterator, Tuple
 
+import torch
 import torch.nn as nn
 
 from flambe.compile import Component
@@ -120,3 +121,11 @@ class Module(Component, nn.Module):
         # Only compute over parameters that are being trained
         parameters = filter(lambda p: p.requires_grad and p.grad is not None, self.parameters())
         nn.utils.clip_grad_norm_(parameters, threshold)
+
+
+class NLLLoss(Component, nn.NLLLoss):
+    pass
+
+
+class Adam(Component, torch.optim.Adam):
+    pass

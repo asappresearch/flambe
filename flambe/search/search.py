@@ -9,7 +9,7 @@ import socket
 import ray
 import torch
 
-from flambe.runner import Runnable, Environment
+from flambe.runner import Environment
 from flambe.compile.registered_types import RegisteredStatelessMap
 from flambe.compile.schema import Schema, Variants
 from flambe.search.trial import Trial
@@ -47,7 +47,7 @@ class Checkpoint(object):
 
         Returns
         -------
-        Runnable
+        Searchable
             The restored Searchable object.
 
         """
@@ -105,7 +105,7 @@ class RayAdapter:
         return continue_, metric
 
 
-class Search(Runnable, RegisteredStatelessMap):
+class Search(RegisteredStatelessMap):
     """Implement a hyperparameter search over any schema.
 
     Use a Search to construct a hyperparameter search over any

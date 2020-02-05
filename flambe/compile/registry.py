@@ -152,10 +152,8 @@ class Registry(metaclass=Singleton):
 
     def __iter__(self) -> Iterable[RegistryEntry]:
         for callable, namespace in self.callable_to_namespace.items():
-            # print(namespace)
-            # print(self.callable_to_namespace)
-            # print(self.pretty_str())
-            # print(self.namespaces[namespace][callable])
+            print(self.namespaces[namespace][callable])
+            # import pdb; pdb.set_trace()
             yield (namespace, self.namespaces[namespace][callable])
 
     def __contains__(self, value: Any) -> bool:

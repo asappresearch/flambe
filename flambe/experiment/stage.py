@@ -38,6 +38,10 @@ class Stage(object):
             The sub-pipeline to execute in this stage.
         algorithm : Algorithm
             A search algorithm.
+        dependencies : List[Pipeline]
+            A list of previously executed pipelines.
+        reductions : Dict[str, int]
+            Reductions to apply between stages.
         cpus_per_trial : int
             The number of CPUs to allocate per trial.
             Note: if the object you are searching over spawns ray
@@ -46,10 +50,6 @@ class Stage(object):
             The number of GPUs to allocate per trial.
             Note: if the object you are searching over spawns ray
             remote tasks, then you should set this to 0.
-        dependencies : List[Pipeline]
-            A list of previously executed pipelines.
-        reductions : Dict[str, int]
-            Reductions to apply between stages.
 
         """
         self.name = name

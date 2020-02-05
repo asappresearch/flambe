@@ -13,8 +13,9 @@ from ray.autoscaler.updater import SSHCommandRunner
 from flambe.logging import coloredlogs as cl
 from flambe.const import FLAMBE_GLOBAL_FOLDER
 from flambe.compile import RegisteredStatelessMap
-from flambe.compile import load_extensions_from_file
+from flambe.compile import load_extensions_from_file, load_resources_from_file
 from flambe.compile.extensions import download_extensions
+from flambe.compile.downloader import download_manager
 from flambe.runner.utils import is_dev_mode, get_flambe_repo_location
 
 
@@ -378,10 +379,21 @@ class Cluster(RegisteredStatelessMap):
                 cmd = f'pip install -U {target}'
                 exec_cluster(fp.name, tmux(cmd))
 
+            # Upload files
+            resources_dir = os.path.join(FLAMBE_GLOBAL_FOLDER, 'resources')
+            resources = load_resources_from_file(runnable)
+            updated_resources = dict()
+            for name, resource in resources.items():
+                with download_manager(resource, os.path.join(resources_dir, name)) as path:
+                    target = f'$HOME/jobs/{name}/resources/{name}'
+                    rsync(fp.name, path, target, None, down=False)
+                    updated_resources[name] = target
+
             # Run Flambe
             env = {
                 'output_path': f"~/jobs/{name}",
-                'head_node_ip': self.head_node_ip()
+                'head_node_ip': self.head_node_ip(),
+                'resources': updated_resources
             }
             yaml = YAML()
             with tempfile.NamedTemporaryFile() as env_file:

@@ -2,14 +2,14 @@ from typing import Optional, Dict
 
 import ray
 
-from flambe.compile import Schema
+from flambe.compile import Schema, RegisteredStatelessMap
 from flambe.search import Algorithm
-from flambe.runner.runnable import Runnable, Environment
+from flambe.runner.runnable import Environment
 from flambe.experiment.pipeline import Pipeline
 from flambe.experiment.stage import Stage
 
 
-class Experiment(Runnable):
+class Experiment(RegisteredStatelessMap):
 
     def __init__(self,
                  name: str,
@@ -28,11 +28,13 @@ class Experiment(Runnable):
         pipeline : Optional[Dict[str, Schema]], optional
             A set of Searchable schemas, possibly including links.
         save_path : Optional[str], optional
-            [description], by default None
+            A save path for the experiment.
         algorithm : Optional[Dict[str, Algorithm]], optional
-            [description], by default None
+            A set of hyperparameter search algorithms, one for each
+            defined stage. Defaults to grid searching for all.
         reduce : Optional[Dict[str, int]], optional
-            [description], by default None
+            A set of reduce operations, one for each defined stage.
+            Defaults to no reduction.
         cpus_per_trial : int
             The number of CPUs to allocate per trial.
             Note: if the object you are searching over spawns ray
@@ -69,7 +71,7 @@ class Experiment(Runnable):
         pipeline = Pipeline(self.pipeline)
 
         # Construct and execute stages as a DAG
-        for name, schema in pipeline.schemas.items():
+        for name, schema in pipeline.arguments.items():
             # Get dependencies
             sub_pipeline = pipeline.sub_pipeline(name)
             depedency_ids = [stage_to_id[d] for d in sub_pipeline.dependencies]
