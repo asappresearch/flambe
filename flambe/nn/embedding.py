@@ -1,3 +1,4 @@
+# type: ignore[override]
 
 import math
 from typing import Tuple, Union, Optional
@@ -298,7 +299,7 @@ class Embedder(Module):
 
         padding_mask: Optional[Tensor]
         if self.padding_idx is not None:
-            padding_mask = (data != self.padding_idx).byte()
+            padding_mask = (data != self.padding_idx)
             encoding = self.encoder(embedded, padding_mask=padding_mask)
         else:
             padding_mask = None
