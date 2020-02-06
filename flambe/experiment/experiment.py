@@ -65,7 +65,9 @@ class Experiment(RegisteredStatelessMap):
         # Set up envrionment
         env = env if env is not None else Environment(self.save_path)
         if not ray.is_initialized():
-            ray.init("auto", local_mode=env.debug)
+            # TODO fix for remote usage i.e. detect if auto is needed
+            # ray.init("auto", local_mode=env.debug)
+            ray.init(local_mode=env.debug)
 
         stage_to_id: Dict[str, int] = {}
         pipeline = Pipeline(self.pipeline)
@@ -80,6 +82,7 @@ class Experiment(RegisteredStatelessMap):
             stage = ray.remote(Stage).remote(
                 name=name,
                 pipeline=sub_pipeline,
+                algorithm=self.algorithm.get(name, None),
                 reductions=self.reduce.get(name, None),
                 dependencies=depedency_ids,  # Passing object ids sets the order of computation
                 cpus_per_trial=self.cpus_per_trial.get(name, None),
@@ -94,4 +97,5 @@ class Experiment(RegisteredStatelessMap):
 
         # Wait until the extperiment is done
         # TODO progress tracking
-        ray.wait(stage_to_id.values(), num_returns=len(stage_to_id))
+        print(stage_to_id)
+        ray.wait(list(stage_to_id.values()), num_returns=len(stage_to_id))

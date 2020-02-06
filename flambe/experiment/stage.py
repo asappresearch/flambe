@@ -27,7 +27,7 @@ class Stage(object):
                  reductions: Dict[str, int],
                  cpus_per_trial: int,
                  gpus_per_trial: int,
-                 envrionmnent: Environment):
+                 environment: Environment):
         """Initialize a Stage.
 
         Parameters
@@ -59,7 +59,7 @@ class Stage(object):
         self.gpus_per_trial = gpus_per_trial
         self.dependencies = dependencies
         self.reductions = reductions
-        self.env = envrionmnent
+        self.env = environment
 
     def filter_dependencies(self, pipelines: List['Pipeline']) -> List['Pipeline']:
         """Filter out erros, and apply reductions on dependencies.

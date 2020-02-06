@@ -228,7 +228,7 @@ class Link(Registrable, tag_override="@"):
         try:
             obj = cache[self.schematic_path]
         except KeyError:
-            raise MalformedLinkError(f'Link for schema at {self.schematic_path} does not point to '
+            raise UnpreparedLinkError(f'Link for schema at {self.schematic_path} does not point to '
                                      'an object that has been initialized. '
                                      'Make sure the link points to a non-parent above the link '
                                      'in the config.')
@@ -237,7 +237,7 @@ class Link(Registrable, tag_override="@"):
                 try:
                     obj = getattr(obj, attr)
                 except AttributeError:
-                    raise MalformedLinkError(f'Link {self} failed. {obj} has no attribute {attr}')
+                    raise UnpreparedLinkError(f'Link {self} failed. {obj} has no attribute {attr}')
         return obj
 
     @classmethod
@@ -271,9 +271,12 @@ class Schema(MutableMapping[str, Any]):
                  args: Optional[Sequence[Any]] = None,
                  kwargs: Optional[Dict[str, Any]] = None,
                  factory_name: Optional[str] = None,
-                 tag: Optional[str] = None):
+                 tag: Optional[str] = None,
+                 apply_defaults: bool = True,
+                 allow_new_args: bool = False):
         if not isinstance(callable, type):
-            raise NotImplementedError('Using non-class callables with Schema is not yet supported')
+            warn('Using non-class callables with Schema is not fully supported')
+            # raise NotImplementedError('Using non-class callables with Schema is not yet supported')
         self.callable = callable
         registry = get_registry()
         if callable not in registry:
@@ -298,39 +301,76 @@ class Schema(MutableMapping[str, Any]):
         args = args if args is not None else []
         kwargs = kwargs if kwargs is not None else {}
         s = inspect.signature(self.factory_method)
+        # Temporary hack for 3.6
+        new_params = []
+        for param in s.parameters.values():
+            new_params.append(param.replace(annotation=inspect.Parameter.empty))
+        s = s.replace(parameters=new_params)
         self.bound_arguments = s.bind(*args, **kwargs)
-        self.bound_arguments.apply_defaults()
+        if apply_defaults:
+            self.bound_arguments.apply_defaults()
         for k, v in self.bound_arguments.arguments.items():
             if s.parameters[k].kind not in [inspect.Parameter.POSITIONAL_OR_KEYWORD,
-                                            inspect.Parameter.KEYWORD_ONLY]:
-                raise TypeError(f'Argument {k} of type {s.parameters[k].kind} not supported')
+                                            inspect.Parameter.KEYWORD_ONLY, inspect.Parameter.VAR_KEYWORD]:
+                raise TypeError(f'Argument {k} for {callable} is of unsupported type {s.parameters[k].kind.name}')
         if tag is None:
             if isinstance(self.callable, type):
                 tag = type(self.callable).__name__
             else:
                 tag = self.callable.__name__
         self.created_with_tag = tag
+        self.allow_new_args = allow_new_args
+
+    @staticmethod
+    def _iter_bound_args(bound_arguments):
+        params = bound_arguments.signature.parameters
+        for k, v in bound_arguments.arguments.items():
+            assert k != 'args'
+            if k == 'kwargs':
+                for nk, nv in v.items():
+                    yield nk, nv, inspect.Parameter.VAR_KEYWORD
+            else:
+                yield k, v, params[k].kind
 
     @property
     def arguments(self):
-        return self.bound_arguments.arguments
+        return {k: v for k, v, _ in Schema._iter_bound_args(self.bound_arguments)}
 
     def __setitem__(self, key: str, value: Any) -> None:
-        print(f"     update bargs: {self.bound_arguments}")
-        print(f"       id: {id(self.bound_arguments)}")
-        self.bound_arguments.arguments[key] = value
+        args = self.bound_arguments.arguments
+        if key in args:
+            args[key] = value
+        elif 'kwargs' in args and key in args['kwargs']:
+            args['kwargs'][key] = value
+        elif self.allow_new_args:
+            existing_kwargs = self.bound_arguments.kwargs
+            existing_kwargs[key] = value
+            self.bound_arguments = self.bound_arguments.signature.bind(*self.bound_arguments.args, **existing_kwargs)
+        else:
+            raise KeyError(f'{key} not found in schema {self} and `allow_new_args` is False')
 
     def __getitem__(self, key: str) -> Any:
-        return self.bound_arguments.arguments[key]
+        args = self.bound_arguments.arguments
+        if key in args:
+            return args[key]
+        elif 'kwargs' in args and key in args['kwargs']:
+            return args['kwargs'][key]
+        raise KeyError(f'{key} not found in schema {self}')
 
     def __delitem__(self, key: str) -> None:
-        del self.bound_arguments.arguments[key]
+        args = self.bound_arguments.arguments
+        if key in args:
+            del args[key]
+        elif 'kwargs' in args and key in args['kwargs']:
+            del args['kwargs'][key]
+        else:
+            raise KeyError(f'{key} not found in schema {self}')
 
     def __iter__(self) -> Iterable[str]:
-        yield from self.bound_arguments.arguments
+        yield from self.arguments
 
     def __len__(self) -> int:
-        return len(self.bound_arguments.arguments)
+        return len(self.arguments)
 
     def __call__(self,
                  path: Optional[List[str]] = None,
@@ -394,16 +434,23 @@ class Schema(MutableMapping[str, Any]):
                 next_path = current_path[:] + (str(i),)
                 yield from Schema.traverse(e, next_path, fn, yield_schema)
         elif isinstance(obj, inspect.BoundArguments):
-            params = obj.signature.parameters
-            for k, v in obj.arguments.items():
-                if params[k].kind in [inspect.Parameter.POSITIONAL_OR_KEYWORD,
-                                      inspect.Parameter.KEYWORD_ONLY]:
+            for k, v, kind in Schema._iter_bound_args(obj):
+                if kind in [inspect.Parameter.POSITIONAL_OR_KEYWORD,
+                            inspect.Parameter.KEYWORD_ONLY, inspect.Parameter.VAR_KEYWORD]:
                     next_path = current_path + (k,)
                     yield from Schema.traverse(v, next_path, fn, yield_schema)
-                elif params[k].kind == inspect.Parameter.VAR_KEYWORD:
-                    raise NotImplementedError('Variable keyword arguments not supported')
                 else:
                     raise Exception(f'Invalid state for Schema. Invalid argument types at {obj}')
+            # params = obj.signature.parameters
+            # for k, v in obj.arguments.items():
+            #     if params[k].kind in [inspect.Parameter.POSITIONAL_OR_KEYWORD,
+            #                           inspect.Parameter.KEYWORD_ONLY]:
+            #         next_path = current_path + (k,)
+            #         yield from Schema.traverse(v, next_path, fn, yield_schema)
+            #     elif params[k].kind == inspect.Parameter.VAR_KEYWORD:
+            #         raise NotImplementedError('Variable keyword arguments not supported')
+            #     else:
+            #         raise Exception(f'Invalid state for Schema. Invalid argument types at {obj}')
         else:
             yield (current_path, obj)
 

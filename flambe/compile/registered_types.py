@@ -55,7 +55,10 @@ class RegisteredStatelessMap(Registrable, should_register=False):
             if nothing is not None:
                 warn(f"Non-null scalar argument to {cls.__name__} will be ignored. A map of kwargs"
                      " should be used instead.")
-            return cls()
+            try:
+                return cls()
+            except TypeError as te:
+                raise TypeError(f'Failed to initialize class {cls}') from te
         # NOTE: construct_yaml_map is a generator that yields the
         # constructed data and then updates it
         kwargs, = list(constructor.construct_yaml_map(node))

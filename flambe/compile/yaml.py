@@ -5,7 +5,7 @@ from warnings import warn
 
 import ruamel.yaml
 
-from flambe.compile.registry import get_registry, Registry
+from flambe.compile.registry import get_registry, Registry, register_class
 from flambe.compile.registered_types import Tagged
 from flambe.compile.extensions import import_modules, is_installed_module
 
@@ -261,6 +261,11 @@ def load_config(yaml_config: Union[TextIO, str]) -> Any:
     # registry.add_extensions(extensions)
     import_modules(extensions.keys())
     registry = get_registry()
+    from flambe.compile.schema import Schema, add_callable_from_yaml
+    import torch
+    from_yaml_fn = add_callable_from_yaml(Schema.from_yaml, callable=torch.nn.NLLLoss)
+    to_yaml_fn = Schema.to_yaml
+    register_class(torch.nn.NLLLoss, 'NLLLoss', from_yaml=from_yaml_fn, to_yaml=to_yaml_fn)
     with synced_yaml(registry) as yaml:
         _check_tags(yaml, yaml_config, registry, strict=True)
         result = list(yaml.load_all(yaml_config))[-1]

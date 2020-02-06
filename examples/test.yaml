@@ -12,7 +12,7 @@ pipeline:
     model: !TextClassifier
       embedder: !Embedder
         embedding: !Embeddings  # automatically use pytorch classes
-          num_embeddings: !@ dataset.text.vocab_size # link to other components, and attributes
+          num_embeddings: !@ train[dataset].text.vocab_size # link to other components, and attributes
           embedding_dim: 300
         embedding_dropout: 0.3
         encoder: !PooledRNNEncoder
@@ -22,11 +22,11 @@ pipeline:
           rnn_type: sru
           dropout: 0.3
       output_layer: !SoftmaxLayer
-          input_size: !@ model[embedder][encoder].rnn.hidden_size # also use inner-links
-          output_size: !@ dataset.label.vocab_size
+          input_size: !@ train[model][embedder][encoder].rnn.hidden_size # also use inner-links
+          output_size: !@ train[dataset].label.vocab_size
     train_sampler: !BaseSampler
     val_sampler: !BaseSampler
-    loss_fn: !NLLLoss
+    loss_fn: !torch.NLLLoss
     metric_fn: !Accuracy
     optimizer: !Adam
       params: !@ train[model].trainable_params
@@ -35,7 +35,6 @@ pipeline:
 
 # Define how to schedule variants
 algorithm:
-  train: !Hyperband
-
-
-
+    train: !RandomSearch
+      trial_budget: 1
+#   train: !Hyperband

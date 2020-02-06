@@ -1,7 +1,7 @@
 import copy
 from typing import Optional, Dict, List, Callable, Set, Any
 
-from flambe.compile import Schema
+from flambe.compile import Schema, UnpreparedLinkError
 from flambe.search.search import Checkpoint
 
 
@@ -34,16 +34,25 @@ class Pipeline(Schema):
             Description of parameter `checkpoints` (default is None).
 
         """
-        for stage_name, schema in schemas:
+        for stage_name, schema in schemas.items():
             if not isinstance(schema, Schema):
                 raise TypeError(f'Value at {stage_name} is not a Schema')
 
         # TODO check keys in variants and checkpoints
-        super().__init__(callable=pipeline_builder, kwargs=schemas)
+        super().__init__(callable=pipeline_builder, kwargs=schemas, apply_defaults=False)
+        # Check Links
+        links = {}
+        checked = []
+        for stage_name, schema in self.arguments.items():
+            checked.append(stage_name)
+            for link in schema.extract_links():
+                if link.schematic_path[0] not in checked:
+                    raise UnpreparedLinkError(f"{link} in stage '{stage_name}' doesn't point "
+                                              "to preceding or current stage")
 
         # Precompute dependencies for each stage
         self.deps: Dict[str, Set] = dict()
-        for stage_name in self.arguments:
+        for stage_name in self:
             self._update_deps(stage_name)
 
         last_stage = list(schemas.keys())[-1]
@@ -63,7 +72,9 @@ class Pipeline(Schema):
 
         """
         schema = self.arguments[stage_name]
+        print(f'schema: {schema}')
         immediate_deps = set(map(lambda x: x.schematic_path[0], schema.extract_links()))
+        immediate_deps -= {stage_name}
         self.deps[stage_name] = immediate_deps
         for dep_name in immediate_deps:
             self.deps[stage_name] |= self.deps[dep_name]

@@ -1,6 +1,6 @@
 import pytest
 
-from flambe.compile.schema import Schema, Link, CopyLink, MalformedLinkError
+from flambe.compile.schema import Schema, Link, CopyLink, MalformedLinkError, UnpreparedLinkError
 
 
 class Container:
@@ -327,7 +327,7 @@ class TestSchemaLinks:
         """
         sy = Schema(H, args=[2])
         sg = Schema(G, kwargs={'x':Link(link_str='k'), 'y':sy})
-        with pytest.raises(MalformedLinkError):
+        with pytest.raises(UnpreparedLinkError):
             g = sg.initialize()
 
     def test_initialize_fails_non_init_link(self):
@@ -341,7 +341,7 @@ class TestSchemaLinks:
         """
         sy = Schema(H, args=[2])
         sg = Schema(G, kwargs={'x':Link(link_str='y'), 'y':sy})
-        with pytest.raises(MalformedLinkError):
+        with pytest.raises(UnpreparedLinkError):
             g = sg.initialize()
 
     def test_initialize_fails_non_init_link_uncle(self):
@@ -360,7 +360,7 @@ class TestSchemaLinks:
         sx = Schema(H, args=[Link(link_str='y')])
         sy = Schema(H, args=[2])
         sg = Schema(G, kwargs={'x':sx, 'y':sy})
-        with pytest.raises(MalformedLinkError):
+        with pytest.raises(UnpreparedLinkError):
             g = sg.initialize()
 
     def test_initialize_chained_link(self):
