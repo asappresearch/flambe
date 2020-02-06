@@ -1,6 +1,6 @@
 import os
 import copy
-from typing import Dict, List
+from typing import Dict, List, Optional
 
 import ray
 
@@ -22,12 +22,12 @@ class Stage(object):
     def __init__(self,
                  name: str,
                  pipeline: Pipeline,
-                 algorithm: Algorithm,
                  dependencies: List[Pipeline],
-                 reductions: Dict[str, int],
                  cpus_per_trial: int,
                  gpus_per_trial: int,
-                 environment: Environment):
+                 environment: Environment,
+                 algorithm: Optional[Algorithm] = None,
+                 reductions: Optional[Dict[str, int]] = None):
         """Initialize a Stage.
 
         Parameters
@@ -58,7 +58,7 @@ class Stage(object):
         self.cpus_per_trial = cpus_per_trial
         self.gpus_per_trial = gpus_per_trial
         self.dependencies = dependencies
-        self.reductions = reductions
+        self.reductions = reductions if reductions is not None else dict()
         self.env = environment
 
     def filter_dependencies(self, pipelines: List['Pipeline']) -> List['Pipeline']:
@@ -152,12 +152,15 @@ class Stage(object):
         # cross-stages parameter configurations
 
         # TODO: actually read out the links types correctly
-        pipeline = Pipeline({
-            'dependencies': Choice(pipelines),  # type: ignore
-            self.name: task
-        })
+        if not pipelines:
+            return [Pipeline({self.name: task})]
+        else:
+            pipeline = Pipeline({
+                'dependencies': Choice(pipelines),  # type: ignore
+                self.name: task
+            })
 
-        return [pipeline]
+            return [pipeline]
 
     def run(self) -> List[Pipeline]:
         """Execute the stage.
@@ -214,8 +217,8 @@ class Stage(object):
                 # Flatten out the pipeline schema
                 pipeline: Pipeline = var_dict['schema'].flatten()
                 # Add search results to the pipeline
-                pipeline.var_ids.update(var_dict['var_id'])
-                pipeline.checkpoints.update(var_dict['checkpoint'])
+                pipeline.var_ids[self.name] = var_dict['var_id']
+                pipeline.checkpoints[self.name] = var_dict['checkpoint']
                 pipeline.error = var_dict['error']
                 pipeline.metric = var_dict['metric']
                 pipelines.append(pipeline)

@@ -52,7 +52,7 @@ class Pipeline(Schema):
 
         # Precompute dependencies for each stage
         self.deps: Dict[str, Set] = dict()
-        for stage_name in self:
+        for stage_name in iter(self):
             self._update_deps(stage_name)
 
         last_stage = list(schemas.keys())[-1]
@@ -72,7 +72,6 @@ class Pipeline(Schema):
 
         """
         schema = self.arguments[stage_name]
-        print(f'schema: {schema}')
         immediate_deps = set(map(lambda x: x.schematic_path[0], schema.extract_links()))
         immediate_deps -= {stage_name}
         self.deps[stage_name] = immediate_deps

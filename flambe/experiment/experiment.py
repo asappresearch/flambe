@@ -85,8 +85,8 @@ class Experiment(RegisteredStatelessMap):
                 algorithm=self.algorithm.get(name, None),
                 reductions=self.reduce.get(name, None),
                 dependencies=depedency_ids,  # Passing object ids sets the order of computation
-                cpus_per_trial=self.cpus_per_trial.get(name, None),
-                gpus_per_trial=self.gpus_per_trial.get(name, None),
+                cpus_per_trial=self.cpus_per_trial.get(name, 1),
+                gpus_per_trial=self.gpus_per_trial.get(name, 0),
                 environment=env
             )
 
@@ -97,5 +97,4 @@ class Experiment(RegisteredStatelessMap):
 
         # Wait until the extperiment is done
         # TODO progress tracking
-        print(stage_to_id)
-        ray.wait(list(stage_to_id.values()), num_returns=len(stage_to_id))
+        ray.get(list(stage_to_id.values()))

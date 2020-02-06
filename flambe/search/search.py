@@ -269,7 +269,7 @@ class Search(RegisteredStatelessMap):
         results = []
         for trial_id, trial in trials.items():
             results.append({
-                'pipeline': state[trial_id].get('schema'),
+                'schema': state[trial_id].get('schema'),
                 'checkpoint': state[trial_id].get('checkpoint', None),
                 'error': trial.is_error(),
                 'metric': trial.best_metric,
