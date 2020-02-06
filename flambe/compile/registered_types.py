@@ -11,6 +11,7 @@ from flambe.compile.registry import register_class, get_registry
 class Tagged:
 
     def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
         self._created_with_tag: Optional[str] = None
 
 

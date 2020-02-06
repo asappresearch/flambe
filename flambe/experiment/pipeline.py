@@ -7,7 +7,7 @@ from flambe.search.search import Checkpoint
 
 def pipeline_builder(**kwargs):
     """Get the last initialized object in the pipeline."""
-    return kwargs.values()[-1]
+    return list(kwargs.values())[-1]
 
 
 class Pipeline(Schema):
