@@ -34,7 +34,7 @@ pipeline:
     iter_per_step: 2
 
 # Define how to schedule variants
-algorithm:
-    train: !RandomSearch
-      trial_budget: 1
+# algorithm:
+#     train: !RandomSearch
+#       trial_budget: 1
 #   train: !Hyperband
