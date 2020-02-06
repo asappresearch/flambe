@@ -144,14 +144,9 @@ class Component(Schematic, should_register=False):
         local_metadata[FLAMBE_CLASS_KEY] = type(self).__name__
         local_metadata[FLAMBE_SOURCE_KEY] = dill.source.getsource(type(self))
         # All links should be relative to the current object `self`
-        with contextualized_linking(root_obj=self, prefix=prefix[:-1]):
-            try:
-                local_metadata[FLAMBE_CONFIG_KEY] = self._config_str
-                global _link_obj_stash
-                if len(_link_obj_stash) > 0:
-                    local_metadata[FLAMBE_STASH_KEY] = copy.deepcopy(_link_obj_stash)
-            except AttributeError:
-                pass
+        # REMOVING update to local_metadata[FLAMBE_CONFIG_KEY]
+        # ...
+
         # 2 need to recurse on Components
         # Iterating over __dict__ does NOT include pytorch children
         # modules, parameters or buffers

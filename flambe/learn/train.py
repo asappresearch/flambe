@@ -14,6 +14,7 @@ from flambe.nn import Module  # type: ignore[attr-defined]
 from flambe.sampler import Sampler
 from flambe.metric import Metric
 from flambe.logging import log
+from flambe.runner import Environment
 
 
 class Trainer(Component):
@@ -174,7 +175,7 @@ class Trainer(Component):
         self._create_train_iterator()
 
     def _create_train_iterator(self):
-        self._train_iterator = self.train_sampler.sample(self.dataset.train, self.n_epochs)
+        self._train_iterator = iter(list(self.train_sampler.sample(self.dataset.train, self.n_epochs)))
 
     def _batch_to_device(self, batch: Tuple[torch.Tensor, ...]) -> Tuple[torch.Tensor, ...]:
         """Move the current batch on the correct device.
@@ -394,7 +395,7 @@ class Trainer(Component):
             log(f'{tb_prefix}Validation/{metric}',
                 metric.finalize(state), self._step)  # type: ignore
 
-    def run(self) -> bool:
+    def step(self) -> bool:
         """Evaluate and then train until the next checkpoint
 
         Returns
@@ -416,6 +417,11 @@ class Trainer(Component):
             self.model.load_state_dict(self._best_model, strict=False)
 
         return continue_
+
+    def run(self, environment: Optional[Environment] = None) -> None:
+        continue_ = True
+        while continue_:
+            continue_ = self.step()
 
     def metric(self) -> Optional[float]:
         """Override this method to enable scheduling.

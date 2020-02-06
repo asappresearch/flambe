@@ -441,16 +441,6 @@ class Schema(MutableMapping[str, Any]):
                     yield from Schema.traverse(v, next_path, fn, yield_schema)
                 else:
                     raise Exception(f'Invalid state for Schema. Invalid argument types at {obj}')
-            # params = obj.signature.parameters
-            # for k, v in obj.arguments.items():
-            #     if params[k].kind in [inspect.Parameter.POSITIONAL_OR_KEYWORD,
-            #                           inspect.Parameter.KEYWORD_ONLY]:
-            #         next_path = current_path + (k,)
-            #         yield from Schema.traverse(v, next_path, fn, yield_schema)
-            #     elif params[k].kind == inspect.Parameter.VAR_KEYWORD:
-            #         raise NotImplementedError('Variable keyword arguments not supported')
-            #     else:
-            #         raise Exception(f'Invalid state for Schema. Invalid argument types at {obj}')
         else:
             yield (current_path, obj)
 

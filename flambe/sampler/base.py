@@ -240,7 +240,6 @@ class BaseSampler(Sampler):
         self.pin_memory = pin_memory
         self.downsample = downsample
         self.downsample_seed = downsample_seed
-        self.random_generator = np.random if seed is None else np.random.RandomState(seed)
 
     def sample(self,
                data: Sequence[Sequence[torch.Tensor]],
