@@ -94,7 +94,7 @@ class RayAdapter:
         self.checkpoint = checkpoint
 
     # @ray.remote(num_return_values=2)
-    def step(self) -> Tuple[bool, Optional[float]]:
+    def step(self) -> Any:
         """Run a step of the Trial"""
         if self.searchable is None:
             self.searchable = self.schema()
