@@ -1,11 +1,11 @@
-![Flambe Logo](imgs/Flambe_Logo_CMYK_FullColor.png)
+<center>
+  <img src="imgs/Flambe_Logo_CMYK_FullColor.png" width="600">
+</center>
 
 ------------
 
 [![Fast Tests Status](https://github.com/asappresearch/flambe/workflows/tests-fast/badge.svg)](https://github.com/asappresearch/flambe/actions)
-
 [![Slow Tests Status](https://github.com/asappresearch/flambe/workflows/tests-slow/badge.svg)](https://github.com/asappresearch/flambe/actions)
-
 [![Documentation Status](https://readthedocs.org/projects/flambe/badge/?version=latest)](https://flambe.ai/en/latest/?badge=latest)
 
 
@@ -22,7 +22,7 @@ best variants at each node in the DAG.
 * Easily share experiment configurations, results, and model weights with others
 
 
-# Installation
+## Installation
 
 **From** ``PIP``:
 
@@ -37,7 +37,7 @@ git clone git@github.com:asappresearch/flambe.git
 pip install ./flambe
 ```
 
-# Getting started
+## Getting started
 
 There are a few core objects that offer an entrypoint to using Flambé:
 
@@ -48,7 +48,7 @@ There are a few core objects that offer an entrypoint to using Flambé:
 | Search | Run a hyperparameter search on a schema |
 | Experiment | Construct a DAG, with a hyperameter search at each node |
 
-## Train a model
+### Train a model
 
 ```python
 import flambe as fl
@@ -66,7 +66,7 @@ trainer = fl.learn.Trainer(
 trainer.run()
 ```
 
-## Run a hyperparameter search
+### Run a hyperparameter search
 
 
 ```python
@@ -107,7 +107,7 @@ class Searchable:
 ```
 ``Trainer`` is an example of ``Searchable``, and can be used in a ``Search``.
 
-# Features
+## Features
 
 * **Native support for hyperparameter search**: using search tags (see ``!g`` in the example) users can define multi variant pipelines.
 * **Remote and distributed experiments**: users can submit ``Experiments`` to ``Clusters`` which will execute in a distributed way. Full ``AWS`` integration is supported.
@@ -115,14 +115,15 @@ class Searchable:
 * **Add custom code and objects to your pipelines**: extend flambé functionality using our easy-to-use *extensions* mechanism.
 * **Modularity with hierarchical serialization**: save different components from pipelines and load them safely anywhere.
 
-# Next Steps
+## Next Steps
 
 Full documentation, tutorials and much more in https://flambe.ai
 
-# Cite
+## Cite
 
 You can cite us with:
 
+```bash
 @inproceedings{wohlwend-etal-2019-flambe,
     title = "{F}lamb{\'e}: A Customizable Framework for Machine Learning Experiments",
     author = "Wohlwend, Jeremy  and
@@ -137,7 +138,8 @@ You can cite us with:
     doi = "10.18653/v1/P19-3029",
     pages = "181--188"
 }
+```
 
-# Contact
+## Contact
 
 You can reach us at flambe@asapp.com
