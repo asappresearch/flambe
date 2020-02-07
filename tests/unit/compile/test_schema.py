@@ -1,6 +1,16 @@
 import pytest
 
-from flambe.compile.schema import Schema, Link, CopyLink, MalformedLinkError, UnpreparedLinkError
+from flambe.compile.schema import Schema, Link, CopyLink, MalformedLinkError, \
+    UnpreparedLinkError, Options
+
+
+class TestOptions(Options, should_register=False):
+
+    def __init__(self, opts):
+        self.opts = opts
+
+    def __iter__(self):
+        yield from self.opts
 
 
 class Container:
@@ -19,6 +29,13 @@ class Child:
 def test_schemas():
     ch1 = Schema(Child, args=[0])
     ch2 = Schema(Child, args=[1])
+    con = Schema(Container, kwargs={'a': ch1, 'b': ch2})
+    return con, ch1, ch2
+
+@pytest.fixture
+def test_schemas_with_options():
+    ch1 = Schema(Child, args=[TestOptions([1, 2, 3])])
+    ch2 = Schema(Child, args=[TestOptions([4, 5])])
     con = Schema(Container, kwargs={'a': ch1, 'b': ch2})
     return con, ch1, ch2
 
@@ -481,3 +498,13 @@ class TestSchemaLinks:
         assert p.a.t1.x.val != p.b.t2.val
         assert p.c.t4.val == p.b.t2.val
         assert p.c.t3.val == p.a.t1.x.val
+
+
+class TestSchemaOptions:
+
+    def test_iter_variants(self, test_schemas_with_options):
+        s, _, _ = test_schemas_with_options
+        variants = list(s.iter_variants())
+        assert len(variants) == 1
+        variants = list(s.iter_variants(False))
+        assert len(variants) == 6

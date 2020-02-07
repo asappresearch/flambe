@@ -23,7 +23,7 @@ class Sampler(Component):
     @abstractmethod
     def sample(self,
                data: Sequence[Sequence[torch.Tensor]],
-               n_epochs: int = 1) -> Iterator[Tuple[torch.Tensor, ...]]:
+               start_iter: int = 0) -> Iterator[Tuple[torch.Tensor, ...]]:
         """Sample from the list of features and yields batches.
 
         Parameters

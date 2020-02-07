@@ -171,11 +171,24 @@ class Trainer(Component):
         self.register_attrs('_step', '_best_metric', '_best_model')
 
         self.n_epochs = math.ceil(epoch_per_step * max_steps)
-
         self._create_train_iterator()
 
+    @property
+    def _iter_in_epoch(self):
+        global_step = self.iter_per_step * self._step
+        iter_per_epoch = self.train_sampler.length(self.dataset.train) // self.batches_per_iter
+        return global_step % iter_per_epoch
+
     def _create_train_iterator(self):
-        self._train_iterator = iter(list(self.train_sampler.sample(self.dataset.train, self.n_epochs)))
+        self._train_iterator = self.train_sampler.sample(self.dataset.train, self._iter_in_epoch)
+
+    def __getstate__(self):
+        del self._train_iterator
+        return self.__dict__
+
+    def __setstate__(self, state):
+        self.__dict__ = state
+        self._create_train_iterator()
 
     def _batch_to_device(self, batch: Tuple[torch.Tensor, ...]) -> Tuple[torch.Tensor, ...]:
         """Move the current batch on the correct device.
@@ -263,6 +276,7 @@ class Trainer(Component):
 
         with torch.enable_grad():
             for i in range(self.iter_per_step):
+                global_step = (self.iter_per_step * self._step) + i
                 # Zero the gradients and clear the accumulated loss
                 self.optimizer.zero_grad()
                 accumulated_loss = 0.0
@@ -281,8 +295,6 @@ class Trainer(Component):
                     loss.backward()
 
                 # Log loss
-                global_step = (self.iter_per_step * self._step) + i
-
                 # Clip gradients if necessary
                 if self.max_grad_norm:
                     clip_grad_norm_(self.model.parameters(), self.max_grad_norm)

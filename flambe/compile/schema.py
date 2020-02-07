@@ -175,7 +175,7 @@ def parse_link_str(link_str: str) -> Tuple[Sequence[str], Sequence[str]]:
     return schematic_path, attr_path
 
 
-class Variants(Registrable, tag_override="v"):
+class GridVariants(Options, tag_override="g"):
 
     def __init__(self, options: Iterable[Any]):
         self.options = options
@@ -189,24 +189,7 @@ class Variants(Registrable, tag_override="v"):
         # construct_yaml_seq returns wrapper tuple, need to unpack;
         # will also recurse so items in options can also be links
         options, = list(constructor.construct_yaml_seq(node))
-        return Variants(options)
-
-
-class GridVariants(Registrable, tag_override="g"):
-
-    def __init__(self, options: Iterable[Any]):
-        self.options = options
-
-    @classmethod
-    def to_yaml(cls, representer: Any, node: Any, tag: str) -> Any:
-        return representer.represent_sequence(tag, node.options)
-
-    @classmethod
-    def from_yaml(cls, constructor: Any, node: Any, factory_name: str, tag: str) -> 'Link':
-        # construct_yaml_seq returns wrapper tuple, need to unpack;
-        # will also recurse so items in options can also be links
-        options, = list(constructor.construct_yaml_seq(node))
-        return GridVariants(options)
+        return cls(options)
 
 
 class Link(Registrable, tag_override="@"):
@@ -563,16 +546,23 @@ class Schema(MutableMapping[str, Any]):
         for path, value in search_space.items():
             self.set_param(path, value)
 
-    def iter_variants(self) -> 'Schema':
+    def iter_variants(self, only_split_grid: bool = True) -> 'Schema':
         """Yield variants selecting the parallel options from each"""
-        return [self]
-        # for selection_index in range(self.num_options):
-        #     variant_schema = copy.deepcopy(self)
-        #     for path, item in Schema.traverse(self, yield_schema='never'):
-        #         if isinstance(item, Variants):
-        #             value = item[selection_index]
-        #             variant_schema.set_param(path, value)
-        #     yield variant_schema
+        no_options = True
+        if only_split_grid:
+            split_type = GridVariants
+        else:
+            split_type = Options
+        for path, item in Schema.traverse(self, yield_schema='never'):
+            if isinstance(item, split_type):
+                no_options = False
+                for value in item:
+                    variant = copy.deepcopy(self)
+                    variant.set_param(path, value)
+                    yield from variant.iter_variants(only_split_grid)
+                break
+        if no_options:
+            yield self
 
     @recursive_repr()
     def __repr__(self) -> str:

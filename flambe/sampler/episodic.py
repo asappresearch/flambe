@@ -54,7 +54,7 @@ class EpisodicSampler(Sampler):
 
     def sample(self,
                data: Sequence[Sequence[torch.Tensor]],
-               n_epochs: int = 1) -> Iterator[Tuple[torch.Tensor, ...]]:
+               start_iter: int = 0) -> Iterator[Tuple[torch.Tensor, ...]]:  # TODO implement start_iter here
         """Sample from the list of features and yields batches.
 
         Parameters
@@ -84,52 +84,51 @@ class EpisodicSampler(Sampler):
 
         all_classes = list(target_to_examples.keys())
 
-        for epoch in range(n_epochs):
-            for _ in range(self.n_episodes):
-                # Sample n_classes to run a training episode over
-                classes = all_classes
-                if self.n_classes is not None:
-                    classes = list(np.random.permutation(all_classes))[:self.n_classes]
+        for _ in range(self.n_episodes):
+            # Sample n_classes to run a training episode over
+            classes = all_classes
+            if self.n_classes is not None:
+                classes = list(np.random.permutation(all_classes))[:self.n_classes]
 
-                # Sample n_support and n_query points per class
-                supports, queries = [], []
-                for i, target_class in enumerate(classes):
-                    examples = target_to_examples[target_class]
-                    indices = np.random.permutation(len(examples))
-                    supports.extend([(examples[j][0], i) for j in indices[:self.n_support]])
+            # Sample n_support and n_query points per class
+            supports, queries = [], []
+            for i, target_class in enumerate(classes):
+                examples = target_to_examples[target_class]
+                indices = np.random.permutation(len(examples))
+                supports.extend([(examples[j][0], i) for j in indices[:self.n_support]])
 
-                    if self.balance_query:
-                        query_indices = indices[self.n_support:self.n_support + self.n_query]
-                        queries.extend([(examples[j][0], i) for j in query_indices])
-                    else:
-                        queries.extend([(examples[j][0], i) for j in indices[self.n_support:]])
+                if self.balance_query:
+                    query_indices = indices[self.n_support:self.n_support + self.n_query]
+                    queries.extend([(examples[j][0], i) for j in query_indices])
+                else:
+                    queries.extend([(examples[j][0], i) for j in indices[self.n_support:]])
 
-                if not self.balance_query:
-                    indices = np.random.permutation(len(queries))
-                    queries = [queries[i] for i in indices[:self.n_query]]
+            if not self.balance_query:
+                indices = np.random.permutation(len(queries))
+                queries = [queries[i] for i in indices[:self.n_query]]
 
-                query_source, query_target = list(zip(*queries))
-                support_source, support_target = list(zip(*supports))
+            query_source, query_target = list(zip(*queries))
+            support_source, support_target = list(zip(*supports))
 
-                query_source = pad_sequence(query_source,
-                                            batch_first=True,
-                                            padding_value=self.pad)
-                query_target = torch.tensor(query_target)
+            query_source = pad_sequence(query_source,
+                                        batch_first=True,
+                                        padding_value=self.pad)
+            query_target = torch.tensor(query_target)
 
-                support_source = pad_sequence(support_source,
-                                              batch_first=True,
-                                              padding_value=self.pad)
-                support_target = torch.tensor(support_target)
+            support_source = pad_sequence(support_source,
+                                          batch_first=True,
+                                          padding_value=self.pad)
+            support_target = torch.tensor(support_target)
 
-                if len(query_target.size()) == 2:
-                    query_target = query_target.squeeze()
-                if len(support_target.size()) == 2:
-                    support_target = support_target.squeeze()
+            if len(query_target.size()) == 2:
+                query_target = query_target.squeeze()
+            if len(support_target.size()) == 2:
+                support_target = support_target.squeeze()
 
-                yield (query_source.long(),
-                       query_target.long(),
-                       support_source.long(),
-                       support_target.long())
+            yield (query_source.long(),
+                   query_target.long(),
+                   support_source.long(),
+                   support_target.long())
 
     def length(self, data: Sequence[Sequence[torch.Tensor]]) -> int:
         """Return the number of batches in the sampler.
