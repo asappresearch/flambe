@@ -30,7 +30,8 @@ jobs:
         python -m pip install --upgrade pip
         pip install --upgrade -r requirements.txt
         pip install --upgrade -r tests/requirements.txt
-        pip install tox
+        pip install tox awscli
+        python -m awscli configure set region us-east-1
     - name: Text examples
       run: |
         python3 -m tox -- -v -m "examples"
