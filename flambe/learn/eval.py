@@ -9,6 +9,7 @@ from flambe.nn import Module  # type: ignore[attr-defined]
 from flambe.metric import Metric
 from flambe.sampler import Sampler, BaseSampler
 from flambe.logging import log
+from flambe.runner import Environment
 
 
 class Evaluator(Component):
@@ -99,3 +100,8 @@ class Evaluator(Component):
 
         """
         return self.eval_metric
+
+    def run(self, environment: Optional[Environment] = None) -> None:
+        continue_ = True
+        while continue_:
+            continue_ = self.step()

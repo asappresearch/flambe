@@ -130,6 +130,56 @@ def clean(name, cluster):
     cluster.clean(name=name)
 
 
+# ----------------- flambe submit ------------------ #
+@click.command()
+@click.argument('runnable', type=str, required=True)
+@click.argument('name', type=str, required=True)
+@click.option('-c', '--cluster', type=str, default=FLAMBE_CLUSTER_DEFAULT,
+              help="Cluster config.")
+@click.option('-f', '--force', is_flag=True, default=False,
+              help='Override existing job with this name. Be careful \
+                    when using this flag as it could have undesired effects.')
+@click.option('-d', '--debug', is_flag=True, default=False,
+              help='Enable debug mode. Each runnable specifies the debug behavior. \
+                    For example for an Experiment, Ray will run in a single thread \
+                    allowing user breakpoints')
+@click.option('-v', '--verbose', is_flag=True, default=False,
+              help='Verbose console output')
+@click.option('-a', '--attach', is_flag=True, default=False,
+              help='Attach after submitting the job.')
+def submit(runnable, name, cluster, force, debug, verbose, attach):
+    """Submit a job to the cluster, as a YAML config."""
+    logging.disable(logging.INFO)
+    if is_dev_mode():
+        print(cl.RA(ASCII_LOGO_DEV))
+        print(cl.BL(f"Location: {get_flambe_repo_location()}\n"))
+    else:
+        print(cl.RA(ASCII_LOGO))
+        print(cl.BL(f"VERSION: {flambe.__version__}\n"))
+
+    cluster = load_config_from_file(cluster)
+    cluster.submit(runnable, name, force=force, debug=debug)
+    if attach:
+        cluster.attach(name)
+
+
+# ----------------- flambe site ------------------ #
+@click.command()
+@click.argument('name', type=str, required=False, default='')
+@click.option('-c', '--cluster', type=str, default=FLAMBE_CLUSTER_DEFAULT,
+              help="Cluster config.")
+@click.option('-p', '--port', type=int, default=49558,
+              help='Port in which the site will be running url')
+def site(name, cluster, port):
+    """Launch a Web UI to monitor the activity on the cluster."""
+    logging.disable(logging.INFO)
+    cluster = load_config_from_file(cluster)
+    try:
+        cluster.launch_site(port=port, name=name)
+    except KeyboardInterrupt:
+        logging.disable(logging.ERROR)
+
+
 # ----------------- flambe run ------------------ #
 @click.command()
 @click.argument('runnable', type=str, required=True)
@@ -201,56 +251,6 @@ def run(runnable, output, force, debug, env):
     except Exception:
         print(traceback.format_exc())
         print(cl.RE("------------------- Error -------------------"))
-
-
-# ----------------- flambe submit ------------------ #
-@click.command()
-@click.argument('runnable', type=str, required=True)
-@click.argument('name', type=str, required=True)
-@click.option('-c', '--cluster', type=str, default=FLAMBE_CLUSTER_DEFAULT,
-              help="Cluster config.")
-@click.option('-f', '--force', is_flag=True, default=False,
-              help='Override existing job with this name. Be careful \
-                    when using this flag as it could have undesired effects.')
-@click.option('-d', '--debug', is_flag=True, default=False,
-              help='Enable debug mode. Each runnable specifies the debug behavior. \
-                    For example for an Experiment, Ray will run in a single thread \
-                    allowing user breakpoints')
-@click.option('-v', '--verbose', is_flag=True, default=False,
-              help='Verbose console output')
-@click.option('-a', '--attach', is_flag=True, default=False,
-              help='Attach after submitting the job.')
-def submit(runnable, name, cluster, force, debug, verbose, attach):
-    """Submit a job to the cluster, as a YAML config."""
-    logging.disable(logging.INFO)
-    if is_dev_mode():
-        print(cl.RA(ASCII_LOGO_DEV))
-        print(cl.BL(f"Location: {get_flambe_repo_location()}\n"))
-    else:
-        print(cl.RA(ASCII_LOGO))
-        print(cl.BL(f"VERSION: {flambe.__version__}\n"))
-
-    cluster = load_config_from_file(cluster)
-    cluster.submit(runnable, name, force=force, debug=debug)
-    if attach:
-        cluster.attach(name)
-
-
-# ----------------- flambe site ------------------ #
-@click.command()
-@click.argument('name', type=str, required=False, default='')
-@click.option('-c', '--cluster', type=str, default=FLAMBE_CLUSTER_DEFAULT,
-              help="Cluster config.")
-@click.option('-p', '--port', type=int, default=49558,
-              help='Port in which the site will be running url')
-def site(name, cluster, port):
-    """Launch a Web UI to monitor the activity on the cluster."""
-    logging.disable(logging.INFO)
-    cluster = load_config_from_file(cluster)
-    try:
-        cluster.launch_site(port=port, name=name)
-    except KeyboardInterrupt:
-        logging.disable(logging.ERROR)
 
 
 if __name__ == '__main__':

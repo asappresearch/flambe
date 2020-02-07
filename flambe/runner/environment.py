@@ -1,25 +1,15 @@
-from typing import Any, Optional, Dict
+from typing import Any, Optional, Dict, List
 
 from flambe.compile.registered_types import RegisteredStatelessMap
 
 
 class Environment(RegisteredStatelessMap):
-    """This objects contains information about the cluster
+    """Hold information to use during execution.
 
-    This object will be available on the remote execution of
-    the ClusterRunnable (as an attribute).
-
-    IMPORTANT: this object needs to be serializable, hence it Needs
-    to be created using 'compile' method.
-
-    Attributes
-    ----------
-    output_path: str, optional
-        The directory where to store outputs.
-        Default ``flambe__output``
-    head_node_ip: str, optional
-        The orchestrator visible IP for the factories (usually
-        the private IP)
+    An Environment is simply a mapping, containing information
+    such has ip addresses, extensions, and resources.  It is
+    instantiated by the main Flambe process, and passed down to
+    the run method of the objects following the Runnable interface.
 
     """
 
@@ -29,14 +19,39 @@ class Environment(RegisteredStatelessMap):
                  local_resources: Optional[Dict[str, str]] = None,
                  remote_resources: Optional[Dict[str, str]] = None,
                  head_node_ip: Optional[str] = None,
+                 worker_node_ips: Optional[List[str]] = None,
                  debug: bool = False,
                  extra: Optional[Dict[str, Any]] = None) -> None:
-        """Initialize the environment."""
+        """Initialize an Environment.
+
+        Parameters
+        ----------
+        output_path: str, optional
+            The directory where to store outputs.
+            Default ``flambe__output``
+        extensions : Optional[Dict[str, str]], optional
+            [description], by default None
+        local_resources : Optional[Dict[str, str]], optional
+            [description], by default None
+        remote_resources : Optional[Dict[str, str]], optional
+            [description], by default None
+        head_node_ip: str, optional
+            The orchestrator visible IP for the factories (usually
+            the private IP)
+        worker_node_ips : Optional[List[str]], optional
+            [description], by default None
+        debug : bool, optional
+            [description], by default False
+        extra : Optional[Dict[str, Any]], optional
+            [description], by default None
+
+        """
         self.output_path = output_path
         self.extensions = extensions or dict()
         self.local_resources = local_resources or dict()
         self.remote_resources = remote_resources or dict()
         self.head_node_ip = head_node_ip
+        self.worker_node_ips = worker_node_ips or []
         self.debug = debug
         self.extra = extra
 
@@ -60,6 +75,7 @@ class Environment(RegisteredStatelessMap):
             'local_resources': self.local_resources,
             'remote_resources': self.remote_resources,
             'head_node_ip': self.head_node_ip,
+            'worker_node_ips': self.worker_node_ips,
             'debug': self.debug,
             'extra': self.extra,
         }
@@ -74,6 +90,7 @@ class Environment(RegisteredStatelessMap):
                   'local_resources': node.local_resources,
                   'remote_resources': node.remote_resources,
                   'head_node_ip': node.head_node_ip,
+                  'worker_node_ips': node.worker_node_ips,
                   'debug': node.debug,
                   'extra': node.extra}
         return representer.represent_mapping(tag, kwargs)

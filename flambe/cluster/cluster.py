@@ -419,6 +419,7 @@ class Cluster(RegisteredStatelessMap):
             environment = environment.clone(
                 output_path=f"~/jobs/{name}",
                 head_node_ip=self.head_node_ip(),
+                worker_node_ips=self.worker_node_ips(),
                 extensions=updated_extensions,
                 local_resources=updated_resources,
                 remote_resources=[],

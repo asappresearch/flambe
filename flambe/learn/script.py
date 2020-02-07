@@ -5,6 +5,7 @@ from copy import deepcopy
 
 from flambe.logging import get_trial_dir
 from flambe.compile import Component
+from flambe.runner import Environment
 
 
 class Script(Component):
@@ -55,13 +56,13 @@ class Script(Component):
         if output_dir_arg is not None:
             self.kwargs[output_dir_arg] = get_trial_dir()
 
-    def run(self) -> bool:
+    def step(self) -> bool:
         """Run the evaluation.
 
         Returns
         -------
-        Dict[str, float]
-            Report dictionary to use for logging
+        bool
+            Whether to continue execution.
 
         """
         parser_kwargs = {f'--{k}': v for k, v in self.kwargs.items()}
@@ -76,3 +77,8 @@ class Script(Component):
 
         continue_ = False  # Single step, so don't continue
         return continue_
+
+    def run(self, environment: Optional[Environment] = None) -> None:
+        continue_ = True
+        while continue_:
+            continue_ = self.step()

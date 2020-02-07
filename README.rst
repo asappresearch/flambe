@@ -26,6 +26,9 @@ Welcome to Flambé, a `PyTorch <https://pytorch.org/>`_-based library that allow
 * Run experiments **remotely** over many workers, including full AWS integration
 * Easily share experiment configurations, results, and model weights with others
 
+Flambe offers an end to end experience by connecting the dots between a curated set
+of frameworks. In doing so, Flambe is focused on creating the best user experience possible.
+
 Installation
 ------------
 

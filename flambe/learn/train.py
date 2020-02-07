@@ -49,8 +49,7 @@ class Trainer(Component):
                  max_grad_abs_val: Optional[float] = None,
                  extra_validation_metrics: Optional[Iterable[Metric]] = None,
                  extra_training_metrics: Optional[Iterable[Metric]] = None,
-                 extra_training_metrics_log_interval: Optional[int] = None) \
-            -> None:
+                 extra_training_metrics_log_interval: Optional[int] = None) -> None:
         """Initialize an instance of Trainer
 
         Parameters
