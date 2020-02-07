@@ -1,3 +1,5 @@
+# type: ignore[override]
+
 from typing import Optional, Tuple, Union
 
 import torch.nn as nn
@@ -68,7 +70,11 @@ class TextClassifier(Module):
             The output predictions, and optionally the targets
 
         """
-        encoding = self.embedder(data)
+        outputs = self.embedder(data)
+        if isinstance(outputs, tuple):
+            encoding = outputs[0]
+        else:
+            encoding = outputs
 
         pred = self.output_layer(self.drop(encoding))
         return (pred, target) if target is not None else pred
