@@ -32,4 +32,5 @@ jobs:
         pip install -r --upgrade tests/requirements.txt
         pip install tox
     - name: Text examples
+      run: |
         python3 -m tox -- -v -m "examples"
