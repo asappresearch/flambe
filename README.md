@@ -1,6 +1,6 @@
-<center>
-  <img src="imgs/Flambe_Logo_CMYK_FullColor.png" width="600">
-</center>
+<p align="center">
+  <img src="imgs/Flambe_Logo_CMYK_FullColor.png" width="600" align="middle">
+</p>
 
 ------------
 
@@ -9,7 +9,7 @@
 [![Documentation Status](https://readthedocs.org/projects/flambe/badge/?version=latest)](https://flambe.ai/en/latest/?badge=latest)
 
 
-Welcome to Flambé, a `PyTorch <https://pytorch.org/>`_-based library that aims to abstract away
+Welcome to Flambé, a [PyTorch](https://pytorch.org/)-based library that aims to abstract away
 the boilerplate code tradtionally involved in machine learning research. Flambé does not reinvent
 the wheel, but instead connects the dots between a curated set of frameworks. In doing so,
 Flambe's core area of focus is to create the best possible user experience. With Flambé you can:
@@ -106,14 +106,6 @@ class Searchable:
         pass
 ```
 ``Trainer`` is an example of ``Searchable``, and can be used in a ``Search``.
-
-## Features
-
-* **Native support for hyperparameter search**: using search tags (see ``!g`` in the example) users can define multi variant pipelines.
-* **Remote and distributed experiments**: users can submit ``Experiments`` to ``Clusters`` which will execute in a distributed way. Full ``AWS`` integration is supported.
-* **Visualize all your metrics and meaningful data using Tensorboard**: log scalars, histograms, images, hparams and much more.
-* **Add custom code and objects to your pipelines**: extend flambé functionality using our easy-to-use *extensions* mechanism.
-* **Modularity with hierarchical serialization**: save different components from pipelines and load them safely anywhere.
 
 ## Next Steps
 
