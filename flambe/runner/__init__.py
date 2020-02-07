@@ -1,4 +1,4 @@
-from flambe.runner.runnable import Runnable
+from flambe.runner.protocol import Runnable
 from flambe.runner.environment import Environment
 
 

@@ -13,10 +13,11 @@ from ray.autoscaler.updater import SSHCommandRunner
 from flambe.logging import coloredlogs as cl
 from flambe.const import FLAMBE_GLOBAL_FOLDER
 from flambe.compile import RegisteredStatelessMap
-from flambe.compile import load_extensions_from_file #load_resources_from_file
+from flambe.compile import load_extensions_from_file
 from flambe.compile.extensions import download_extensions
 from flambe.compile.downloader import download_manager
 from flambe.runner.utils import is_dev_mode, get_flambe_repo_location
+from flambe.runner import Environment
 
 
 exec_cluster = partial(
@@ -261,7 +262,26 @@ class Cluster(RegisteredStatelessMap):
             yaml.dump(self.config, fp)
             exec_cluster(fp.name, cmd)
 
-        print(f"Job {name} killed")
+        print(f"Job {name} killed.")
+
+    def clean(self, name: str):
+        """Clean the artifacts of a job.
+
+        Parameters
+        ----------
+        name: str
+            The name of the job to clean.
+
+        """
+        supress()
+        cmd = f"rm -rf $HOME/jobs/{name}"
+
+        yaml = YAML()
+        with tempfile.NamedTemporaryFile() as fp:
+            yaml.dump(self.config, fp)
+            exec_cluster(fp.name, cmd)
+
+        print(f"Job {name} cleaned.")
 
     def exec(self, command: str, port_forward: Optional[int] = None):
         """Run a command on the cluster.
@@ -363,12 +383,17 @@ class Cluster(RegisteredStatelessMap):
                 cmd += f' && pip install -U flambe'
                 exec_cluster(fp.name, tmux(cmd))
 
+            # Load environment
+            environment = Environment(**load_extensions_from_file(runnable))
+
             # Upload and install extensions
+            extensions = environment.extensions
             extensions_dir = os.path.join(FLAMBE_GLOBAL_FOLDER, 'extensions')
             if not os.path.exists(extensions_dir):
                 os.makedirs(extensions_dir)
-            extensions = load_extensions_from_file(runnable)
+
             extensions = download_extensions(extensions, extensions_dir)
+            updated_extensions: Dict[str, str] = dict()
             for module, package in extensions.items():
                 target = package
                 if os.path.exists(package):
@@ -376,28 +401,32 @@ class Cluster(RegisteredStatelessMap):
                     rsync(fp.name, package, target, None, down=False)
                     target = f'{target}/{os.path.basename(package)}'
 
+                updated_extensions[module] = target
                 cmd = f'pip install -U {target}'
                 exec_cluster(fp.name, tmux(cmd))
 
             # Upload files
             resources_dir = os.path.join(FLAMBE_GLOBAL_FOLDER, 'resources')
-            resources = {} #load_resources_from_file(runnable)
-            updated_resources = dict()
-            for name, resource in resources.items():
+            updated_resources: Dict[str, str] = dict()
+            updated_resources.update(environment.remote_resources)
+            for name, resource in environment.local_resources.items():
                 with download_manager(resource, os.path.join(resources_dir, name)) as path:
                     target = f'$HOME/jobs/{name}/resources/{name}'
                     rsync(fp.name, path, target, None, down=False)
                     updated_resources[name] = target
 
             # Run Flambe
-            env = {
-                'output_path': f"~/jobs/{name}",
-                'head_node_ip': self.head_node_ip(),
-                'resources': updated_resources
-            }
+            environment = environment.clone(
+                output_path=f"~/jobs/{name}",
+                head_node_ip=self.head_node_ip(),
+                extensions=updated_extensions,
+                local_resources=updated_resources,
+                remote_resources=[],
+            )
+
             yaml = YAML()
             with tempfile.NamedTemporaryFile() as env_file:
-                yaml.dump(env, env_file)
+                yaml.dump(environment, env_file)
                 env_target = f"$HOME/jobs/{name}/env.yaml"
                 rsync(fp.name, env_file.name, env_target, None, down=False)
 

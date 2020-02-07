@@ -26,15 +26,19 @@ class Environment(RegisteredStatelessMap):
     def __init__(self,
                  output_path: str = 'flambe_output',
                  extensions: Optional[Dict[str, str]] = None,
-                 resources: Optional[Dict[str, str]] = None,
+                 local_resources: Optional[Dict[str, str]] = None,
+                 remote_resources: Optional[Dict[str, str]] = None,
                  head_node_ip: Optional[str] = None,
-                 debug: bool = False) -> None:
+                 debug: bool = False,
+                 extra: Optional[Dict[str, Any]] = None) -> None:
         """Initialize the environment."""
         self.output_path = output_path
-        self.extensions = extensions
-        self.resources = resources
+        self.extensions = extensions or dict()
+        self.local_resources = local_resources or dict()
+        self.remote_resources = remote_resources or dict()
         self.head_node_ip = head_node_ip
         self.debug = debug
+        self.extra = extra
 
     def clone(self, **kwargs) -> 'Environment':
         """Clone the envrionment, updated with the provided arguments.
@@ -53,9 +57,11 @@ class Environment(RegisteredStatelessMap):
         arguments = {
             'output_path': self.output_path,
             'extensions': self.extensions,
-            'resources': self.resources,
+            'local_resources': self.local_resources,
+            'remote_resources': self.remote_resources,
             'head_node_ip': self.head_node_ip,
-            'debug': self.debug
+            'debug': self.debug,
+            'extra': self.extra,
         }
         arguments.update(kwargs)
         return Environment(**arguments)  # type: ignore
@@ -65,9 +71,11 @@ class Environment(RegisteredStatelessMap):
         """Use representer to create yaml representation of node"""
         kwargs = {'output_path': node.output_path,
                   'extensions': node.extensions,
-                  'resources': node.resources,
+                  'local_resources': node.local_resources,
+                  'remote_resources': node.remote_resources,
                   'head_node_ip': node.head_node_ip,
-                  'debug': node.debug}
+                  'debug': node.debug,
+                  'extra': node.extra}
         return representer.represent_mapping(tag, kwargs)
 
     @classmethod
