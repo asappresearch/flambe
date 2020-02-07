@@ -243,7 +243,7 @@ class BaseSampler(Sampler):
 
     def sample(self,
                data: Sequence[Sequence[torch.Tensor]],
-               n_epochs: int = 1) -> Iterator[Tuple[torch.Tensor, ...]]:
+               start_iter: int = 0) -> Iterator[Tuple[torch.Tensor, ...]]:
         """Sample from the list of features and yields batches.
 
         Parameters
@@ -283,13 +283,10 @@ class BaseSampler(Sampler):
                             num_workers=self.n_workers,
                             pin_memory=self.pin_memory,
                             drop_last=self.drop_last)
-
-        if n_epochs == -1:
-            while True:
-                yield from loader
-        else:
-            for _ in range(n_epochs):
-                yield from loader
+        it = iter(loader)
+        for i in range(0, start_iter):
+            next(it)
+        yield from it
 
     def length(self, data: Sequence[Sequence[torch.Tensor]]) -> int:
         """Return the number of batches in the sampler.
