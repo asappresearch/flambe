@@ -11,7 +11,7 @@ import torch
 
 from flambe.runner import Environment
 from flambe.compile.registered_types import RegisteredStatelessMap
-from flambe.compile.schema import Schema, Variants
+from flambe.compile.schema import Schema, GridVariants
 from flambe.search.trial import Trial
 from flambe.search.protocol import Searchable
 from flambe.search.algorithm import Algorithm, GridSearch
@@ -153,7 +153,7 @@ class Search(RegisteredStatelessMap):
         self.refresh_waitime = refresh_waitime
 
         # Check schema
-        if any(isinstance(dist, Variants) for dist in schema.extract_search_space().values()):
+        if any(isinstance(dist, GridVariants) for dist in schema.extract_search_space().values()):
             raise ValueError("Schema cannot contain grid options, please split first.")
 
         self.schema = schema
