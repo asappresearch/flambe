@@ -4,7 +4,7 @@ import ray
 
 from flambe.compile import Schema, RegisteredStatelessMap
 from flambe.search import Algorithm
-from flambe.runner.runnable import Environment
+from flambe.runner.environment import Environment
 from flambe.experiment.pipeline import Pipeline
 from flambe.experiment.stage import Stage
 
