@@ -21,12 +21,17 @@ class Choice(Distribution, tag_override="~c"):
             List of probabilities for the corresponding choices.
 
         """
-        self.options = np.array(options)
+        self.options = options
         self.n_options = len(options)
         if probs is None:
             self.probs = np.array([1 / len(options)] * len(options))
         else:
             self.probs = np.array(probs)
+
+    @classmethod
+    def from_sequence(cls, args) -> 'Choice':
+        """Build the distribution from positonal arguments."""
+        return cls(args)  # type: ignore
 
     def sample(self) -> Any:
         """Sample from the categorical distribution.
@@ -37,7 +42,8 @@ class Choice(Distribution, tag_override="~c"):
             An option sampled from the multinomial.
 
         """
-        return np.random.choice(self.options, p=self.probs)
+        index = np.random.choice(list(range(self.n_options)), p=self.probs)
+        return self.options[index]
 
     def option_to_int(self, option: Any) -> int:
         """Convert the option to a categorical integer.

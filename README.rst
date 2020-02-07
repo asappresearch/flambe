@@ -47,88 +47,62 @@ Installation
 Getting started
 ---------------
 
-Define an ``Experiment``:
+Training a model
+################
 
-.. code-block:: yaml
+.. code-block:: python
+    import flambe as fl
 
-    !Experiment
+    model = fl.nlp.TextClassifier(n_layers=2)
+    trainer = fl.learn.Trainer(model)
 
-    name: sst-text-classification
+    # Execute training
+    trainer.run()
 
-    pipeline:
 
-      # stage 0 - Load the Stanford Sentiment Treebank dataset and run preprocessing
-      dataset: !SSTDataset # this is a simple Python object, and the arguments to build it
-        transform: # these arguments are passed to the init method
-          text: !TextField
-          label: !LabelField
+Run a hyperparameter search
+###########################
 
-      # Stage 1 - Define a model
-      model: !TextClassifier
-          embedder: !Embedder
-            embedding: !torch.Embedding  # automatically use pytorch classes
-              num_embeddings: !@ dataset.text.vocab_size # link to other components, and attributes
-              embedding_dim: 300
-            embedding_dropout: 0.3
-            encoder: !PooledRNNEncoder
-              input_size: 300
-              n_layers: !g [2, 3, 4] # grid search over any parameters
-              hidden_size: 128
-              rnn_type: sru
-              dropout: 0.3
-          output_layer: !SoftmaxLayer
-              input_size: !@ model[embedder][encoder].rnn.hidden_size # also use inner-links
-              output_size: !@ dataset.label.vocab_size
 
-      # Stage 2 - Train the model on the dataset
-      train: !Trainer
-        dataset: !@ dataset
-        model: !@ model
-        train_sampler: !BaseSampler
-        val_sampler: !BaseSampler
-        loss_fn: !torch.NLLLoss
-        metric_fn: !Accuracy
-        optimizer: !torch.Adam
-          params: !@ train[model].trainable_params
-        max_steps: 100
-        iter_per_step: 100
+.. code-block:: python
+    import flambe as fl
 
-      # Stage 3 - Eval on the test set
-      eval: !Evaluator
-        dataset: !@ dataset
-        model: !@ train.model
-        metric_fn: !Accuracy
-        eval_sampler: !BaseSampler
+    model = fl.schema(
+      fl.nlp.TextClassifier,
+      n_layers=fl.choice([1, 2, 3])
+    )
+    trainer = fl.schema(
+      fl.learn.Trainer,
+      model=model
+    )
 
-    # Define how to schedule variants
-    schedulers:
-      train: !ray.HyperBandScheduler
+    # Run a hyperparameter search
+    algorithm = fl.RandomSearch(max_steps=10, trial_budget=2)
+    search = Search(trainer, algorithm)
+    search.run()
 
-All objects in the ``pipeline`` are subclasses of ``Component``, which
-are automatically registered to be used with YAML. Custom ``Component``
-implementations must implement ``run`` to add custom behavior when being executed.
+A schema is a representation of an object that accepts search options
+as arguments to the object's constructor. The schema passed to ``Search``
+object must be a wrapper around an object that follows the Searchable
+interface below. 
 
-Now just execute:
+.. code-block:: python
 
-.. code-block:: bash
+    class Searchable:
 
-    flambe example.yaml
+      def step() -> bool:
+        """Indicate whether execution is complete."""
+      
+      def metric -> float:
+        """A metric representing the current performance."""
 
-Note that defining objects like model and dataset ahead of time is optional; it's useful if you want to reference the same model architecture multiple times later in the pipeline.
-
-Progress can be monitored via the Report Site (with full integration with Tensorboard):
-
-.. raw:: html
-
-    <p align="center">
-       <kbd><img src="docs/image/report-site/partial.png" width="120%" align="middle" border="5"></kbd>
-    </p>
-
+``Trainer`` is an example of an object that implements this interface,
+and can therefore be used in a ``Search``.
 
 Features
 --------
 
-* **Native support for hyperparameter search**: using search tags (see ``!g`` in the example) users can define multi variant pipelines. More advanced search algorithms will be available in a coming release!
+* **Native support for hyperparameter search**: using search tags (see ``!g`` in the example) users can define multi variant pipelines.
 * **Remote and distributed experiments**: users can submit ``Experiments`` to ``Clusters`` which will execute in a distributed way. Full ``AWS`` integration is supported.
 * **Visualize all your metrics and meaningful data using Tensorboard**: log scalars, histograms, images, hparams and much more.
 * **Add custom code and objects to your pipelines**: extend flambé functionality using our easy-to-use *extensions* mechanism.

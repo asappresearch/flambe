@@ -158,7 +158,7 @@ def run(runnable, output, force, debug, env):
     # Check if debug
     if debug:
         print(cl.YE(f"Debug mode activated\n"))
-        logging.disable(logging.NOTSET)
+        logging.captureWarnings(True)
 
     try:
         kwargs = env_config if env else dict()

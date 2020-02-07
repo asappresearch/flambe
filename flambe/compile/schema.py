@@ -565,13 +565,14 @@ class Schema(MutableMapping[str, Any]):
 
     def iter_variants(self) -> 'Schema':
         """Yield variants selecting the parallel options from each"""
-        for selection_index in range(self.num_options):
-            variant_schema = copy.deepcopy(self)
-            for path, item in Schema.traverse(self, yield_schema='never'):
-                if isinstance(item, Variants):
-                    value = item[selection_index]
-                    variant_schema.set_param(path, value)
-            yield variant_schema
+        return [self]
+        # for selection_index in range(self.num_options):
+        #     variant_schema = copy.deepcopy(self)
+        #     for path, item in Schema.traverse(self, yield_schema='never'):
+        #         if isinstance(item, Variants):
+        #             value = item[selection_index]
+        #             variant_schema.set_param(path, value)
+        #     yield variant_schema
 
     @recursive_repr()
     def __repr__(self) -> str:

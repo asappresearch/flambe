@@ -53,16 +53,14 @@ class Evaluator(Component):
 
         self.device = select_device(device)
 
-        data = getattr(dataset, eval_data)
-        self._eval_iterator = self.eval_sampler.sample(data)
-
         # By default, no prefix applied to tb logs
         self.tb_log_prefix = None
 
+        self.eval_data = eval_data
         self.eval_metric: Union[float, None] = None
         self.register_attrs('eval_metric')
 
-    def run(self, block_name: str = None) -> bool:
+    def step(self) -> bool:
         """Run the evaluation.
 
         Returns
@@ -73,17 +71,19 @@ class Evaluator(Component):
         """
         self.model.to(self.device)
         self.model.eval()
+
+        data = getattr(self.dataset, self.eval_data)
+        _eval_iterator = self.eval_sampler.sample(data)
         with torch.no_grad():
             metric_state: Dict = {}
 
-            for batch in self._eval_iterator:
+            for batch in _eval_iterator:
                 pred, target = self.model(*[t.to(self.device) for t in batch])
                 self.metric_fn.aggregate(metric_state, pred, target)
 
             self.eval_metric = self.metric_fn.finalize(metric_state)
 
             tb_prefix = f"{self.tb_log_prefix} " if self.tb_log_prefix else ""
-
             log(f'{tb_prefix}Eval/{self.metric_fn}',  # type: ignore
                 self.eval_metric, global_step=0)  # type: ignore
 

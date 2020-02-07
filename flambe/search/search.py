@@ -1,10 +1,10 @@
-from typing import Tuple, Optional, Dict, List, Any
+from typing import Optional, Dict, List, Any
 import os
 import subprocess
 import copy
 import getpass
-import warnings
 import socket
+import logging
 
 import ray
 import torch
@@ -127,7 +127,7 @@ class Search(RegisteredStatelessMap):
                  cpus_per_trial: int = 1,
                  gpus_per_trial: int = 0,
                  output_path: str = 'flambe_output',
-                 refresh_waitime: float = 1.0) -> None:
+                 refresh_waitime: float = 30.0) -> None:
         """Initialize a hyperparameter search.
 
         Parameters
@@ -196,8 +196,10 @@ class Search(RegisteredStatelessMap):
         object_id_to_trial_id: Dict[str, str] = dict()
         trial_id_to_object_id: Dict[str, str] = dict()
 
-        while running or (not self.algorithm.is_done()):
+        while not self.algorithm.is_done():
+
             # Get all the current object ids running
+            finished = []
             if running:
                 finished, running = ray.wait(running, timeout=self.refresh_waitime)
 
@@ -214,13 +216,13 @@ class Search(RegisteredStatelessMap):
                         trial.set_terminated()
                 except Exception as e:
                     trial.set_error()
-                    warnings.warn(f"Trial {trial_id} failed.")
+                    logging.warn(f"Trial {trial_id} failed.")
                     if env.debug:
-                        warnings.warn(str(e))
+                        logging.warn(str(e))
 
             # Compute maximum number of trials to create
             if env.debug:
-                max_queries = int(all(t.is_terminated() for t in trials.values()))
+                max_queries = int(all(t.is_terminated() or t.is_error() for t in trials.values()))
             else:
                 current_resources = ray.available_resources()
                 max_queries = current_resources.get('CPU', 0) // self.n_cpus
@@ -230,13 +232,15 @@ class Search(RegisteredStatelessMap):
 
             # Update the algorithm and get new trials
             trials = self.algorithm.update(trials, maximum=max_queries)
+
             # Update based on trial status
             for trial_id, trial in trials.items():
                 # Handle creation and termination
                 if trial.is_paused() or trial.is_running():
                     continue
-                elif trial.is_terminated() and 'actor' in state[trial_id]:
+                elif (trial.is_error() or trial.is_terminated()) and 'actor' in state[trial_id]:
                     del state[trial_id]['actor']
+                    continue
                 elif trial.is_created():
                     schema_copy = copy.deepcopy(self.schema)
                     space = dict((tuple(k.split('.')), v) for k, v in trial.parameters.items())

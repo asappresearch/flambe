@@ -14,7 +14,7 @@ class Distribution(Options):
     @classmethod
     def from_sequence(cls, args) -> 'Distribution':
         """Build the distribution from positonal arguments."""
-        return cls(args)  # type: ignore
+        return cls(*args)  # type: ignore
 
     @classmethod
     def from_dict(cls, **kwargs) -> 'Distribution':
