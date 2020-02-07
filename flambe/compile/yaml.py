@@ -1,7 +1,5 @@
 from typing import Callable, Optional, Any, Union, TextIO, Dict
 import functools
-import os
-from warnings import warn
 
 import ruamel.yaml
 
@@ -202,7 +200,7 @@ def _check_extensions(extensions: Dict[str, str], registry: Registry, strict: bo
     return all_modules_registered
 
 
-def _load_extensions(yaml_config: Any) -> Dict[str, str]:
+def _load_environment(yaml_config: Any) -> Dict[str, Any]:
     vanilla_yaml = ruamel.yaml.YAML()
     try:
         yamls = list(vanilla_yaml.load_all(yaml_config))
@@ -211,12 +209,12 @@ def _load_extensions(yaml_config: Any) -> Dict[str, str]:
         raise MalformedConfig('TODO more info on this error type')
     if len(yamls) > 2:
         raise ValueError(f"{len(yamls)} yaml streams found in file {yaml_config}. "
-                         "A file should contain an (optional) extensions section " +
+                         "A file should contain an (optional) environment section " +
                          "and the main runnable object (<= 2 streams separated by '---').")
-    extensions: Dict[str, str] = {}
+    environment: Dict[str, Any] = {}
     if len(yamls) == 2:
-        extensions = dict(yamls[0])
-    return extensions
+        environment = dict(yamls[0])
+    return environment
 
 # TODO should we tighten signatures (below) Any -> schema?
 
@@ -248,7 +246,7 @@ def load_config(yaml_config: Union[TextIO, str]) -> Any:
         separated by '---'
 
     """
-    extensions = _load_extensions(yaml_config)
+    extensions = _load_environment(yaml_config)
     for module in extensions.keys():
         if not is_installed_module(module):
             raise ImportError(
@@ -301,8 +299,8 @@ def load_config_from_file(file_path: str) -> Any:
     return result
 
 
-def dump_config(obj: Any, stream: Any, extensions: Optional[Dict[str, str]] = None):
-    """Dump the given object into the stream including any extensions
+def dump_config(obj: Any, stream: Any, environment: Optional[Dict[str, Any]] = None):
+    """Dump the given object into the stream including the environment.
 
     Only dump objects that inherit from a Flambé class, or that have
     been manually registered in the registry.
@@ -316,29 +314,29 @@ def dump_config(obj: Any, stream: Any, extensions: Optional[Dict[str, str]] = No
         registry.
     stream : Any
         File stream to dump to; will be forwarded to yaml.dump()
-    extensions : Optional[Dict[str, str]]
-        A mapping from module names to package names (and versions).
+    environment : Optional[Dict[str, Any]]
+        Envrionment parameters.
         Default is None.
 
     """
     registry = get_registry()
-    extensions = extensions or {}
-    _check_extensions(extensions, registry, strict=True)
+    environment = environment or {}
+    _check_extensions(environment.get('extensions', {}), registry, strict=True)
     # TODO check that all top level modules in object hierarchy are in
     #  the registry
     with synced_yaml(registry) as yaml:
-        if len(extensions) > 0:
-            yaml.dump_all([extensions, obj], stream)
+        if len(environment) > 0:
+            yaml.dump_all([environment, obj], stream)
         else:
             yaml.dump(obj, stream)
 
 
-def load_extensions(yaml_config: Union[TextIO, str]) -> Dict[str, str]:
-    """Load extensions from a flambe YAML config file
+def load_environment(yaml_config: Union[TextIO, str]) -> Dict[str, Any]:
+    """Load environment from a flambe YAML config file
 
-    Extensions should be the first document in a two document YAML file
-    where the sections are separated by '---'. If no extensions section
-    is present, an empty dictionary will be returned.
+    The environment should be the first document in a two document YAML
+    file where the sections are separated by '---'. If no environment
+    section is present, an empty dictionary will be returned.
 
     Parameters
     ----------
@@ -347,7 +345,7 @@ def load_extensions(yaml_config: Union[TextIO, str]) -> Dict[str, str]:
 
     Returns
     -------
-    Dict[str, str]
+    Dict[str, Any]
         A mapping from module names to package names (and versions).
         Default is None.
 
@@ -362,12 +360,12 @@ def load_extensions(yaml_config: Union[TextIO, str]) -> Dict[str, str]:
         separated by '---'
 
     """
-    extensions = _load_extensions(yaml_config)
+    extensions = _load_environment(yaml_config)
     return extensions
 
 
-def load_extensions_from_file(file_path: str) -> Any:
-    """Load extensions after reading them from the file path
+def load_environment_from_file(file_path: str) -> Dict[str, Any]:
+    """Load environment after reading it from the file path.
 
     Parameters
     ----------
@@ -376,7 +374,7 @@ def load_extensions_from_file(file_path: str) -> Any:
 
     Returns
     -------
-    Any
+    Dict[str, Any]
         Initialized object defined by the YAML config
 
     Raises
@@ -391,5 +389,5 @@ def load_extensions_from_file(file_path: str) -> Any:
 
     """
     with open(file_path) as f:
-        result = load_extensions(f.read())
+        result = load_environment(f.read())
     return result

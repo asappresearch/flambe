@@ -13,7 +13,7 @@ from ray.autoscaler.updater import SSHCommandRunner
 from flambe.logging import coloredlogs as cl
 from flambe.const import FLAMBE_GLOBAL_FOLDER
 from flambe.compile import RegisteredStatelessMap
-from flambe.compile import load_extensions_from_file
+from flambe.compile import load_environment_from_file
 from flambe.compile.extensions import download_extensions
 from flambe.compile.downloader import download_manager
 from flambe.runner.utils import is_dev_mode, get_flambe_repo_location
@@ -384,7 +384,7 @@ class Cluster(RegisteredStatelessMap):
                 exec_cluster(fp.name, tmux(cmd))
 
             # Load environment
-            environment = Environment(**load_extensions_from_file(runnable))
+            environment = Environment(**load_environment_from_file(runnable))
 
             # Upload and install extensions
             extensions = environment.extensions
