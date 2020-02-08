@@ -1,21 +1,20 @@
-![Flambe Logo](imgs/Flambe_Logo_CMYK_FullColor.png)
+<p align="center">
+  <img src="imgs/Flambe_Logo_CMYK_FullColor.png" width="500" align="middle">
+</p>
 
 ------------
 
 |
 
 [![Fast Tests Status](https://github.com/asappresearch/flambe/workflows/tests-fast/badge.svg)](https://github.com/asappresearch/flambe/actions)
-
 [![Slow Tests Status](https://github.com/asappresearch/flambe/workflows/tests-slow/badge.svg)](https://github.com/asappresearch/flambe/actions)
-
 [![Documentation Status](https://readthedocs.org/projects/flambe/badge/?version=latest)](https://flambe.ai/en/latest/?badge=latest)
 
 |
 
-Welcome to Flambé, a `PyTorch <https://pytorch.org/>`_-based library that aims to abstract away
+Welcome to Flambé, a [PyTorch](https://pytorch.org/)-based library that abstracts away
 the boilerplate code tradtionally involved in machine learning research. Flambé does not reinvent
-the wheel, but instead connects the dots between a curated set of frameworks. In doing so,
-Flambe's core area of focus is to create the best possible user experience. With Flambé you can:
+the wheel, but instead connects the dots between a curated set of frameworks. With Flambé you can:
 
 * Automate the boilerplate code in training models with PyTorch
 * **Run hyperparameter searches** over arbitrary Python objects
@@ -47,56 +46,63 @@ There are a few core objects that offer an entrypoint to using Flambé:
 
 | Object | Role |
 | -------|------|
-| Trainer | Train a model on a given task |
-| Schema | Replace any keyword argument with a distirbution |
-| Search | Run a hyperparameter search on a schema |
+| Trainer | Train a single model on a given task |
+| Search | Run a hyperparameter search |
 | Experiment | Construct a DAG, with a hyperameter search at each node |
 
-### Train a model
+In the snippet below, we show how to convert a training routine to a hyperparameter search:
 
-```python
-import flambe as fl
+<table>
+<tr style="font-weight:bold;">
+  <td>Train a model</td>
+  <td>Run a hyperparameter search</td>
+  </tr>
+<tr>
+<td valign="top">
+   <pre lang="python">
 
-dataset = fl.nlp.SSTDataset()
-model = fl.nlp.TextClassifier(
-    n_layers=2
-)
-trainer = fl.learn.Trainer(
-    dataset=dataset,
-    model=model
-)
+    import flambe as fl
+    
+    # Define objects
+    dataset = fl.nlp.SSTDataset()
+    model = fl.nlp.TextClassifier(
+        n_layers=2
+    )
+    trainer = fl.learn.Trainer(
+        dataset=dataset,
+        model=model
+    )
+  
+    # Execute training
+    trainer.run()
+   </pre>
+</td>
+<td valign="top">
+  <pre lang="python">
 
-# Execute training
-trainer.run()
-```
+    import flambe as fl
+    
+    # Define objects as schemas
+    dataset = fl.nlp.SSTDataset.schema()
+    model = fl.nlp.TextClassifier.schema(
+        n_layers=fl.choice([1, 2, 3])  
+    )
+    trainer = fl.learn.Trainer.schema(
+        dataset=dataset,
+        model=model
+    )
 
-### Run a hyperparameter search
+    # Run a hyperparameter search
+    algorithm = fl.RandomSearch(max_steps=10, trial_budget=2)
+    search = Search(trainer, algorithm)
+    search.run()
+  </pre>
+</td>
+</tr>
+</table>
 
-
-```python
-import flambe as fl
-
-# You can create a schema over any python object
-dataset = fl.schema(fl.nlp.SSTDataset)
-model = fl.schema(fl.nlp.TextClassifier)(
-    # Replace any argument with a distibution
-    n_layers=fl.choice([1, 2, 3])  
-)
-trainer = fl.schema(fl.learn.Trainer)(
-    # Schemas take other schemas as inputs
-    dataset=dataset,
-    model=model
-)
-
-# Run a hyperparameter search
-algorithm = fl.RandomSearch(max_steps=10, trial_budget=2)
-search = Search(trainer, algorithm)
-search.run()
-```
-
-**Note**: ``Search`` expects a schema that is wrapping an object of
-the type ``Searchable``. ``Searchable`` is any object that implements
-the following interface:
+**Note**: ``Search`` expects the schema of an object that implements the 
+``Searchable`` interface:
 
 ```python
 class Searchable:
@@ -109,15 +115,7 @@ class Searchable:
     """A metric representing the current performance."""
         pass
 ```
-``Trainer`` is an example of ``Searchable``, and can be used in a ``Search``.
-
-## Features
-
-* **Native support for hyperparameter search**: using search tags (see ``!g`` in the example) users can define multi variant pipelines.
-* **Remote and distributed experiments**: users can submit ``Experiments`` to ``Clusters`` which will execute in a distributed way. Full ``AWS`` integration is supported.
-* **Visualize all your metrics and meaningful data using Tensorboard**: log scalars, histograms, images, hparams and much more.
-* **Add custom code and objects to your pipelines**: extend flambé functionality using our easy-to-use *extensions* mechanism.
-* **Modularity with hierarchical serialization**: save different components from pipelines and load them safely anywhere.
+For instance, ``Trainer`` is an example of ``Searchable``, and can therefore be used in a ``Search``.
 
 ## Next Steps
 
@@ -127,6 +125,7 @@ Full documentation, tutorials and much more in https://flambe.ai
 
 You can cite us with:
 
+```bash
 @inproceedings{wohlwend-etal-2019-flambe,
     title = "{F}lamb{\'e}: A Customizable Framework for Machine Learning Experiments",
     author = "Wohlwend, Jeremy  and
@@ -141,6 +140,7 @@ You can cite us with:
     doi = "10.18653/v1/P19-3029",
     pages = "181--188"
 }
+```
 
 ## Contact
 

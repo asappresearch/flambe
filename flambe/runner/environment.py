@@ -1,9 +1,9 @@
 from typing import Any, Optional, Dict, List
 
-from flambe.compile.registered_types import RegisteredStatelessMap
+from flambe.compile import Registrable, YAMLLoadType
 
 
-class Environment(RegisteredStatelessMap):
+class Environment(Registrable):
     """Hold information to use during execution.
 
     An Environment is simply a mapping, containing information
@@ -55,6 +55,10 @@ class Environment(RegisteredStatelessMap):
         self.debug = debug
         self.extra = extra
 
+    @classmethod
+    def yaml_load_type(cls) -> YAMLLoadType:
+        return YAMLLoadType.KWARGS
+
     def clone(self, **kwargs) -> 'Environment':
         """Clone the envrionment, updated with the provided arguments.
 
@@ -81,24 +85,3 @@ class Environment(RegisteredStatelessMap):
         }
         arguments.update(kwargs)
         return Environment(**arguments)  # type: ignore
-
-    @classmethod
-    def to_yaml(cls, representer: Any, node: Any, tag: str) -> Any:
-        """Use representer to create yaml representation of node"""
-        kwargs = {'output_path': node.output_path,
-                  'extensions': node.extensions,
-                  'local_resources': node.local_resources,
-                  'remote_resources': node.remote_resources,
-                  'head_node_ip': node.head_node_ip,
-                  'worker_node_ips': node.worker_node_ips,
-                  'debug': node.debug,
-                  'extra': node.extra}
-        return representer.represent_mapping(tag, kwargs)
-
-    @classmethod
-    def from_yaml(cls, constructor: Any, node: Any, factory_name: str, tag: str) -> Any:
-        """Use constructor to create an instance of cls"""
-        # NOTE: construct_yaml_map is a generator that yields the
-        # constructed data and then updates it
-        kwargs, = list(constructor.construct_yaml_map(node))
-        return cls(**kwargs)

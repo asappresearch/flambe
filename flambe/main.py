@@ -7,13 +7,13 @@ import traceback
 import torch
 
 import flambe
-from flambe.const import FLAMBE_CLUSTER_DEFAULT
+from flambe.const import FLAMBE_CLUSTER_DEFAULT, FLAMBE_GLOBAL_FOLDER
 from flambe.logo import ASCII_LOGO, ASCII_LOGO_DEV
 from flambe.logging import coloredlogs as cl
 from flambe.runner.utils import is_dev_mode, get_flambe_repo_location
 from flambe.compile.yaml import load_config_from_file
 from flambe.compile.downloader import download_manager
-from flambe.runner.runnable import Environment
+from flambe.runner import Environment
 
 
 @click.group()

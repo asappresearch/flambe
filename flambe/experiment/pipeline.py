@@ -1,5 +1,5 @@
 import copy
-from typing import Optional, Dict, List, Callable, Set, Any
+from typing import Optional, Dict, List, Callable, Set, Any, Tuple
 
 from flambe.compile import Schema, UnpreparedLinkError
 from flambe.search.search import Checkpoint
@@ -55,7 +55,7 @@ class Pipeline(Schema):
                     flat_checkpoints[stage_name] = checkpoints[stage_name]
 
         # TODO check keys in variants and checkpoints
-        super().__init__(callable=pipeline_builder, kwargs=flat_schemas, apply_defaults=False)
+        super().__init__(callable_=pipeline_builder, kwargs=flat_schemas, apply_defaults=False)
 
         # Check Links
         checked = []
@@ -124,6 +124,17 @@ class Pipeline(Schema):
             return list(self.deps[self.task])
         else:
             return []
+
+    # def initialize(self,
+    #                path: Optional[Tuple[str]] = None,
+    #                cache: Optional[Dict[str, Any]] = None,
+    #                root: Optional['Schema'] = None) -> Any:
+    #     cache = {}
+    #     for stage_name, checkpoint in self.checkpoints.items():
+    #         val = checkpoint.get()
+    #         print(f"setting cache for {stage_name} to {val}")
+    #         cache[stage_name] = val
+    #     return super().initialize(cache=cache)
 
     def sub_pipeline(self, stage_name: str) -> 'Pipeline':
         """Return subset of the pipeline stages ending in stage_name
@@ -248,11 +259,6 @@ class Pipeline(Schema):
         return True
 
     @classmethod
-    def from_yaml(cls,
-                  constructor: Any,
-                  node: Any,
-                  factory_name: str,
-                  tag: str,
-                  callable: Callable) -> Any:
+    def from_yaml(cls, raw_obj: Any, callable_override: Optional[Callable] = None) -> Any:
         """Override to disable."""
         raise NotImplementedError('Pipeline YAML not supported')

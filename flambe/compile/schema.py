@@ -11,8 +11,7 @@ from ruamel.yaml.comments import (CommentedMap, CommentedOrderedMap, CommentedSe
                                   CommentedKeySeq, CommentedSeq, TaggedScalar,
                                   CommentedKeyMap)
 
-from flambe.compile.registry import get_registry
-from flambe.compile.registered_types import Registrable
+from flambe.compile.yaml import Registrable, YAMLLoadType
 
 
 YAML_TYPES = (CommentedMap, CommentedOrderedMap, CommentedSet, CommentedKeySeq, CommentedSeq,
@@ -31,7 +30,7 @@ class UnpreparedLinkError(LinkError):
     pass
 
 
-class Options(Registrable, should_register=False):
+class Options(Registrable):
     pass
 
 
@@ -185,11 +184,12 @@ class GridVariants(Options, tag_override="g"):
         return representer.represent_sequence(tag, node.options)
 
     @classmethod
-    def from_yaml(cls, constructor: Any, node: Any, factory_name: str, tag: str) -> 'Link':
-        # construct_yaml_seq returns wrapper tuple, need to unpack;
-        # will also recurse so items in options can also be links
-        options, = list(constructor.construct_yaml_seq(node))
-        return cls(options)
+    def from_yaml(cls, raw_obj: Any, callable_override: Optional[Callable] = None) -> Any:
+        if not isinstance(raw_obj, list):
+            raise Exception(f'GridVariants argument {raw_obj} is not a list')
+        if callable_override is not None:
+            raise NotImplementedError('GridVariants do not support callable overrides')
+        return cls(raw_obj)
 
 
 class Link(Registrable, tag_override="@"):
@@ -224,14 +224,8 @@ class Link(Registrable, tag_override="@"):
         return obj
 
     @classmethod
-    def from_yaml(cls, constructor: Any, node: Any, factory_name: str, tag: str) -> 'Link':
-        link_str = constructor.construct_scalar(node)
-        return cls(link_str)
-
-    @classmethod
-    def to_yaml(cls, representer: Any, node: Any, tag: str) -> Any:
-        link_str = create_link_str(node.schematic_path, node.attr_path)
-        return representer.represent_scalar(tag, link_str)
+    def yaml_load_type(cls) -> YAMLLoadType:
+        return YAMLLoadType.KWARGS_OR_ARG
 
     def __call__(self, cache: Dict[str, Any]) -> Any:
         return self.resolve(cache)
@@ -250,37 +244,20 @@ class CopyLink(Link, tag_override='#'):
 class Schema(MutableMapping[str, Any]):
 
     def __init__(self,
-                 callable: Callable,
+                 callable_: Callable,
                  args: Optional[Sequence[Any]] = None,
                  kwargs: Optional[Dict[str, Any]] = None,
                  factory_name: Optional[str] = None,
                  tag: Optional[str] = None,
                  apply_defaults: bool = True,
                  allow_new_args: bool = False):
-        if not isinstance(callable, type):
-            warn('Using non-class callables with Schema is not fully supported')
-            # raise NotImplementedError('Using non-class callables with Schema is not yet supported')
-        self.callable = callable
-        registry = get_registry()
-        if callable not in registry:
-            pass
-            # TODO auto-register logic? for functions?
-            # registry.create(
-            #   callable,
-            #   namespace=get_class_namespace(callable),
-            #   factories=[factory_name],
-            #   from_yaml=add_callable_from_yaml(
-            #       Schema.from_yaml,
-            #       callable=callable
-            #   ),
-            #   to_yaml=Schema.to_yaml
-            # )
+        self.callable_ = callable_
         if factory_name is None:
-            self.factory_method = callable
+            self.factory_method = callable_
         else:
-            if not isinstance(self.callable, type):
-                raise ValueError(f'Cannot specify factory name on non-class callable {callable}')
-            self.factory_method = getattr(self.callable, factory_name)
+            if not isinstance(self.callable_, type):
+                raise ValueError(f'Cannot specify factory name on non-class callable {callable_}')
+            self.factory_method = getattr(self.callable_, factory_name)
         args = args if args is not None else []
         kwargs = kwargs if kwargs is not None else {}
         s = inspect.signature(self.factory_method)
@@ -295,12 +272,12 @@ class Schema(MutableMapping[str, Any]):
         for k, v in self.bound_arguments.arguments.items():
             if s.parameters[k].kind not in [inspect.Parameter.POSITIONAL_OR_KEYWORD,
                                             inspect.Parameter.KEYWORD_ONLY, inspect.Parameter.VAR_KEYWORD]:
-                raise TypeError(f'Argument {k} for {callable} is of unsupported type {s.parameters[k].kind.name}')
+                raise TypeError(f'Argument {k} for {callable_} is of unsupported type {s.parameters[k].kind.name}')
         if tag is None:
-            if isinstance(self.callable, type):
-                tag = type(self.callable).__name__
+            if isinstance(self.callable_, type):
+                tag = type(self.callable_).__name__
             else:
-                tag = self.callable.__name__
+                tag = self.callable_.__name__
         self.created_with_tag = tag
         self.allow_new_args = allow_new_args
 
@@ -360,33 +337,6 @@ class Schema(MutableMapping[str, Any]):
                  cache: Optional[Dict[str, Any]] = None,
                  root: Optional['Schema'] = None):
         return self.initialize(path, cache, root)
-
-    @classmethod
-    def from_yaml(cls,
-                  constructor: Any,
-                  node: Any,
-                  factory_name: str,
-                  tag: str,
-                  callable: Callable) -> Any:
-        """Use constructor to create an instance of cls"""
-        if inspect.isabstract(callable):
-            msg = f"You're trying to initialize an abstract class {cls}. " \
-                  + "If you think it's concrete, double check you've spelled " \
-                  + "all the method names correctly."
-            raise Exception(msg)
-        if isinstance(node, ScalarNode):
-            nothing = constructor.construct_yaml_null(node)
-            if nothing is not None:
-                raise Exception(f"Non-null scalar argument to {cls.__name__} will be ignored")
-            return cls(callable, factory_name=factory_name, tag=tag)
-        kwargs, = list(constructor.construct_yaml_map(node))
-        # TODO support constructing sequence for positional args
-        return cls(callable, kwargs=kwargs, factory_name=factory_name, tag=tag)
-
-    @classmethod
-    def to_yaml(cls, representer: Any, node: Any, tag: str) -> Any:
-        """Use representer to create yaml representation of node"""
-        pass
 
     @staticmethod
     def traverse(obj: Any,
@@ -507,12 +457,6 @@ class Schema(MutableMapping[str, Any]):
             else:
                 cache[current_path] = obj
         initialized_arguments = initialized.bound_arguments
-
-        for k, v in initialized_arguments.arguments.items():
-            if isinstance(v, YAML_TYPES):
-                msg = f"keyword '{k}' is still yaml type {type(v)}\n"
-                msg += f"This could be because of a typo or the class is not registered properly"
-                warn(msg)
         try:
             cache[path] = initialized.factory_method(*initialized_arguments.args,
                                                      **initialized_arguments.kwargs)
@@ -567,30 +511,19 @@ class Schema(MutableMapping[str, Any]):
     @recursive_repr()
     def __repr__(self) -> str:
         args = ", ".join("{}={!r}".format(k, v) for k, v in sorted(self.arguments.items()))
-        format_string = "{module}.{cls}({callable}, {args})"
+        format_string = "{module}.{cls}({callable_}, {args})"
         return format_string.format(module=self.__class__.__module__,
                                     cls=self.__class__.__qualname__,
                                     tag=self.created_with_tag,
-                                    callable=self.callable,
+                                    callable_=self.callable_,
                                     factory_method=self.factory_method,
                                     args=args)
 
 
-def add_callable_from_yaml(from_yaml_fn: Callable, callable: Callable) -> Callable:
+def add_callable_from_yaml(from_yaml_fn: Callable, callable_: Callable) -> Callable:
     """Add callable to call on from_yaml"""
     @functools.wraps(from_yaml_fn)
     def wrapped(constructor: Any, node: Any, factory_name: str, tag: str) -> Any:
-        obj = from_yaml_fn(constructor, node, factory_name, tag, callable)
+        obj = from_yaml_fn(constructor, node, factory_name, tag, callable_)
         return obj
     return wrapped
-
-
-class Schematic(Registrable, should_register=False):
-
-    def __init_subclass__(cls: Type['Registrable'],
-                          **kwargs: Mapping[str, Any]) -> None:
-        # Schema from_yaml function is generic, so need to add
-        # class information
-        from_yaml_fn = add_callable_from_yaml(Schema.from_yaml, callable=cls)
-        to_yaml_fn = Schema.to_yaml
-        super().__init_subclass__(from_yaml=from_yaml_fn, to_yaml=to_yaml_fn, **kwargs)

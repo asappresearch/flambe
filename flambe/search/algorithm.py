@@ -1,7 +1,7 @@
 from abc import abstractmethod
 from typing import Dict, Optional
 
-from flambe.compile import RegisteredStatelessMap
+from flambe.compile import Registrable, YAMLLoadType
 from flambe.search.distribution import Distribution
 from flambe.search.trial import Trial
 from flambe.search.searcher import GridSearcher, RandomSearcher,\
@@ -9,8 +9,12 @@ from flambe.search.searcher import GridSearcher, RandomSearcher,\
 from flambe.search.scheduler import Scheduler, BlackBoxScheduler, HyperBandScheduler
 
 
-class Algorithm(RegisteredStatelessMap):
+class Algorithm(Registrable, should_register=False):
     """Interface for hyperparameter search algorithms."""
+
+    @classmethod
+    def yaml_load_type(cls) -> YAMLLoadType:
+        return YAMLLoadType.KWARGS
 
     @abstractmethod
     def initialize(self, space: Dict[str, Distribution]):

@@ -26,9 +26,9 @@ pipeline:
           output_size: !@ train[dataset].label.vocab_size
     train_sampler: !BaseSampler
     val_sampler: !BaseSampler
-    loss_fn: !torch.NLLLoss
+    loss_fn: !torch.nn.NLLLoss
     metric_fn: !Accuracy
-    optimizer: !Adam
+    optimizer: !torch.optim.Adam
       params: !@ train[model].trainable_params
     iter_per_step: 2
   2_evaluate: !Evaluator # We evaluate in a second stage, note the reduce argument at the bottom of the file

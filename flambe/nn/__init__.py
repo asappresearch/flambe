@@ -1,6 +1,6 @@
 # type: ignore[attr-defined]
 
-from flambe.nn.module import Module, Adam, NLLLoss
+from flambe.nn.module import Module
 from flambe.nn.softmax import SoftmaxLayer
 from flambe.nn.mos import MixtureOfSoftmax
 from flambe.nn.embedding import Embeddings, Embedder
@@ -13,7 +13,7 @@ from flambe.nn.transformer import Transformer, TransformerEncoder, TransformerDe
 from flambe.nn.transformer_sru import TransformerSRU, TransformerSRUEncoder, TransformerSRUDecoder
 
 
-__all__ = ['Module', 'Embeddings', 'Embedder', 'RNNEncoder', 'Adam', 'NLLLoss',
+__all__ = ['Module', 'Embeddings', 'Embedder', 'RNNEncoder',
            'PooledRNNEncoder', 'CNNEncoder', 'MLPEncoder',
            'SoftmaxLayer', 'MixtureOfSoftmax', 'Sequential',
            'Transformer', 'TransformerEncoder', 'TransformerDecoder',
