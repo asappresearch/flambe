@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="imgs/Flambe_Logo_CMYK_FullColor.png" width="600" align="middle">
+  <img src="imgs/Flambe_Logo_CMYK_FullColor.png" width="500" align="middle">
 </p>
 
 ------------
