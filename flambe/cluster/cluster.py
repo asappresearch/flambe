@@ -12,7 +12,7 @@ from ray.autoscaler.updater import SSHCommandRunner
 
 from flambe.logging import coloredlogs as cl
 from flambe.const import FLAMBE_GLOBAL_FOLDER
-from flambe.compile import RegisteredStatelessMap
+from flambe.compile import Registrable, YAMLLoadType
 from flambe.compile import load_extensions_from_file #load_resources_from_file
 from flambe.compile.extensions import download_extensions
 from flambe.compile.downloader import download_manager
@@ -61,7 +61,7 @@ def time() -> str:
     return datetime.now().strftime('%H:%M:%S')
 
 
-class Cluster(RegisteredStatelessMap):
+class Cluster(Registrable):
     """Base cluster implementation."""
 
     def __init__(self,
@@ -136,6 +136,10 @@ class Cluster(RegisteredStatelessMap):
         }
 
         self.config = custom_config if custom_config is not None else config
+
+    @classmethod
+    def yaml_load_type(cls) -> YAMLLoadType:
+        return YAMLLoadType.KWARGS
 
     def up(self,
            min_workers: Optional[int] = None,

@@ -39,7 +39,7 @@ class Pipeline(Schema):
                 raise TypeError(f'Value at {stage_name} is not a Schema')
 
         # TODO check keys in variants and checkpoints
-        super().__init__(callable=pipeline_builder, kwargs=schemas, apply_defaults=False)
+        super().__init__(callable_=pipeline_builder, kwargs=schemas, apply_defaults=False)
         # Check Links
         links = {}
         checked = []
@@ -231,11 +231,6 @@ class Pipeline(Schema):
         return True
 
     @classmethod
-    def from_yaml(cls,
-                  constructor: Any,
-                  node: Any,
-                  factory_name: str,
-                  tag: str,
-                  callable: Callable) -> Any:
+    def from_yaml(cls, raw_obj: Any, callable_override: Optional[Callable] = None) -> Any:
         """Override to disable."""
         raise NotImplementedError('Pipeline YAML not supported')

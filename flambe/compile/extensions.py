@@ -14,11 +14,30 @@ import importlib
 import importlib.util
 from typing import Dict, Optional, Iterable, Union
 from flambe.logging import coloredlogs as cl
-from flambe.compile.utils import _is_url
 
 import logging
 
 logger = logging.getLogger(__name__)
+
+
+def _is_url(resource: str) -> bool:
+    """Whether a given resource is a remote URL.
+
+    Resolve by searching for a scheme.
+
+    Parameters
+    ----------
+    resource: str
+        The given resource
+
+    Returns
+    -------
+    bool
+        If the resource is a remote URL.
+
+    """
+    scheme = urlparse(resource).scheme
+    return scheme != ''
 
 
 def download_extensions(extensions: Dict[str, str],

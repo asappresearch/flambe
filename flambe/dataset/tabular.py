@@ -7,7 +7,6 @@ import numpy as np
 from sklearn.model_selection import train_test_split
 
 from flambe.dataset import Dataset
-from flambe.compile import registrable_factory
 from flambe.field import Field
 
 
@@ -279,7 +278,6 @@ class TabularDataset(Dataset):
             field.setup(*args)
             self.transform_hooks.append((field, columns))
 
-    @registrable_factory
     @classmethod
     def from_path(cls,
                   train_path: str,
@@ -333,7 +331,6 @@ class TabularDataset(Dataset):
 
         return cls(train=train, val=val, test=test, transform=transform, named_columns=cols)
 
-    @registrable_factory
     @classmethod
     def autogen(cls,
                 data_path: str,

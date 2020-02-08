@@ -7,7 +7,6 @@ import torch
 from torch import nn
 from torch import Tensor
 
-from flambe.compile import registrable_factory
 from flambe.nn.module import Module
 
 
@@ -112,7 +111,6 @@ class Embeddings(Module):
 
             self.pos_embedding = nn.Embedding.from_pretrained(pos_embedding, freeze=True)
 
-    @registrable_factory
     @classmethod
     def from_pretrained(cls,
                         embeddings: Tensor,

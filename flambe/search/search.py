@@ -10,8 +10,7 @@ import ray
 import torch
 
 from flambe.runner import Environment
-from flambe.compile.registered_types import RegisteredStatelessMap
-from flambe.compile.schema import Schema, GridVariants
+from flambe.compile import Registrable, YAMLLoadType, Schema, GridVariants
 from flambe.search.trial import Trial
 from flambe.search.protocol import Searchable
 from flambe.search.algorithm import Algorithm, GridSearch
@@ -105,7 +104,7 @@ class RayAdapter:
         return continue_, metric
 
 
-class Search(RegisteredStatelessMap):
+class Search(Registrable):
     """Implement a hyperparameter search over any schema.
 
     Use a Search to construct a hyperparameter search over any
@@ -158,6 +157,10 @@ class Search(RegisteredStatelessMap):
 
         self.schema = schema
         self.algorithm = GridSearch() if algorithm is None else algorithm
+
+    @classmethod
+    def yaml_load_type(cls) -> YAMLLoadType:
+        return YAMLLoadType.KWARGS
 
     def run(self, env: Optional[Environment] = None) -> List[Dict[str, Any]]:
         """Execute the search.

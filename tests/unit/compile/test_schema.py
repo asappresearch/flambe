@@ -4,7 +4,7 @@ from flambe.compile.schema import Schema, Link, CopyLink, MalformedLinkError, \
     UnpreparedLinkError, Options
 
 
-class TestOptions(Options, should_register=False):
+class TestOptions(Options):
 
     def __init__(self, opts):
         self.opts = opts

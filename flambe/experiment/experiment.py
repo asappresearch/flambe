@@ -2,14 +2,14 @@ from typing import Optional, Dict
 
 import ray
 
-from flambe.compile import Schema, RegisteredStatelessMap
+from flambe.compile import Schema, Registrable, YAMLLoadType
 from flambe.search import Algorithm
 from flambe.runner.runnable import Environment
 from flambe.experiment.pipeline import Pipeline
 from flambe.experiment.stage import Stage
 
 
-class Experiment(RegisteredStatelessMap):
+class Experiment(Registrable):
 
     def __init__(self,
                  name: str,
@@ -52,6 +52,10 @@ class Experiment(RegisteredStatelessMap):
         self.reduce = reduce if reduce is not None else dict()
         self.cpus_per_trial: Dict[str, int] = dict()
         self.gpus_per_trial: Dict[str, int] = dict()
+
+    @classmethod
+    def yaml_load_type(cls) -> YAMLLoadType:
+        return YAMLLoadType.KWARGS
 
     def run(self, env: Optional[Environment] = None):
         """Execute the Experiment.

@@ -8,7 +8,6 @@ from sklearn.model_selection import train_test_split
 import numpy as np
 
 from flambe.dataset import Dataset
-from flambe.compile import registrable_factory
 
 
 class MNISTDataset(Dataset):
@@ -67,7 +66,6 @@ class MNISTDataset(Dataset):
         self._val = get_dataset(self.val_images, self.val_labels)
         self._test = get_dataset(self.test_images, self.test_labels)
 
-    @registrable_factory
     @classmethod
     def from_path(cls,
                   train_images_path: str,
