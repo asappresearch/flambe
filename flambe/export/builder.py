@@ -8,8 +8,8 @@ import subprocess
 from urllib.parse import urlparse
 
 import flambe
-from flambe.runner.runnable import Runnable, Environment
-from flambe.compile import Component, Schema
+from flambe.runner.environment import Environment
+from flambe.compile import Component, Schema, RegisteredStatelessMap
 from flambe.compile.const import DEFAULT_PROTOCOL
 from flambe.logging import coloredlogs as cl
 
@@ -18,7 +18,7 @@ import logging
 logger = logging.getLogger(__name__)
 
 
-class Builder(Runnable):
+class Builder(RegisteredStatelessMap):
     """Implement a Builder.
 
     A builder is a simple object that can be used to create

@@ -98,7 +98,7 @@ class BlackBoxScheduler(Scheduler):
         trials_with_result = {trial_id: trial for trial_id,
                               trial in trials.items() if trial.has_result()}
 
-        finished_trials: Dict[str, float] = dict()
+        finished_trials: Dict[str, Trial] = dict()
         for trial_id, trial in trials_with_result.items():
             n_metrics = len(trial.metrics)
             if n_metrics == self.max_steps:

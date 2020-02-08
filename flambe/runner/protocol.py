@@ -1,9 +1,10 @@
 from typing import Optional
-from typing_extensions import Protocol
+from typing_extensions import Protocol, runtime_checkable
 
 from flambe.runner.environment import Environment
 
 
+@runtime_checkable
 class Runnable(Protocol):
     """Abstract runnable interface.
 

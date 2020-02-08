@@ -4,9 +4,24 @@ from typing import Dict, List, Optional
 
 import ray
 
-from flambe.search import Algorithm, Search, Choice
+from flambe.search import Algorithm, Search
 from flambe.experiment.pipeline import Pipeline
 from flambe.runner import Environment
+
+
+@ray.remote
+def run_search(variant,
+               algorithm,
+               cpus_per_trial,
+               gpus_per_trial,
+               environment):
+    search = Search(
+        variant,
+        algorithm,
+        cpus_per_trial,
+        gpus_per_trial
+    )
+    return search.run(environment)
 
 
 class Stage(object):
@@ -22,7 +37,7 @@ class Stage(object):
     def __init__(self,
                  name: str,
                  pipeline: Pipeline,
-                 dependencies: List[Pipeline],
+                 dependencies: List[List[Pipeline]],
                  cpus_per_trial: int,
                  gpus_per_trial: int,
                  environment: Environment,
@@ -57,9 +72,11 @@ class Stage(object):
         self.algorithm = algorithm
         self.cpus_per_trial = cpus_per_trial
         self.gpus_per_trial = gpus_per_trial
-        self.dependencies = dependencies
         self.reductions = reductions if reductions is not None else dict()
         self.env = environment
+
+        # Flatten out dependencies
+        self.dependencies = [p for dep in dependencies for p in dep]
 
     def filter_dependencies(self, pipelines: List['Pipeline']) -> List['Pipeline']:
         """Filter out erros, and apply reductions on dependencies.
@@ -152,15 +169,20 @@ class Stage(object):
         # cross-stages parameter configurations
 
         # TODO: actually read out the links types correctly
-        if not pipelines:
-            return [Pipeline({self.name: task})]
+        out = []
+        if len(pipelines) == 0:
+            for var in task.iter_variants():
+                out.append(Pipeline({
+                    self.name: var
+                }))
         else:
-            pipeline = Pipeline({
-                'dependencies': Choice(pipelines),  # type: ignore
-                self.name: task
-            })
-
-            return [pipeline]
+            for pipeline in pipelines:
+                for var in task.iter_variants():
+                    out.append(Pipeline({
+                        'dependencies': pipeline,  # type: ignore
+                        self.name: var
+                    }))
+        return out
 
     def run(self) -> List[Pipeline]:
         """Execute the stage.
@@ -193,18 +215,21 @@ class Stage(object):
 
         # Run remaining searches in parallel
         object_ids = []
-        for variant in variants:
-            # Set up the search
-            search = ray.remote(Search).remote(
+        for i, variant in enumerate(variants):
+            # Exectue remotely
+            variant_env = self.env.clone()
+            variant_env.output_path = os.path.join(
+                self.env.output_path,
+                self.name,
+                f'variant_{i}'
+            )
+            object_id = run_search.remote(
                 variant,
                 self.algorithm,
                 self.cpus_per_trial,
-                self.gpus_per_trial
+                self.gpus_per_trial,
+                variant_env
             )
-            # Exectue remotely
-            variant_env = self.env.clone()
-            variant_env.output_path = os.path.join(self.env.output_path, self.name)
-            object_id = search.run.remote(variant_env)
             object_ids.append(object_id)
 
         # Get results and construct output pipelines
@@ -215,7 +240,7 @@ class Stage(object):
             # to a dictionary with schema, params, and checkpoint
             for var_dict in variants:
                 # Flatten out the pipeline schema
-                pipeline: Pipeline = var_dict['schema'].flatten()
+                pipeline: Pipeline = var_dict['schema']
                 # Add search results to the pipeline
                 pipeline.var_ids[self.name] = var_dict['var_id']
                 pipeline.checkpoints[self.name] = var_dict['checkpoint']

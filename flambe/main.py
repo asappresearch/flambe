@@ -12,6 +12,7 @@ from flambe.logo import ASCII_LOGO, ASCII_LOGO_DEV
 from flambe.logging import coloredlogs as cl
 from flambe.runner.utils import is_dev_mode, get_flambe_repo_location
 from flambe.compile.yaml import load_config_from_file
+from flambe.compile.downloader import download_manager
 from flambe.runner.runnable import Environment
 
 
@@ -106,71 +107,27 @@ def attach(name, cluster):
 @click.argument('name', type=str)
 @click.option('-c', '--cluster', type=str, default=FLAMBE_CLUSTER_DEFAULT,
               help="Cluster config.")
-def kill(name, cluster):
+@click.option('--clean', is_flag=True, default=False,
+              help='Clean the artifacts of the job.')
+def kill(name, cluster, clean):
     """Kill a job (i.e tmux session) running on the cluster."""
     logging.disable(logging.INFO)
     cluster = load_config_from_file(cluster)
     cluster.kill(name=name)
+    if clean:
+        cluster.clean(name=name)
 
 
-# ----------------- flambe run ------------------ #
+# ----------------- flambe clean ------------------ #
 @click.command()
-@click.argument('runnable', type=str, required=True)
-@click.option('-o', '--output', default='./',
-              help='Override existing job with this name. Be careful \
-                    when using this flag as it could have undesired effects.')
-@click.option('-f', '--force', is_flag=True, default=False,
-              help='Override existing job with this name. Be careful \
-                    when using this flag as it could have undesired effects.')
-@click.option('-d', '--debug', is_flag=True,
-              help='Enable debug mode. Each runnable specifies the debug behavior. \
-                    For example for an Experiment, Ray will run in a single thread \
-                    allowing user breakpoints')
-@click.option('-e', '--env', type=str, default=None,
-              help='Verbose console output')
-def run(runnable, output, force, debug, env):
-    """Execute a runnable config."""
-
-    # Check if previous job exists
-    if env:
-        env_config = load_config_from_file(env)
-        output = env_config.pop('output_path')
-
-    output = os.path.join(os.path.expanduser(output), 'flambe_output')
-    if os.path.exists(output):
-        if force:
-            shutil.rmtree(output)
-        else:
-            raise ValueError(f"{output} already exists. Use -f, --force to override.")
-
-    # torch.multiprocessing exists, ignore mypy
-    # TODO: investigate if this is actually needed
-    torch.multiprocessing.set_start_method('fork', force=True)  # type: ignore
-
-    # Check if dev mode
-    if is_dev_mode():
-        print(cl.RA(ASCII_LOGO_DEV))
-        print(cl.BL(f"Location: {get_flambe_repo_location()}\n"))
-    else:
-        print(cl.RA(ASCII_LOGO))
-        print(cl.BL(f"VERSION: {flambe.__version__}\n"))
-
-    # Check if debug
-    if debug:
-        print(cl.YE(f"Debug mode activated\n"))
-        logging.disable(logging.NOTSET)
-
-    try:
-        kwargs = env_config if env else dict()
-        kwargs.update({'output_path': output, 'debug': debug})
-        runnable_obj = load_config_from_file(runnable)
-        runnable_obj.run(Environment(**kwargs))
-        print(cl.GR("------------------- Done -------------------"))
-    except KeyboardInterrupt:
-        print(cl.RE("---- Exiting early (Keyboard Interrupt) ----"))
-    except Exception:
-        print(traceback.format_exc())
-        print(cl.RE("------------------- Error -------------------"))
+@click.argument('name', type=str)
+@click.option('-c', '--cluster', type=str, default=FLAMBE_CLUSTER_DEFAULT,
+              help="Cluster config.")
+def clean(name, cluster):
+    """Clean the artifacts of a job on the cluster."""
+    logging.disable(logging.INFO)
+    cluster = load_config_from_file(cluster)
+    cluster.clean(name=name)
 
 
 # ----------------- flambe submit ------------------ #
@@ -223,10 +180,84 @@ def site(name, cluster, port):
         logging.disable(logging.ERROR)
 
 
+# ----------------- flambe run ------------------ #
+@click.command()
+@click.argument('runnable', type=str, required=True)
+@click.option('-o', '--output', default='./',
+              help='Override existing job with this name. Be careful \
+                    when using this flag as it could have undesired effects.')
+@click.option('-f', '--force', is_flag=True, default=False,
+              help='Override existing job with this name. Be careful \
+                    when using this flag as it could have undesired effects.')
+@click.option('-d', '--debug', is_flag=True,
+              help='Enable debug mode. Each runnable specifies the debug behavior. \
+                    For example for an Experiment, Ray will run in a single thread \
+                    allowing user breakpoints')
+@click.option('-e', '--env', type=str, default=None,
+              help='Verbose console output')
+def run(runnable, output, force, debug, env):
+    """Execute a runnable config."""
+
+    # Check if previous job exists
+    if env:
+        env_config = load_config_from_file(env)
+        output = env_config.pop('output_path')
+
+    output = os.path.join(os.path.expanduser(output), 'flambe_output')
+    if os.path.exists(output):
+        if force:
+            shutil.rmtree(output)
+        else:
+            raise ValueError(f"{output} already exists. Use -f, --force to override.")
+
+    # torch.multiprocessing exists, ignore mypy
+    # TODO: investigate if this is actually needed
+    torch.multiprocessing.set_start_method('fork', force=True)  # type: ignore
+
+    # Check if dev mode
+    if is_dev_mode():
+        print(cl.RA(ASCII_LOGO_DEV))
+        print(cl.BL(f"Location: {get_flambe_repo_location()}\n"))
+    else:
+        print(cl.RA(ASCII_LOGO))
+        print(cl.BL(f"VERSION: {flambe.__version__}\n"))
+
+    # Check if debug
+    if debug:
+        print(cl.YE(f"Debug mode activated\n"))
+        logging.captureWarnings(True)
+
+    try:
+        kwargs = env_config if env else dict()
+        environment = Environment(**kwargs)
+
+        # Download resources
+        resources_dir = os.path.join(FLAMBE_GLOBAL_FOLDER, 'resources')
+        updated_resources: Dict[str, str] = dict()
+        for name, resource in environment.local_resources.items():
+            with download_manager(resource, os.path.join(resources_dir, name)) as path:
+                updated_resources[name] = path
+
+        environment = environment.clone(
+            output_path=output,
+            debug=debug,
+            local_resources=updated_resources,
+        )
+        runnable_obj = load_config_from_file(runnable)
+        runnable_obj.run(environment)
+        print(cl.GR("------------------- Done -------------------"))
+    except KeyboardInterrupt:
+        print(cl.RE("---- Exiting early (Keyboard Interrupt) ----"))
+    except Exception:
+        print(traceback.format_exc())
+        print(cl.RE("------------------- Error -------------------"))
+
+
 if __name__ == '__main__':
     cli.add_command(up)
     cli.add_command(down)
     cli.add_command(kill)
+    cli.add_command(clean)
     cli.add_command(list_cmd, name='ls')
     cli.add_command(exec_cmd, name='exec')
     cli.add_command(attach)

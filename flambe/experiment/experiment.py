@@ -4,9 +4,31 @@ import ray
 
 from flambe.compile import Schema, Registrable, YAMLLoadType
 from flambe.search import Algorithm
-from flambe.runner.runnable import Environment
+from flambe.runner.environment import Environment
 from flambe.experiment.pipeline import Pipeline
 from flambe.experiment.stage import Stage
+
+
+@ray.remote
+def get_stage(name,
+              pipeline,
+              algorithm,
+              reductions,
+              cpus_per_trial,
+              gpus_per_trial,
+              environment,
+              *dependencies):
+    stage = Stage(
+        name=name,
+        pipeline=pipeline,
+        algorithm=algorithm,
+        reductions=reductions,
+        dependencies=dependencies,  # Passing object ids sets the order of computation
+        cpus_per_trial=cpus_per_trial,
+        gpus_per_trial=gpus_per_trial,
+        environment=environment
+    )
+    return stage.run()
 
 
 class Experiment(Registrable):
@@ -83,22 +105,20 @@ class Experiment(Registrable):
             depedency_ids = [stage_to_id[d] for d in sub_pipeline.dependencies]
 
             # Construct the stage
-            stage = ray.remote(Stage).remote(
-                name=name,
-                pipeline=sub_pipeline,
-                algorithm=self.algorithm.get(name, None),
-                reductions=self.reduce.get(name, None),
-                dependencies=depedency_ids,  # Passing object ids sets the order of computation
-                cpus_per_trial=self.cpus_per_trial.get(name, 1),
-                gpus_per_trial=self.gpus_per_trial.get(name, 0),
-                environment=env
+            object_id = get_stage.remote(
+                name,
+                sub_pipeline,
+                self.algorithm.get(name, None),
+                self.reduce,
+                self.cpus_per_trial.get(name, 1),
+                self.gpus_per_trial.get(name, 0),
+                env,
+                *depedency_ids,  # Passing object ids sets the order of computation
             )
 
-            # Execute the stage remotely
-            object_id = stage.run.remote()
             # Keep the object id, to use as future dependency
             stage_to_id[name] = object_id
 
-        # Wait until the extperiment is done
+        # Wait until the experiment is done
         # TODO progress tracking
         ray.get(list(stage_to_id.values()))

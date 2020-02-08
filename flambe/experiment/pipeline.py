@@ -34,14 +34,30 @@ class Pipeline(Schema):
             Description of parameter `checkpoints` (default is None).
 
         """
+        # Flatten first
+        flat_schemas: Dict[str, Schema] = {}
+        flat_variant_ids: Dict[str, str] = {}
+        flat_checkpoints: Dict[str, Checkpoint] = {}
         for stage_name, schema in schemas.items():
             if not isinstance(schema, Schema):
-                raise TypeError(f'Value at {stage_name} is not a Schema')
+                raise TypeError(f'Value at {stage_name} is not a Schema: {type(schema)}')
+            elif isinstance(schema, Pipeline):
+                flat_schemas.update(schema.schemas)  # type: ignore
+                if variant_ids:
+                    flat_variant_ids.update(pipeline.var_ids)  # type: ignore
+                if checkpoints:
+                    flat_checkpoints.update(pipeline.checkpoints)  # type: ignore
+            else:
+                flat_schemas[stage_name] = schema
+                if variant_ids:
+                    flat_variant_ids[stage_name] = variant_ids[stage_name]
+                if checkpoints:
+                    flat_checkpoints[stage_name] = checkpoints[stage_name]
 
         # TODO check keys in variants and checkpoints
-        super().__init__(callable_=pipeline_builder, kwargs=schemas, apply_defaults=False)
+        super().__init__(callable_=pipeline_builder, kwargs=flat_schemas, apply_defaults=False)
+
         # Check Links
-        links = {}
         checked = []
         for stage_name, schema in self.arguments.items():
             checked.append(stage_name)
@@ -56,9 +72,10 @@ class Pipeline(Schema):
             self._update_deps(stage_name)
 
         last_stage = list(schemas.keys())[-1]
-        self.is_subpipeline = len(self.deps[last_stage]) == (len(schemas) - 1)
-        self.var_ids = variant_ids if variant_ids is not None else dict()
-        self.checkpoints = checkpoints if checkpoints is not None else dict()
+        self.is_subpipeline = len(self.deps[last_stage]) == (len(flat_schemas) - 1)
+        self.schemas = flat_schemas
+        self.var_ids = flat_variant_ids
+        self.checkpoints = flat_checkpoints
         self.error = False
         self.metric = None
 

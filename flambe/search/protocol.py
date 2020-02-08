@@ -1,6 +1,7 @@
-from typing_extensions import Protocol
+from typing_extensions import Protocol, runtime_checkable
 
 
+@runtime_checkable
 class Searchable(Protocol):
     """The Searchable interface.
 
