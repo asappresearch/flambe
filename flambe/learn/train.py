@@ -1,4 +1,5 @@
 import math
+import copy
 from typing import Dict, List, Optional, Any, Tuple, Iterator, Iterable, Union
 
 import numpy as np
@@ -182,8 +183,11 @@ class Trainer(Component):
         self._train_iterator = self.train_sampler.sample(self.dataset.train, self._iter_in_epoch)
 
     def __getstate__(self):
-        del self._train_iterator
-        return self.__dict__
+        _train_iterator = self._train_iterator
+        d = copy.copy(self.__dict__)
+        del d['_train_iterator']
+        self._train_iterator = _train_iterator
+        return d
 
     def __setstate__(self, state):
         self.__dict__ = state

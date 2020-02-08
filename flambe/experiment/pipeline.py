@@ -1,5 +1,5 @@
 import copy
-from typing import Optional, Dict, List, Callable, Set, Any
+from typing import Optional, Dict, List, Callable, Set, Any, Tuple
 
 from flambe.compile import Schema, UnpreparedLinkError
 from flambe.search.search import Checkpoint
@@ -124,6 +124,17 @@ class Pipeline(Schema):
             return list(self.deps[self.task])
         else:
             return []
+
+    # def initialize(self,
+    #                path: Optional[Tuple[str]] = None,
+    #                cache: Optional[Dict[str, Any]] = None,
+    #                root: Optional['Schema'] = None) -> Any:
+    #     cache = {}
+    #     for stage_name, checkpoint in self.checkpoints.items():
+    #         val = checkpoint.get()
+    #         print(f"setting cache for {stage_name} to {val}")
+    #         cache[stage_name] = val
+    #     return super().initialize(cache=cache)
 
     def sub_pipeline(self, stage_name: str) -> 'Pipeline':
         """Return subset of the pipeline stages ending in stage_name

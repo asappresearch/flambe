@@ -9,7 +9,7 @@ from urllib.parse import urlparse
 
 import flambe
 from flambe.runner.environment import Environment
-from flambe.compile import Component, Schema, RegisteredStatelessMap
+from flambe.compile import Component, Schema, Registrable, YAMLLoadType
 from flambe.compile.const import DEFAULT_PROTOCOL
 from flambe.logging import coloredlogs as cl
 
@@ -18,7 +18,7 @@ import logging
 logger = logging.getLogger(__name__)
 
 
-class Builder(RegisteredStatelessMap):
+class Builder(Registrable):
     """Implement a Builder.
 
     A builder is a simple object that can be used to create
@@ -85,6 +85,10 @@ class Builder(RegisteredStatelessMap):
             'pickle_module': pickle_module,
             'pickle_protocol': pickle_protocol
         }
+
+    @classmethod
+    def yaml_load_type(cls) -> YAMLLoadType:
+        return YAMLLoadType.KWARGS
 
     def run(self, env: Optional[Environment] = None) -> None:
         """Run the Builder."""
