@@ -4,25 +4,22 @@
 
 ------------
 
-|
-
 [![Fast Tests Status](https://github.com/asappresearch/flambe/workflows/tests-fast/badge.svg)](https://github.com/asappresearch/flambe/actions)
 [![Slow Tests Status](https://github.com/asappresearch/flambe/workflows/tests-slow/badge.svg)](https://github.com/asappresearch/flambe/actions)
 [![Documentation Status](https://readthedocs.org/projects/flambe/badge/?version=latest)](https://flambe.ai/en/latest/?badge=latest)
 
-|
-
 Flambé is a Python framework built to accelerate the development of machine learning research.
-Flambé connects the dots between a curated set of libraries to provide a unified
-experience. With Flambé you can:
+Flambé connects the dots between a curated set of libraries to provide a unified experience.
 
-* **Run hyperparameter searches** over arbitrary Python objects or scriptx
-* Constuct experiment DAGs, which include searching over hyperparameters and reducing to the
+With Flambé you can:
+
+* **Run hyperparameter searches** over arbitrary Python objects or scripts.
+* **Constuct DAGs**, by searching over hyperparameters and reducing to the
 best variants at any of the nodes.
-* Execute tasks **remotely** and **in parallel** over many workers, including full AWS,
-GCP, and Kubernetes integration
-* Easily share experiment configurations, results, and model weights with others
-* Automate the boilerplate code in training models with PyTorch
+* Distribute tasks **remotely** and **in parallel** over a cluster, with full AWS,
+GCP, and Kubernetes integrations.
+* Easily **share** experiment configurations, results, and model weights with others.
+* Automate the **boilerplate code** in training models with [PyTorch.](https://pytorch.org)
 
 
 ## Installation
@@ -42,18 +39,20 @@ pip install ./flambe
 
 ## Getting started
 
-Flambé provides a set of tools to execute ``Runnables``, which are simply
-Python objects that implement the method ``run``. Flambé provides the following
-set of ``Runnables``, but you can easily create your own:
+Flambé executes ``Runnables``, which are simply Python objects that implement the method ``run``.  
+Flambé provides the following set of ``Runnables``, but you can easily create your own:
 
 | Runnable | Description |
 | -------|------|
 | Script | Execute a python script |
 | Learner | Train / Evaluate a single model on a given task |
 | Search | Run a hyperparameter search |
-| Experiment | Build a computational DAG, possibly with a search at each node |
+| Experiment | Build a computational DAG, with with a search at any node |
 
-Runnables can be executed in regular python scripts or through the ``flambe run [CONFIG]`` command.
+``Runnables`` can be executed in regular python scripts or through the ``flambe run [CONFIG]`` command.  
+The command takes as input a YAML configuration representing the object to execute.
+
+In the following examples, each code snippet is shown alongside its corresponding YAML configuration.
 
 
 ### Sript
