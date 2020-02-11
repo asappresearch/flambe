@@ -4,25 +4,21 @@
 
 ------------
 
-|
-
 [![Fast Tests Status](https://github.com/asappresearch/flambe/workflows/tests-fast/badge.svg)](https://github.com/asappresearch/flambe/actions)
 [![Slow Tests Status](https://github.com/asappresearch/flambe/workflows/tests-slow/badge.svg)](https://github.com/asappresearch/flambe/actions)
 [![Documentation Status](https://readthedocs.org/projects/flambe/badge/?version=latest)](https://flambe.ai/en/latest/?badge=latest)
 
-|
+Flambé is a Python framework built to accelerate the development of machine learning research.
 
-Welcome to Flambé, a [PyTorch](https://pytorch.org/)-based library that abstracts away
-the boilerplate code tradtionally involved in machine learning research. Flambé does not reinvent
-the wheel, but instead connects the dots between a curated set of frameworks. With Flambé you can:
+With Flambé you can:
 
-* Automate the boilerplate code in training models with PyTorch
-* **Run hyperparameter searches** over arbitrary Python objects
-* Constuct experiment DAGs, which include searching over hyperparameters and reducing to the
-best variants at each node in the DAG.
-* Execute tasks **remotely** and **in parallel** over many workers, including full AWS,
-GCP, and Kubernetes integration
-* Easily share experiment configurations, results, and model weights with others
+* **Run hyperparameter searches** over arbitrary Python objects or scripts.
+* **Constuct DAGs**, by searching over hyperparameters and reducing to the
+best variants at any of the nodes.
+* Distribute tasks **remotely** and **in parallel** over a cluster, with full AWS,
+GCP, and Kubernetes integrations.
+* Easily **share** experiment configurations, results, and checkpoints with others.
+* Automate the **boilerplate code** in training models with [PyTorch.](https://pytorch.org)
 
 
 ## Installation
@@ -42,28 +38,132 @@ pip install ./flambe
 
 ## Getting started
 
-There are a few core objects that offer an entrypoint to using Flambé:
+Flambé executes ``Runnables``, which are simply Python objects that implement the method ``run``.  
+Flambé provides the following set of ``Runnables``, but you can easily create your own:
 
-| Object | Role |
+| Runnable | Description |
 | -------|------|
-| Trainer | Train a single model on a given task |
+| Script | Execute a python script |
+| Trainer | Train / Evaluate a single model on a given task |
 | Search | Run a hyperparameter search |
-| Experiment | Construct a DAG, with a hyperameter search at each node |
+| Experiment | Build a computational DAG, with with a search at any node |
 
-In the snippet below, we show how to convert a training routine to a hyperparameter search:
+``Runnables`` can be executed in regular python scripts or through YAML configurations, using the command:
+
+```bash
+flambe run [CONFIG]
+```
+
+In the following examples, each code snippet is shown alongside its corresponding YAML configuration.
+
+
+### Sript
+
+``Script`` provides an entry-point for users who wish to keep their code unchanged, but
+leverage Flambé's cluster management and distributed hyperparameter search tools.
 
 <table>
 <tr style="font-weight:bold;">
-  <td>Train a model</td>
-  <td>Run a hyperparameter search</td>
+  <td>Code</td>
+  <td>YAML Config</td>
   </tr>
 <tr>
 <td valign="top">
-   <pre lang="python">
+<pre lang="python">
+    
+    import flambe as fl
+
+    script = fl.Script(
+      path='path/to/script/',
+      output_arg='output-path'
+      args={
+         'arg1' = 0.5
+      }
+    )
+
+    script.run()
+</pre>
+</td>
+<td valign="top">
+<pre lang="yaml">
+
+    !Script
+
+    path: path/to/script
+    output_arg: output-path
+    args:
+      arg1: 0.5
+      arg2: 2
+</pre>
+</td>
+</tr>
+</table>
+
+Easily convert to a hyperparameter search:
+
+<table>
+<tr style="font-weight:bold;">
+  <td>Code</td>
+  <td>YAML Config</td>
+  </tr>
+<tr>
+<td valign="top">
+<pre lang="python">
+
+    import flambe as fl
+
+    script = fl.Script.schema(
+      path='path/to/script/',
+      output_arg='output-path'
+      args={
+         'arg1' = fl.uniform(0, 1)
+         'arg2' = fl.choice([1, 2, 3])
+      }
+    )
+    
+    algorithm = RandomSearch(trial_budget=3)
+    search = Search(script, algorithm)
+    search.run()
+</pre>
+</td>
+<td valign="top">
+<pre lang="yaml">
+    
+    !Search
+    
+    searchable: !Script
+      path: path/to/script
+      output_arg: output-path
+      args:
+        arg1: !~u [0, 1]
+        arg2: !~c [1, 2, 3]
+    algorithm: !RandomSearch
+      trial_budget=3
+</pre>
+</td>
+</tr>
+</table>
+
+**Note**: the method ``schema`` enables passing distributions as input arguments, which is automatic in YAML.  
+For more information on how to run a hyperpameter search, see [].
+
+
+### Trainer
+
+The ``Trainer`` offers an interface to automate the boilerplate code usually found
+in PyTorch scripts, such as multi-gpu handling, fp16 training, and training loops.
+
+<table>
+<tr style="font-weight:bold;">
+  <td>Code</td>
+  <td>YAML Config</td>
+  </tr>
+<tr>
+<td valign="top">
+<pre lang="python">
 
     import flambe as fl
     
-    # Define objects
     dataset = fl.nlp.SSTDataset()
     model = fl.nlp.TextClassifier(
         n_layers=2
@@ -72,50 +172,87 @@ In the snippet below, we show how to convert a training routine to a hyperparame
         dataset=dataset,
         model=model
     )
-  
-    # Execute training
+ 
     trainer.run()
-   </pre>
+</pre>
 </td>
 <td valign="top">
-  <pre lang="python">
+<pre lang="yaml">
 
-    import flambe as fl
+    !Trainer
     
-    # Define objects as schemas
-    dataset = fl.nlp.SSTDataset.schema()
-    model = fl.nlp.TextClassifier.schema(
-        n_layers=fl.choice([1, 2, 3])  
-    )
-    trainer = fl.learn.Trainer.schema(
-        dataset=dataset,
-        model=model
-    )
-
-    # Run a hyperparameter search
-    algorithm = fl.RandomSearch(max_steps=10, trial_budget=2)
-    search = Search(trainer, algorithm)
-    search.run()
-  </pre>
+    dataset: !SSTDataset
+    model: !TextClassifier
+       n_layers: 2
+</pre>
 </td>
 </tr>
 </table>
 
-**Note**: ``Search`` expects the schema of an object that implements the 
-``Searchable`` interface:
+Easily convert to a hyperparameter search:
 
-```python
-class Searchable:
+<table>
+<tr style="font-weight:bold;">
+  <td>Code</td>
+  <td>YAML Config</td>
+  </tr>
+<tr>
+<td valign="top">
+<pre lang="python">
 
-    def step(self) -> bool:
-    """Indicate whether execution is complete."""
-        pass
-    
-    def metric(self) -> float:
-    """A metric representing the current performance."""
-        pass
-```
-For instance, ``Trainer`` is an example of ``Searchable``, and can therefore be used in a ``Search``.
+    import flambe as fl
+ 
+    with flambe.as_schemas():
+      dataset = fl.nlp.SSTDataset()
+      model = fl.nlp.TextClassifier(
+          n_layers=fl.choice([1, 2, 3])  
+      )
+      trainer = fl.learn.Trainer(
+          dataset=dataset,
+          model=model
+      )
+ 
+    algorithm = fl.RandomSearch(max_steps=10, trial_budget=2)
+    search = Search(searchable=trainer, algorithm=algorithm)
+    search.run()
+</pre>
+</td>
+<td valign="top">
+<pre lang="yaml">
+
+    !Search
+  
+    searchable: !Trainer
+       dataset: !SSTDataset
+       model: !TextClassifier
+          n_layers: !~c [1, 2, 3]
+    algorithm: !RandomSearch
+      max_steps: 10
+      trial_budget: 2
+</pre>
+</td>
+</tr>
+</table>
+
+### Remote execution
+
+Flambé provides the following set of commands to execute runnable configurations
+locally or remotely on a cluster:
+
+| Command | Description |
+| -------|------|
+| up | Start or update the cluster. |
+| down | Teardown the cluster. |
+| submit | Submit a job to the cluster, as a YAML config. |
+| ls | List the jobs (i.e tmux sessions) running on the cluster. |
+| attach |  Attach to a running job (i.e tmux session) on the cluster. |
+| site | Launch a Web UI to monitor the activity on the cluster. |
+| kill | ill a job (i.e tmux session) running on the cluster. |
+| clean | Clean the artifacts of a job on the cluster.|
+| exec | Execute a command on the cluster head node. |
+| rsync-up | Upload files to the cluster. |
+| rsync-down |  Download files from the cluster. |
+          
 
 ## Next Steps
 
