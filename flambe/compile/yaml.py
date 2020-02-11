@@ -288,7 +288,7 @@ def _load_environment(yaml_config: Any) -> Dict[str, Any]:
     environment: Dict[str, Any] = {}
     if len(yamls) == 2:
         environment = dict(yamls[0])
-    return Environment(**environment)
+    return environment
 
 # TODO should we tighten signatures (below) Any -> schema?
 

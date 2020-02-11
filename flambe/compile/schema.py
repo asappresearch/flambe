@@ -506,13 +506,13 @@ class Schema(MutableMapping[str, Any]):
         for path, item in Schema.traverse(self, yield_schema='never'):
             if isinstance(item, split_type):
                 no_options = False
-                for value in item:
+                for name, value in item.named_options:
                     variant = copy.deepcopy(self)
                     variant.set_param(path, value)
                     yield from variant.iter_variants(only_split_grid)
                 break
         if no_options:
-            yield self
+            yield '', self
 
     @recursive_repr()
     def __repr__(self) -> str:
