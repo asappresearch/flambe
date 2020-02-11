@@ -3,8 +3,13 @@ Flambé
 
 |
 
-.. image:: https://circleci.com/gh/asappresearch/flambe.svg?style=svg
-    :target: https://circleci.com/gh/asappresearch/flambe
+.. image:: https://github.com/asappresearch/flambe/workflows/Run%20fast%20tests/badge.svg
+    :target: https://github.com/asappresearch/flambe/actions
+    :alt: Fast tests
+
+.. image:: https://github.com/asappresearch/flambe/workflows/Run%20slow%20tests/badge.svg
+    :target: https://github.com/asappresearch/flambe/actions
+    :alt: Slow tests
 
 .. image:: https://readthedocs.org/projects/flambe/badge/?version=latest
     :target: https://flambe.ai/en/latest/?badge=latest
