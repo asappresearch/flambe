@@ -177,13 +177,13 @@ class Stage(object):
         # Here we nest the pipelines so that we can search over
         # cross-stage parameter configurations
         if len(pipelines) == 0:
-            for var_name, var in task.iter_variants():
+            for var_name, var in task.iter_variants().items():
                 full[var_name] = Pipeline({
                     self.name: var
                 })
         else:
             for name, pipeline in pipelines.items():
-                for var_name, var in task.iter_variants():
+                for var_name, var in task.iter_variants().items():
                     full[f"{name}|{var_name}"] = Pipeline({
                         'dependencies': pipeline,  # type: ignore
                         self.name: var
