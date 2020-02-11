@@ -1,12 +1,11 @@
 import inspect
 from reprlib import recursive_repr
 from typing import MutableMapping, Any, Callable, Optional, Dict, Sequence
-from typing import Tuple, List, Iterable, Type, Mapping
-from warnings import warn
+from typing import Tuple, List, Iterable, Union
+
 import copy
 import functools
 
-from ruamel.yaml import ScalarNode
 from ruamel.yaml.comments import (CommentedMap, CommentedOrderedMap, CommentedSet,
                                   CommentedKeySeq, CommentedSeq, TaggedScalar,
                                   CommentedKeyMap)
@@ -176,8 +175,15 @@ def parse_link_str(link_str: str) -> Tuple[Sequence[str], Sequence[str]]:
 
 class GridVariants(Options, tag_override="g"):
 
-    def __init__(self, options: Iterable[Any]):
+    def __init__(self, options: Union[Dict, Iterable]):
+        if isinstance(options, Dict):
+            named_options = list(options.items())
+            options = list(options.values())
+        else:
+            named_options = [(str(opt), opt) for opt in options]
+
         self.options = options
+        self.named_options = named_options
 
     @classmethod
     def to_yaml(cls, representer: Any, node: Any, tag: str) -> Any:

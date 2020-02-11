@@ -1,4 +1,4 @@
-from typing import Any, Dict, Optional, List
+from typing import Any, Dict, Optional, List, Tuple
 
 import numpy as np
 from bayes_opt import BayesianOptimization, UtilityFunction
@@ -83,7 +83,7 @@ class BayesOptGPSearcher(ModelBasedSearcher):
             raise ValueError('For grid search, all dimensions \
                              must be `continuous` or `discrete`!')
 
-    def _propose_new_params_in_model_space(self) -> Optional[Dict[str, Any]]:
+    def _propose_new_params_in_model_space(self) -> Optional[Dict[str, Tuple[str, Any]]]:
         """Propose a new hyperparameter configuration.
 
         Return the config a a dictionary, along with unique
@@ -102,11 +102,15 @@ class BayesOptGPSearcher(ModelBasedSearcher):
 
         rand_samp = self.space.sample()
         if rand_samp is None:
-            return self.optimizer.suggest(self.utility)
+            value = self.optimizer.suggest(self.utility)
+            return (str(value), value)
         else:
             return rand_samp
 
-    def _apply_transform(self, params_in_model_space: Dict[str, Any]) -> Dict[str, Any]:
+    def _apply_transform(
+        self,
+        params_in_model_space: Dict[str, Tuple[str, Any]]
+    ) -> Dict[str, Tuple[str, Any]]:
         """Apply transform to parameters in model space.
 
         Parameters
@@ -216,7 +220,7 @@ class BayesOptKDESearcher(ModelBasedSearcher):
             raise ValueError('BayesOpt KDE Searcher does not support \
                              distributions with `var_type=discrete`!')
 
-    def _propose_new_params_in_model_space(self) -> Optional[Dict[str, Any]]:
+    def _propose_new_params_in_model_space(self) -> Optional[Dict[str, Tuple[str, Any]]]:
         """Propose a new hyperparameter configuration.
 
         Return the config a a dictionary, along with unique
@@ -248,7 +252,8 @@ class BayesOptKDESearcher(ModelBasedSearcher):
             datum = self.good_kde.data[idx]  # type: ignore
             sample_hp: List[int] = []
 
-            for m, bw, dist in zip(datum, self.good_kde.bw, self.space.dists.values()):  # type: ignore
+            dists = self.space.dists.values()
+            for m, bw, dist in zip(datum, self.good_kde.bw, dists):  # type: ignore
                 bw = max(bw, self.min_bw)
                 if isinstance(dist, Continuous):
                     bw = self.bw_factor * bw
@@ -269,10 +274,13 @@ class BayesOptKDESearcher(ModelBasedSearcher):
                 best = val
                 best_hp = sample_hp
 
-        best_hp_dict = {n: hp for n, hp in zip(self.space.dists.keys(), best_hp)}
+        best_hp_dict = {n: (str(hp), hp) for n, hp in zip(self.space.dists.keys(), best_hp)}
         return best_hp_dict
 
-    def _apply_transform(self, params_in_model_space: Dict[str, Any]) -> Dict[str, Any]:
+    def _apply_transform(
+        self,
+        params_in_model_space: Dict[str, Tuple[str, Any]]
+    ) -> Dict[str, Tuple[str, Any]]:
         """Apply the transform to parameters in model space.
 
         Parameters
@@ -316,7 +324,8 @@ class BayesOptKDESearcher(ModelBasedSearcher):
             bad_train_data = np.array(train_data)[idx[-n_bad:]]
 
             # Fit KDE
-            kde_vartypes = ['c' if isinstance(x, Continuous) else 'u' for x in self.space.dists.values()]
+            dists = self.space.dists.values()
+            kde_vartypes = ['c' if isinstance(x, Continuous) else 'u' for x in dists]
             self.good_kde = KDEMultivariate(data=good_train_data,
                                             var_type=kde_vartypes,
                                             bw='normal_reference')

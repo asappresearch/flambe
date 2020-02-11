@@ -73,25 +73,25 @@ class Space(object):
             else:
                 self.var_bounds[name] = (np.nan, np.nan)
 
-    def sample(self) -> Dict[str, Any]:
+    def sample(self) -> Dict[str, Tuple[str, Any]]:
         """Sample from the search space.
 
         Returns
         -------
-        Dict[str, Any]
+        Dict[str, Tuple[str, Any]]
             A sample from each distribution of the searcher.
 
         """
         samp: Dict[str, Any] = dict()
         for name, dist in self.dists.items():
             if isinstance(dist, Numerical):
-                s = dist.sample_raw_dist()
+                s = dist.named_sample_raw_dist()
             else:
-                s = dist.sample()
+                s = dist.named_sample()  # type: ignore
             samp[name] = s
         return samp
 
-    def apply_transform(self, samp: Dict[str, Any]) -> Dict[str, Any]:
+    def apply_transform(self, samp: Dict[str, Tuple[str, Any]]) -> Dict[str, Tuple[str, Any]]:
         """Apply transforms to a sample drawn from the space.
 
         Parameters
@@ -106,14 +106,14 @@ class Space(object):
 
         """
         transformed = dict()
-        for name, value in samp.items():
+        for name, (string, value) in samp.items():
             dist = self.dists[name]
             if isinstance(dist, Numerical):
                 value = dist.transform_fn(value)
-            transformed[name] = value
+            transformed[name] = (string, value)
         return transformed
 
-    def round_to_space(self, hp_dict: Dict[str, Any]) -> Dict[str, Any]:
+    def round_to_space(self, hp_dict: Dict[str, Tuple[str, Any]]) -> Dict[str, Tuple[str, Any]]:
         """Round hyperparameters to possible choices for the variables.
 
         Parameters
@@ -127,15 +127,14 @@ class Space(object):
             Dictionary of hyperparameter names and rounded values.
         """
         rounded = {}
-        for name in hp_dict.keys():
+        for name, (string, value) in hp_dict.items():
             dist = self.dists[name]
-            val = hp_dict[name]
             if isinstance(dist, Discrete):
-                val = dist.round_to_options(val)
-            rounded[name] = val
+                value = dist.round_to_options(value)
+            rounded[name] = (string, value)
         return rounded
 
-    def normalize_to_space(self, hp_dict: Dict[str, Any]) -> Dict[str, Any]:
+    def normalize_to_space(self, hp_dict: Dict[str, Tuple[str, Any]]) -> Dict[str, Tuple[str, Any]]:
         """Normalize hyperparameters.
 
         Convert to [0, 1] based on range for numerical variables and
@@ -153,19 +152,17 @@ class Space(object):
 
         """
         normalized = dict()
-        for name in hp_dict.keys():
+        for name, (string, value) in hp_dict.items():
             dist = self.dists[name]
-            val = hp_dict[name]
-
             if isinstance(dist, Numerical):
-                val = dist.normalize_to_range(val)
+                value = dist.normalize_to_range(value)
             elif isinstance(dist, Choice):
-                val = dist.option_to_int(val)
-            normalized[name] = val
+                value = dist.option_to_int(value)
+            normalized[name] = (string, value)
 
         return normalized
 
-    def unnormalize(self, hp_dict: Dict[str, Any]) -> Dict[str, Any]:
+    def unnormalize(self, hp_dict: Dict[str, Tuple[str, Any]]) -> Dict[str, Tuple[str, Any]]:
         """Reverse the normalize_to_space function.
 
         Parameters
@@ -181,13 +178,13 @@ class Space(object):
         """
         unnormalized = dict()
 
-        for name, value in hp_dict.items():
+        for name, (string, value) in hp_dict.items():
             dist = self.dists[name]
             if isinstance(dist, Numerical):
                 value = dist.unnormalize(value)
             elif isinstance(dist, Choice):
                 value = dist.int_to_option(value)
-            unnormalized[name] = value
+            unnormalized[name] = (string, value)
 
         return unnormalized
 
@@ -236,7 +233,7 @@ class Searcher(ABC):
         if params_in_model_space is None:
             return None
         else:
-            name = generate_name(params_in_model_space)
+            name = generate_name({k: name for k, (name, v) in params_in_model_space.items()})
             self.params[name] = params_in_model_space
             params = self._apply_transform(params_in_model_space)
             return name, params
@@ -255,7 +252,10 @@ class Searcher(ABC):
         for name, result in results.items():
             self.results[name] = result
 
-    def _apply_transform(self, params_in_model_space: Dict[str, Any]) -> Dict[str, Any]:
+    def _apply_transform(
+        self,
+        params_in_model_space: Dict[str, Tuple[str, Any]]
+    ) -> Dict[str, Tuple[str, Any]]:
         """Applies the transforms to the parameters proposed in model
         space. Subclasses must override this method.
 
@@ -290,7 +290,7 @@ class Searcher(ABC):
         pass
 
     @abstractmethod
-    def _propose_new_params_in_model_space(self) -> Optional[Dict[str, Any]]:
+    def _propose_new_params_in_model_space(self) -> Optional[Dict[str, Tuple[str, Any]]]:
         """Propose a new hyperparameter configuration.
 
         Return the config a a dictionary, along with unique
@@ -298,7 +298,7 @@ class Searcher(ABC):
 
         Returns
         -------
-        Dict[str, Any], optional
+        Dict[str, Tuple[str, Any]], optional
             The configuration proposed by the searcher.
 
         """
@@ -352,14 +352,14 @@ class ModelBasedSearcher(Searcher):
         """
         return self.n_configs_in_model >= self.min_configs_in_model
 
-    def _propose_new_params_in_model_space(self) -> Optional[Dict[str, Any]]:
+    def _propose_new_params_in_model_space(self) -> Optional[Dict[str, Tuple[str, Any]]]:
         """Generates samples in the distribution space.
 
         Subclasses must override this method.
 
         Returns
         ----------
-        Dict[str, Any], optional
+        Dict[str, Tuple[str, Any]], optional
             The configuration proposed by the model.
 
         """

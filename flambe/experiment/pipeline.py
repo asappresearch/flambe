@@ -68,11 +68,9 @@ class Pipeline(Schema):
 
         # Precompute dependencies for each stage
         self.deps: Dict[str, Set] = dict()
-        for stage_name in iter(self):
+        for stage_name in self.arguments:
             self._update_deps(stage_name)
 
-        last_stage = list(schemas.keys())[-1]
-        self.is_subpipeline = len(self.deps[last_stage]) == (len(flat_schemas) - 1)
         self.schemas = flat_schemas
         self.var_ids = flat_variant_ids
         self.checkpoints = flat_checkpoints
@@ -125,16 +123,31 @@ class Pipeline(Schema):
         else:
             return []
 
-    # def initialize(self,
-    #                path: Optional[Tuple[str]] = None,
-    #                cache: Optional[Dict[str, Any]] = None,
-    #                root: Optional['Schema'] = None) -> Any:
-    #     cache = {}
-    #     for stage_name, checkpoint in self.checkpoints.items():
-    #         val = checkpoint.get()
-    #         print(f"setting cache for {stage_name} to {val}")
-    #         cache[stage_name] = val
-    #     return super().initialize(cache=cache)
+    @property
+    def is_subpipeline(self) -> bool:
+        """Return whether this is a complete pipeline.
+
+        Returns
+        -------
+        bool
+            ``True`` if the pipeline is complete
+
+        """
+        if self.task is not None:
+            return len(self.deps[self.task]) == (len(self.schemas) - 1)
+        else:
+            return False
+
+    def initialize(self,
+                   path: Optional[Tuple[str]] = None,
+                   cache: Optional[Dict[str, Any]] = None,
+                   root: Optional['Schema'] = None) -> Any:
+        cache = {}
+        for stage_name, checkpoint in self.checkpoints.items():
+            val = checkpoint.get()
+            print(f"setting cache for {stage_name} to {val}")
+            cache[stage_name] = val
+        return super().initialize(cache=cache)
 
     def sub_pipeline(self, stage_name: str) -> 'Pipeline':
         """Return subset of the pipeline stages ending in stage_name
@@ -207,33 +220,6 @@ class Pipeline(Schema):
         var_ids = copy.copy(self.var_ids).update(other.var_ids)
         checkpoints = copy.deepcopy(self.checkpoints).update(copy.deepcopy(other.checkpoints))
         return Pipeline(schemas=stages, variant_ids=var_ids, checkpoints=checkpoints)
-
-    def flatten(self) -> 'Pipeline':
-        """Flatten the pipeline.
-
-        Flattening a pipeline means taking all child pipelines
-        and surfacing their stages at the top level. This method
-        is used to construct the pipelines post-execution.
-
-        Returns
-        -------
-        Pipeline
-            A flattened versiion of this pipeline.
-
-        """
-        schemas: Dict[str, Schema] = dict()
-        checkpoints: Dict[str, Checkpoint] = dict()
-        var_ids: Dict[str, str] = dict()
-
-        for name, schema in self.arguments.items():
-            if isinstance(schema, Pipeline):
-                schemas.update(schema.arguments)
-                checkpoints.update(schema.checkpoints)
-                var_ids.update(schema.var_ids)
-            else:
-                schemas[name] = schema
-
-        return Pipeline(schemas, var_ids, checkpoints)
 
     def matches(self, other: 'Pipeline') -> bool:
         """Check for matches.

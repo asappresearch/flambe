@@ -1,4 +1,4 @@
-from typing import Callable, Optional, Any, Union, TextIO, Dict, List, Mapping, Type
+from typing import Callable, Optional, Any, Union, TextIO, Dict, Mapping, Type
 from typing_extensions import Protocol, runtime_checkable
 from enum import Enum
 import functools
@@ -8,7 +8,7 @@ import inspect
 
 import ruamel.yaml
 
-from flambe.compile.extensions import import_modules, is_installed_module
+from flambe.compile.extensions import is_installed_module
 
 
 TAG_DELIMETER = '.'
@@ -288,7 +288,7 @@ def _load_environment(yaml_config: Any) -> Dict[str, Any]:
     environment: Dict[str, Any] = {}
     if len(yamls) == 2:
         environment = dict(yamls[0])
-    return environment
+    return Environment(**environment)
 
 # TODO should we tighten signatures (below) Any -> schema?
 
@@ -320,13 +320,13 @@ def load_config(yaml_config: Union[TextIO, str]) -> Any:
         separated by '---'
 
     """
-    extensions = _load_environment(yaml_config)
-    for module in extensions.keys():
+    environment = _load_environment(yaml_config)
+    extensions = environment['extensions']
+    for module, package in extensions.items():
         if not is_installed_module(module):
             raise ImportError(
-                f"Module {x} is required and not installed. Please 'pip install'"
-                "the package containing the module or set auto_install flag"
-                " to True."
+                f"Module {module} is required and not installed. Please 'pip install' \
+                the package {package}containing the module."
             )
     yaml = ruamel.yaml.YAML()
     lookup = Registrable.tag_to_class

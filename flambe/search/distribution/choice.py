@@ -1,15 +1,18 @@
-from typing import List, Any, Optional
+from typing import List, Any, Optional, Union, Dict
 
 import numpy as np
 
 from flambe.search.distribution.distribution import Distribution
 
 
+PRIMITIVES = (int, float, bool, str, list, tuple, set, dict)
+
+
 class Choice(Distribution, tag_override="~c"):
     """A discrete choice distribution."""
 
     def __init__(self,
-                 options: List,
+                 options: Union[List, Dict[str, Any]],
                  probs: Optional[List[float]] = None):
         """Initialize the distribution.
 
@@ -21,7 +24,16 @@ class Choice(Distribution, tag_override="~c"):
             List of probabilities for the corresponding choices.
 
         """
+        if isinstance(options, dict):
+            named_options = list(options.items())
+            options = [opt for _, opt in options.items()]
+        elif all(type(opt) in PRIMITIVES for opt in options):
+            named_options = [(str(opt), opt) for opt in options]
+        else:
+            raise ValueError("Choices over non built-in types must be provided with a name.")
+
         self.options = options
+        self.named_options = named_options
         self.n_options = len(options)
         if probs is None:
             self.probs = np.array([1 / len(options)] * len(options))

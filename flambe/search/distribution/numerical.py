@@ -1,6 +1,6 @@
 from abc import abstractmethod
 import inspect
-from typing import Optional, Dict, Callable, Union, Any
+from typing import Optional, Dict, Callable, Union, Any, Tuple
 
 import numpy as np
 
@@ -70,6 +70,18 @@ class Numerical(Distribution):
 
         """
         pass
+
+    def named_sample_raw_dist(self) -> Tuple[str, float]:
+        """Sample from the raw distribution, with a name.
+
+        Returns
+        -------
+        float
+            The sampled value.
+
+        """
+        samp = self.sample_raw_dist()
+        return str(samp), samp
 
     def sample(self) -> float:
         """Sample from the transformed distribution.
