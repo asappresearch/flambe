@@ -44,7 +44,7 @@ Flambé provides the following set of ``Runnables``, but you can easily create y
 | Runnable | Description |
 | -------|------|
 | Script | Execute a python script |
-| Learner | Train / Evaluate a single model on a given task |
+| Trainer | Train / Evaluate a single model on a given task |
 | Search | Run a hyperparameter search |
 | Experiment | Build a computational DAG, with with a search at any node |
 
@@ -69,10 +69,10 @@ leverage Flambé's cluster management and distributed hyperparameter search tool
   </tr>
 <tr>
 <td valign="top">
-   <pre lang="python">
-
-    import flambe as fl
+<pre lang="python">
     
+    import flambe as fl
+
     script = fl.Script(
       path='path/to/script/',
       output_arg='output-path'
@@ -82,19 +82,19 @@ leverage Flambé's cluster management and distributed hyperparameter search tool
     )
 
     script.run()
-   </pre>
+</pre>
 </td>
 <td valign="top">
-  <pre lang="yaml">
+<pre lang="yaml">
 
     !Script
-    
+
     path: path/to/script
     output_arg: output-path
     args:
       arg1: 0.5
       arg2: 2
-  </pre>
+</pre>
 </td>
 </tr>
 </table>
@@ -108,7 +108,7 @@ Easily convert to a hyperparameter search:
   </tr>
 <tr>
 <td valign="top">
-   <pre lang="python">
+<pre lang="python">
 
     import flambe as fl
 
@@ -124,10 +124,10 @@ Easily convert to a hyperparameter search:
     algorithm = RandomSearch(trial_budget=3)
     search = Search(script, algorithm)
     search.run()
-   </pre>
+</pre>
 </td>
 <td valign="top">
-  <pre lang="yaml">
+<pre lang="yaml">
     
     !Search
     
@@ -139,22 +139,19 @@ Easily convert to a hyperparameter search:
         arg2: !~c [1, 2, 3]
     algorithm: !RandomSearch
       trial_budget=3
-  </pre>
+</pre>
 </td>
 </tr>
 </table>
 
-**Note**: the method ``schema`` enables passing distributions as input arguments.
-In YAML, all non top level objects are automatically converted to schemas.
-For more information on how to run hyperpameters searchers see [].
+**Note**: the method ``schema`` enables passing distributions as input arguments, which is automatic in YAML.  
+For more information on how to run a hyperpameter search, see [].
 
 
-### Learner
+### Trainer
 
-In cases where you are starting to build your machine learning project from scratch,
-the ``Learner`` offers an interface to reduce the boilerplate code usually found
+The ``Trainer`` offers an interface to automate the boilerplate code usually found
 in PyTorch scripts, such as multi-gpu handling, fp16 training, and training loops.
-
 
 <table>
 <tr style="font-weight:bold;">
@@ -163,7 +160,7 @@ in PyTorch scripts, such as multi-gpu handling, fp16 training, and training loop
   </tr>
 <tr>
 <td valign="top">
-   <pre lang="python">
+<pre lang="python">
 
     import flambe as fl
     
@@ -177,22 +174,22 @@ in PyTorch scripts, such as multi-gpu handling, fp16 training, and training loop
     )
  
     trainer.run()
-   </pre>
+</pre>
 </td>
 <td valign="top">
-  <pre lang="yaml">
+<pre lang="yaml">
 
     !Trainer
     
     dataset: !SSTDataset
     model: !TextClassifier
        n_layers: 2
-  </pre>
+</pre>
 </td>
 </tr>
 </table>
 
-In the snippet below, we show how to convert a training routine to a hyperparameter search.
+Easily convert to a hyperparameter search:
 
 <table>
 <tr style="font-weight:bold;">
@@ -201,7 +198,7 @@ In the snippet below, we show how to convert a training routine to a hyperparame
   </tr>
 <tr>
 <td valign="top">
-   <pre lang="python">
+<pre lang="python">
 
     import flambe as fl
  
@@ -218,10 +215,10 @@ In the snippet below, we show how to convert a training routine to a hyperparame
     algorithm = fl.RandomSearch(max_steps=10, trial_budget=2)
     search = Search(searchable=trainer, algorithm=algorithm)
     search.run()
-   </pre>
+</pre>
 </td>
 <td valign="top">
-  <pre lang="yaml">
+<pre lang="yaml">
 
     !Search
   
@@ -232,26 +229,10 @@ In the snippet below, we show how to convert a training routine to a hyperparame
     algorithm: !RandomSearch
       max_steps: 10
       trial_budget: 2
-  </pre>
+</pre>
 </td>
 </tr>
 </table>
-
-**Note**: ``Search`` expects the schema of an object which implements the ``Searchable`` interface:
-
-```python
-class Searchable:
-
-    def step(self) -> bool:
-    """Indicate whether execution is complete."""
-        pass
-    
-    def metric(self) -> float:
-    """A metric representing the current performance."""
-        pass
-```
-
-For instance, ``Trainer`` is an example of ``Searchable``, and can therefore be used in a ``Search``.
 
 ### Remote execution
 
