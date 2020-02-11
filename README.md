@@ -9,7 +9,6 @@
 [![Documentation Status](https://readthedocs.org/projects/flambe/badge/?version=latest)](https://flambe.ai/en/latest/?badge=latest)
 
 Flambé is a Python framework built to accelerate the development of machine learning research.
-Flambé connects the dots between a curated set of libraries to provide a unified experience.
 
 With Flambé you can:
 
@@ -18,7 +17,7 @@ With Flambé you can:
 best variants at any of the nodes.
 * Distribute tasks **remotely** and **in parallel** over a cluster, with full AWS,
 GCP, and Kubernetes integrations.
-* Easily **share** experiment configurations, results, and model weights with others.
+* Easily **share** experiment configurations, results, and checkpoints with others.
 * Automate the **boilerplate code** in training models with [PyTorch.](https://pytorch.org)
 
 
@@ -49,16 +48,19 @@ Flambé provides the following set of ``Runnables``, but you can easily create y
 | Search | Run a hyperparameter search |
 | Experiment | Build a computational DAG, with with a search at any node |
 
-``Runnables`` can be executed in regular python scripts or through the ``flambe run [CONFIG]`` command.  
-The command takes as input a YAML configuration representing the object to execute.
+``Runnables`` can be executed in regular python scripts or through YAML configurations, using the command:
+
+```bash
+flambe run [CONFIG]
+```
 
 In the following examples, each code snippet is shown alongside its corresponding YAML configuration.
 
 
 ### Sript
 
-``Script`` provides an entry-point for users who wish to keep their code unchanged, and
-only leverage Flambé's cluster management and distributed hyperparameter search tools.
+``Script`` provides an entry-point for users who wish to keep their code unchanged, but
+leverage Flambé's cluster management and distributed hyperparameter search tools.
 
 <table>
 <tr style="font-weight:bold;">
@@ -75,9 +77,8 @@ only leverage Flambé's cluster management and distributed hyperparameter search
       path='path/to/script/',
       output_arg='output-path'
       args={
-         'arg1' = 1
+         'arg1' = 0.5
       }
-      
     )
 
     script.run()
@@ -91,11 +92,62 @@ only leverage Flambé's cluster management and distributed hyperparameter search
     path: path/to/script
     output_arg: output-path
     args:
-      arg1: 1
+      arg1: 0.5
+      arg2: 2
   </pre>
 </td>
 </tr>
 </table>
+
+Easily convert to a hyperparameter search:
+
+<table>
+<tr style="font-weight:bold;">
+  <td>Code</td>
+  <td>YAML Config</td>
+  </tr>
+<tr>
+<td valign="top">
+   <pre lang="python">
+
+    import flambe as fl
+
+    script = fl.Script.schema(
+      path='path/to/script/',
+      output_arg='output-path'
+      args={
+         'arg1' = fl.uniform(0, 1)
+         'arg2' = fl.choice([1, 2, 3])
+      }
+    )
+    
+    algorithm = RandomSearch(trial_budget=3)
+    search = Search(script, algorithm)
+    search.run()
+   </pre>
+</td>
+<td valign="top">
+  <pre lang="yaml">
+    
+    !Search
+    
+    searchable: !Script
+      path: path/to/script
+      output_arg: output-path
+      args:
+        arg1: !~u [0, 1]
+        arg2: !~c [1, 2, 3]
+    algorithm: !RandomSearch
+      trial_budget=3
+  </pre>
+</td>
+</tr>
+</table>
+
+**Note**: the method ``schema`` enables passing distributions as input arguments.
+In YAML, all non top level objects are automatically converted to schemas.
+For more information on how to run hyperpameters searchers see [].
+
 
 ### Learner
 
@@ -141,7 +193,6 @@ in PyTorch scripts, such as multi-gpu handling, fp16 training, and training loop
 </table>
 
 In the snippet below, we show how to convert a training routine to a hyperparameter search.
-Any python object can be turned into a ``Schema`` which accept distribution as arguments.
 
 <table>
 <tr style="font-weight:bold;">
@@ -154,7 +205,7 @@ Any python object can be turned into a ``Schema`` which accept distribution as a
 
     import flambe as fl
  
-    with flambe.search():
+    with flambe.as_schemas():
       dataset = fl.nlp.SSTDataset()
       model = fl.nlp.TextClassifier(
           n_layers=fl.choice([1, 2, 3])  
@@ -186,8 +237,7 @@ Any python object can be turned into a ``Schema`` which accept distribution as a
 </tr>
 </table>
 
-**Note**: ``Search`` expects the schema of an object that implements the 
-``Searchable`` interface:
+**Note**: ``Search`` expects the schema of an object which implements the ``Searchable`` interface:
 
 ```python
 class Searchable:
@@ -200,16 +250,13 @@ class Searchable:
     """A metric representing the current performance."""
         pass
 ```
+
 For instance, ``Trainer`` is an example of ``Searchable``, and can therefore be used in a ``Search``.
 
-Flambé also offers a set of commands 
+### Remote execution
 
-### Running jobs on a cluster
-
-Flambé provides a simple wrapper over the Ray Autoscaler, which enables
-creating clusters of machines, and distributing jobs onto the cluster.
-Flambé provides the following set of commands to submit runnable configurations
-to the cluster and managing running jobs.
+Flambé provides the following set of commands to execute runnable configurations
+locally or remotely on a cluster:
 
 | Command | Description |
 | -------|------|
