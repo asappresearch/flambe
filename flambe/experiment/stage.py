@@ -3,29 +3,12 @@ import copy
 from typing import Dict, List, Optional
 import logging
 
-import ray
-
 from flambe.search import Algorithm, Search, Choice
 from flambe.experiment.pipeline import Pipeline
 from flambe.runner import Environment
 
 
 logger = logging.getLogger(__name__)
-
-
-@ray.remote
-def run_search(variant,
-               algorithm,
-               cpus_per_trial,
-               gpus_per_trial,
-               environment):
-    search = Search(
-        variant,
-        algorithm,
-        cpus_per_trial,
-        gpus_per_trial
-    )
-    return search.run(environment)
 
 
 class Stage(object):
@@ -57,7 +40,7 @@ class Stage(object):
             The sub-pipeline to execute in this stage.
         algorithm : Algorithm
             A search algorithm.
-        dependencies : List[Pipeline]
+        dependencies : List[Dict[str, Any]]
             A list of previously executed pipelines.
         reductions : Dict[str, int]
             Reductions to apply between stages.
@@ -79,7 +62,7 @@ class Stage(object):
         self.reductions = reductions if reductions is not None else dict()
         self.env = environment
 
-        # Flatten out dependencies
+        # Flatten out the dependencies
         self.dependencies = {name: p for dep in dependencies for name, p in dep.items()}
 
     def filter_dependencies(self, pipelines: Dict[str, 'Pipeline']) -> Dict[str, 'Pipeline']:
@@ -210,43 +193,39 @@ class Stage(object):
         # Take an intersection with the other sub-pipelines
         merged = self.merge_variants(filtered)
 
-        # Construct pipelines to execute
+        # Construct pipeline to execute
         pipeline = self.construct_pipeline(merged)
         if pipeline is None:
             logger.warn(f"Stage {self.name} did not have any variants to execute.")
             return dict()
 
-        # Exectue remotely
+        # Exectue the search
         pipeline_env = self.env.clone(
             output_path=os.path.join(
                 self.env.output_path,
                 self.name
             )
         )
-        object_id = run_search.remote(
+        search = Search(
             pipeline,
             self.algorithm,
             self.cpus_per_trial,
             self.gpus_per_trial,
-            pipeline_env
+
         )
+        result = search.run(pipeline_env)
 
-        return object_id
-
-        # Get results and construct output pipelines
-        results = ray.get(object_ids)
-        pipelines: Dict[str, Pipeline] = dict()
-        for variants in results:
-            # Each variants object is a dictionary from variant name
-            # to a dictionary with schema, params, and checkpoint
-            for name, var_dict in variants.items():
-                # Flatten out the pipeline schema
-                pipeline: Pipeline = var_dict['schema']
-                # Add search results to the pipeline
-                pipeline.var_ids[self.name] = var_dict['var_id']
-                pipeline.checkpoints[self.name] = var_dict['checkpoint']
-                pipeline.error = var_dict['error']
-                pipeline.metric = var_dict['metric']
-                pipelines[name] = pipeline
+        # Each variants object is a dictionary from variant name
+        # to a dictionary with schema, params, and checkpoint
+        pipelines: Dict[str, Pipeline]
+        for name, var_dict in result.items():
+            # Flatten out the pipeline schema
+            variant: Pipeline = var_dict['schema']
+            # Add search results to the pipeline
+            variant.var_ids[self.name] = var_dict['var_id']
+            variant.checkpoints[self.name] = var_dict['checkpoint']
+            variant.error = var_dict['error']
+            variant.metric = var_dict['metric']
+            pipelines[name] = variant
 
         return pipelines

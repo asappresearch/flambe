@@ -91,9 +91,10 @@ class Experiment(Registrable):
         # Set up envrionment
         env = env if env is not None else Environment(self.save_path)
         if not ray.is_initialized():
-            # TODO fix for remote usage i.e. detect if auto is needed
-            # ray.init("auto", local_mode=env.debug)
-            ray.init(local_mode=env.debug)
+            if env.remote:
+                ray.init("auto", local_mode=env.debug)
+            else:
+                ray.init(local_mode=env.debug)
 
         stage_to_id: Dict[str, int] = {}
         pipeline = Pipeline(self.pipeline)

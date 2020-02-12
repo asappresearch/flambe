@@ -176,32 +176,6 @@ class Pipeline(Schema):
         assert subpipeline.is_subpipeline
         return subpipeline
 
-    def append(self,
-               name: str,
-               schema: Schema,
-               var_id: Optional[str] = None,
-               checkpoint: Optional[Checkpoint] = None):
-        """Append a new schema.
-
-        Parameters
-        ----------
-        schema : Schema
-            [description]
-        var_id : Optional[str], optional
-            [description], by default None
-        checkpoint : Optional[Checkpoint], optional
-            [description], by default None
-
-        """
-        if name in self.arguments:
-            raise ValueError(f"{name} already in pipeline.")
-        self.arguments[name] = schema
-        self._update_deps(name)
-        if var_id is not None:
-            self.var_ids[name] = var_id
-        if checkpoint is not None:
-            self.checkpoints[name] = checkpoint
-
     def merge(self, other: 'Pipeline') -> 'Pipeline':
         """Updates internals with the provided pipeline.
 

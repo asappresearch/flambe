@@ -471,31 +471,6 @@ class Schema(MutableMapping[str, Any]):
         for path, value in search_space.items():
             self.set_param(path, value)
 
-    def iter_variants(self, only_split_grid: bool = True) -> Dict[str, 'Schema']:
-        """Yield variants selecting the parallel options from each"""
-        no_options = True
-        if only_split_grid:
-            split_type = GridVariants
-        else:
-            split_type = Options
-
-        variants: Dict[str, 'Schema'] = dict()
-        for path, item in Schema.traverse(self, yield_schema='never'):
-            if isinstance(item, split_type):
-                no_options = False
-                for value_name, value in item.named_options:
-                    variant = copy.deepcopy(self)
-                    variant.set_param(path, value)
-                    sub_variants = variant.iter_variants(only_split_grid).items()
-                    for subvar_name, sub_variant in sub_variants:
-                        var_name = '|'.join((f"{'.'.join(path)}={value_name}", subvar_name))
-                        variants[var_name] = variant
-                break
-
-        if no_options:
-            variants[''] = self
-        return variants
-
     @recursive_repr()
     def __repr__(self) -> str:
         args = ", ".join("{}={!r}".format(k, v) for k, v in sorted(self.arguments.items()))
