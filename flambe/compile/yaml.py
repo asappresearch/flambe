@@ -431,9 +431,6 @@ def dump_config(objs: Sequence[Any],
     stream : Optional[Any]
         File stream to dump to; will be forwarded to yaml.dump().
         (default is None)
-    environment : Optional[Dict[str, Any]]
-        Envrionment parameters.
-        Default is None.
 
     """
     if len(objs) == 0:

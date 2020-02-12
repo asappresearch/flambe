@@ -7,7 +7,7 @@ import logging
 import ray
 
 from flambe.runner import Environment
-from flambe.compile import Registrable, YAMLLoadType, Schema, GridVariants
+from flambe.compile import Registrable, YAMLLoadType, Schema
 from flambe.search.trial import Trial
 from flambe.search.protocol import Searchable
 from flambe.search.checkpoint import Checkpoint
@@ -83,10 +83,6 @@ class Search(Registrable):
         self.n_gpus = gpus_per_trial
         self.refresh_waitime = refresh_waitime
 
-        # Check schema
-        if any(isinstance(dist, GridVariants) for dist in schema.extract_search_space().values()):
-            raise ValueError("Schema cannot contain grid options, please split first.")
-
         self.schema = schema
         self.algorithm = GridSearch() if algorithm is None else algorithm
 
@@ -151,9 +147,9 @@ class Search(Registrable):
                         trial.set_terminated()
                 except Exception as e:
                     trial.set_error()
-                    logging.warn(f"Trial {trial_id} failed.")
                     if env.debug:
                         logging.warn(str(e))
+                    logging.warn(f"Trial {trial_id} failed.")
 
             # Compute maximum number of trials to create
             if env.debug:
@@ -177,8 +173,8 @@ class Search(Registrable):
                     del state[trial_id]['actor']
                     continue
                 elif trial.is_created():
-                    schema_copy = copy.deepcopy(self.schema)
                     space = dict((tuple(k.split('.')), v) for k, v in trial.parameters.items())
+                    schema_copy = copy.deepcopy(self.schema)
                     schema_copy.set_from_search_space(space)
 
                     # Update state

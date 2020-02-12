@@ -3,7 +3,7 @@ from typing import Optional, Dict
 import ray
 
 from flambe.compile import Schema, Registrable, YAMLLoadType
-from flambe.search import Algorithm
+from flambe.search import Algorithm, Searchable
 from flambe.runner.environment import Environment
 from flambe.experiment.pipeline import Pipeline
 from flambe.experiment.stage import Stage
@@ -91,18 +91,21 @@ class Experiment(Registrable):
         # Set up envrionment
         env = env if env is not None else Environment(self.save_path)
         if not ray.is_initialized():
-            # TODO fix for remote usage i.e. detect if auto is needed
-            # ray.init("auto", local_mode=env.debug)
-            ray.init(local_mode=env.debug)
+            if env.remote:
+                ray.init("auto", local_mode=env.debug)
+            else:
+                ray.init(local_mode=env.debug)
 
-        stage_to_id: Dict[str, int] = {}
+        stages: Dict[str, int] = {}
         pipeline = Pipeline(self.pipeline)
 
         # Construct and execute stages as a DAG
         for name, schema in pipeline.arguments.items():
+            if not issubclass(schema.callable_, Searchable):
+                continue
             # Get dependencies
             sub_pipeline = pipeline.sub_pipeline(name)
-            depedency_ids = [stage_to_id[d] for d in sub_pipeline.dependencies]
+            depedency_ids = [stages[d] for d in sub_pipeline.dependencies if d in stages]
 
             # Construct the stage
             object_id = get_stage.remote(
@@ -117,8 +120,8 @@ class Experiment(Registrable):
             )
 
             # Keep the object id, to use as future dependency
-            stage_to_id[name] = object_id
+            stages[name] = object_id
 
         # Wait until the experiment is done
         # TODO progress tracking
-        ray.get(list(stage_to_id.values()))
+        ray.get(list(stages.values()))

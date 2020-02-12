@@ -4,9 +4,10 @@
 
 ------------
 
-[![Fast Tests Status](https://github.com/asappresearch/flambe/workflows/tests-fast/badge.svg)](https://github.com/asappresearch/flambe/actions)
-[![Slow Tests Status](https://github.com/asappresearch/flambe/workflows/tests-slow/badge.svg)](https://github.com/asappresearch/flambe/actions)
+[![Fast Tests Status](https://github.com/asappresearch/flambe/workflows/Run%20fast%20tests/badge.svg)](https://github.com/asappresearch/flambe/actions)
+[![Slow Tests Status](https://github.com/asappresearch/flambe/workflows/Run%20slow%20tests/badge.svg)](https://github.com/asappresearch/flambe/actions)
 [![Documentation Status](https://readthedocs.org/projects/flambe/badge/?version=latest)](https://flambe.ai/en/latest/?badge=latest)
+[![PyPI Version](https://badge.fury.io/py/flambe.svg)](https://badge.fury.io/py/flambe)
 
 Flambé is a Python framework built to accelerate the development of machine learning research.
 
@@ -19,7 +20,6 @@ best variants at any of the nodes.
 GCP, and Kubernetes integrations.
 * Easily **share** experiment configurations, results, and checkpoints with others.
 * Automate the **boilerplate code** in training models with [PyTorch.](https://pytorch.org)
-
 
 ## Installation
 
@@ -43,28 +43,30 @@ Flambé provides the following set of ``Runnables``, but you can easily create y
 
 | Runnable | Description |
 | -------|------|
-| Script | Execute a python script |
-| Trainer | Train / Evaluate a single model on a given task |
-| Search | Run a hyperparameter search |
-| Experiment | Build a computational DAG, with with a search at any node |
+| [Script](#script) | An entry-point for users who wish to keep their code unchanged, but leverage Flambé's cluster management and distributed hyperparameter search tools.|
+| [Trainer](#trainer) | Train / Evaluate a single model on a given task. Offers an interface to automate the boilerplate code usually found in PyTorch scripts, such as multi-gpu handling, fp16 training, and training loops. |
+| [Search](#search) | Run a hyperparameter search over python objects and scripts. |
+| [Experiment](#experiment) | Build a computational DAG, with the possibility of running a hyperparameter search at each node, and reduce to the best variants |
 
-``Runnables`` can be executed in regular python scripts or through YAML configurations, using the command:
+``Runnables`` can be used in regular python scripts, or executed through YAML configurations with the command:
 
 ```bash
 flambe run [CONFIG]
 ```
 
+or to submit to a cluster:
+
+```bash
+flambe submit [CONFIG] --cluster ~/.flambe/cluster.yaml
+```
+
 In the following examples, each code snippet is shown alongside its corresponding YAML configuration.
 
-
-### Sript
-
-``Script`` provides an entry-point for users who wish to keep their code unchanged, but
-leverage Flambé's cluster management and distributed hyperparameter search tools.
+### Script
 
 <table>
 <tr style="font-weight:bold;">
-  <td>Code</td>
+  <td>Python Code</td>
   <td>YAML Config</td>
   </tr>
 <tr>
@@ -99,63 +101,13 @@ leverage Flambé's cluster management and distributed hyperparameter search tool
 </tr>
 </table>
 
-Easily convert to a hyperparameter search:
-
-<table>
-<tr style="font-weight:bold;">
-  <td>Code</td>
-  <td>YAML Config</td>
-  </tr>
-<tr>
-<td valign="top">
-<pre lang="python">
-
-    import flambe as fl
-
-    script = fl.Script.schema(
-      path='path/to/script/',
-      output_arg='output-path'
-      args={
-         'arg1' = fl.uniform(0, 1)
-         'arg2' = fl.choice([1, 2, 3])
-      }
-    )
-    
-    algorithm = RandomSearch(trial_budget=3)
-    search = Search(script, algorithm)
-    search.run()
-</pre>
-</td>
-<td valign="top">
-<pre lang="yaml">
-    
-    !Search
-    
-    searchable: !Script
-      path: path/to/script
-      output_arg: output-path
-      args:
-        arg1: !~u [0, 1]
-        arg2: !~c [1, 2, 3]
-    algorithm: !RandomSearch
-      trial_budget=3
-</pre>
-</td>
-</tr>
-</table>
-
-**Note**: the method ``schema`` enables passing distributions as input arguments, which is automatic in YAML.  
-For more information on how to run a hyperpameter search, see [].
-
+To run a hyperparameter search over your script, see [here](#search). 
 
 ### Trainer
 
-The ``Trainer`` offers an interface to automate the boilerplate code usually found
-in PyTorch scripts, such as multi-gpu handling, fp16 training, and training loops.
-
 <table>
 <tr style="font-weight:bold;">
-  <td>Code</td>
+  <td>Python Code</td>
   <td>YAML Config</td>
   </tr>
 <tr>
@@ -189,11 +141,60 @@ in PyTorch scripts, such as multi-gpu handling, fp16 training, and training loop
 </tr>
 </table>
 
-Easily convert to a hyperparameter search:
+To run a hyperparameter search over a trainer, see [here](#search).    
+
+### Search
+
+Run a hyperparameter search over a Python script:
 
 <table>
 <tr style="font-weight:bold;">
-  <td>Code</td>
+  <td>Python Code</td>
+  <td>YAML Config</td>
+  </tr>
+<tr>
+<td valign="top">
+<pre lang="python">
+
+    import flambe as fl
+
+    script = fl.learn.Script.schema(
+      path='path/to/script/',
+      output_arg='output-path'
+      args={
+         'arg1' = fl.uniform(0, 1)
+         'arg2' = fl.choice([1, 2, 3])
+      }
+    )
+    
+    algorithm = fl.RandomSearch(trial_budget=3)
+    search = fl.Search(script, algorithm)
+    search.run()
+</pre>
+</td>
+<td valign="top">
+<pre lang="yaml">
+    
+    !Search
+    
+    searchable: !Script
+      path: path/to/script
+      output_arg: output-path
+      args:
+        arg1: !~u [0, 1]
+        arg2: !~c [1, 2, 3]
+    algorithm: !RandomSearch
+      trial_budget=3
+</pre>
+</td>
+</tr>
+</table>
+
+Run a hyperpameter search over a ``Trainer``: 
+
+<table>
+<tr style="font-weight:bold;">
+  <td>Python Code</td>
   <td>YAML Config</td>
   </tr>
 <tr>
@@ -234,25 +235,78 @@ Easily convert to a hyperparameter search:
 </tr>
 </table>
 
-### Remote execution
+**Note**: the method ``schema`` enables passing distributions as input arguments, which is automatic in YAML.  
 
-Flambé provides the following set of commands to execute runnable configurations
-locally or remotely on a cluster:
+### Experiment
 
-| Command | Description |
-| -------|------|
-| up | Start or update the cluster. |
-| down | Teardown the cluster. |
-| submit | Submit a job to the cluster, as a YAML config. |
-| ls | List the jobs (i.e tmux sessions) running on the cluster. |
-| attach |  Attach to a running job (i.e tmux session) on the cluster. |
-| site | Launch a Web UI to monitor the activity on the cluster. |
-| kill | ill a job (i.e tmux session) running on the cluster. |
-| clean | Clean the artifacts of a job on the cluster.|
-| exec | Execute a command on the cluster head node. |
-| rsync-up | Upload files to the cluster. |
-| rsync-down |  Download files from the cluster. |
-          
+Construct a computational graph with different training stages:
+
+<table>
+<tr style="font-weight:bold;">
+  <td>Python Code</td>
+  <td>YAML Config</td>
+  </tr>
+<tr>
+<td valign="top">
+<pre lang="python">
+
+    import flambe as fl
+ 
+    with flambe.as_schemas():
+      dataset = fl.nlp.SSTDataset()
+      model = fl.nlp.TextClassifier(
+          n_layers=fl.choice([1, 2, 3])  
+      )
+      pretrain = fl.learn.Trainer(
+          dataset=dataset,
+          model=model
+      )
+      
+      dataset = fl.nlp.SSTDataset()
+      finetune = fl.learn.Trainer(
+          dataset=dataset,
+          model=trainer.model,
+          dropout: fl.uniform(0, 1)
+      )
+ 
+    algorithm1 = fl.RandomSearch(max_steps=10, trial_budget=2)
+    algorithm2 = fl.RandomSearch(max_steps=10, trial_budget=2)
+    
+    pipeline = dict(pretrain=pretrain, finetune=finetune)
+    algorithm = dict(pretrain=algorithm1, finetune=algorithm2)
+    
+    exp = Experiment(pipeline, algorithm)
+    exp.run()
+ 
+</pre>
+</td>
+<td valign="top">
+<pre lang="yaml">
+
+    !Experiment
+  
+    pipeline:
+     pretraining: !Trainer
+       dataset: !SSTDataset
+       model: !TextClassifier
+          n_layers: !~c [1, 2, 3]
+     finetuning: !Trainer
+       dataset: !SSTDataset
+       dropout: !~u [0, 1]
+       model: !@ pretraining[model]
+   
+    algorithm:
+      pretraining:!RandomSearch
+        max_steps: 10
+        trial_budget: 2
+      finetuning:!RandomSearch
+        max_steps: 10
+        trial_budget: 2
+</pre>
+</td>
+</tr>
+</table>
+
 
 ## Next Steps
 

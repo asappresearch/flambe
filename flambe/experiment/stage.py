@@ -1,31 +1,13 @@
 import os
-import copy
 from typing import Dict, List, Optional
 import logging
 
-import ray
-
-from flambe.search import Algorithm, Search
+from flambe.search import Algorithm, Search, Searchable, Choice
 from flambe.experiment.pipeline import Pipeline
 from flambe.runner import Environment
 
 
 logger = logging.getLogger(__name__)
-
-
-@ray.remote
-def run_search(variant,
-               algorithm,
-               cpus_per_trial,
-               gpus_per_trial,
-               environment):
-    search = Search(
-        variant,
-        algorithm,
-        cpus_per_trial,
-        gpus_per_trial
-    )
-    return search.run(environment)
 
 
 class Stage(object):
@@ -57,7 +39,7 @@ class Stage(object):
             The sub-pipeline to execute in this stage.
         algorithm : Algorithm
             A search algorithm.
-        dependencies : List[Pipeline]
+        dependencies : List[Dict[str, Any]]
             A list of previously executed pipelines.
         reductions : Dict[str, int]
             Reductions to apply between stages.
@@ -79,8 +61,19 @@ class Stage(object):
         self.reductions = reductions if reductions is not None else dict()
         self.env = environment
 
-        # Flatten out dependencies
+        # Flatten out the dependencies
         self.dependencies = {name: p for dep in dependencies for name, p in dep.items()}
+
+        # Get the non-searchable stages in the pipeline
+        searchables, non_searchables = [], []
+        for name, schema in list(pipeline.schemas.items())[:-1]:
+            if issubclass(schema.callable_, Searchable):  # type: ignore
+                searchables.append(name)
+            else:
+                non_searchables.append(name)
+
+        searchable_deps = {dep for n in searchables for dep in pipeline.deps[n]}
+        self.task_dependencies = [n for n in non_searchables if n not in searchable_deps]
 
     def filter_dependencies(self, pipelines: Dict[str, 'Pipeline']) -> Dict[str, 'Pipeline']:
         """Filter out erros, and apply reductions on dependencies.
@@ -143,7 +136,7 @@ class Stage(object):
 
         return variants
 
-    def construct_pipelines(self, pipelines: Dict[str, 'Pipeline']) -> Dict[str, 'Pipeline']:
+    def construct_pipeline(self, pipelines: Dict[str, 'Pipeline']) -> Optional['Pipeline']:
         """Filter out erros, and apply reductions on dependencies.
 
         Parameters
@@ -158,40 +151,28 @@ class Stage(object):
             reductions applied.
 
         """
-        schemas = copy.deepcopy(self.pipeline)
-        task = schemas[self.name]
+        # Filter out not complete pipelines
+        pipelines = {k: v for k, v in pipelines.items() if v.is_subpipeline}
 
-        # Get link types
-        link_types: Dict[str, str] = dict()
-        for link in task.extract_links():
-            link_type = 'choice'  # TODO: 'choice' if isinstance(link, LinkChoice) else 'variant'
-            name = link.schematic_path[0]
-            if name in link_types and link_types[name] != link_type:
-                raise ValueError("{self.name}: Links to the same stage must be of the same type.")
-            link_types[name] = link_type
-
-        # TODO: actually read out the links types correctly
-        # Build full pipelines
-        full: Dict[str, Pipeline] = dict()
+        # Get list of new stages to add
+        append_stages = self.task_dependencies
+        append_stages.append(self.name)
+        schemas = {name: self.pipeline[name] for name in append_stages}
 
         # Here we nest the pipelines so that we can search over
         # cross-stage parameter configurations
         if len(pipelines) == 0:
-            for var_name, var in task.iter_variants():
-                full[var_name] = Pipeline({
-                    self.name: var
-                })
+            pipeline = Pipeline(schemas)
+            pipeline = pipeline if pipeline.is_subpipeline else None
+        elif len(pipelines) == 1:
+            pipeline = pipelines[list(pipelines.keys())[0]]
+            schemas = dict(**pipeline.schemas, **schemas)
+            pipeline = Pipeline(schemas, pipeline.var_ids, pipeline.checkpoints)
         else:
-            for name, pipeline in pipelines.items():
-                for var_name, var in task.iter_variants():
-                    full[f"{name}|{var_name}"] = Pipeline({
-                        'dependencies': pipeline,  # type: ignore
-                        self.name: var
-                    })
+            schemas = dict(__dependencies=Choice(pipelines), **schemas)
+            pipeline = Pipeline(schemas)
 
-        # Check that pipelines are complete
-        out = {k: v for k, v in full.items() if v.is_subpipeline}
-        return out
+        return pipeline
 
     def run(self) -> Dict[str, Pipeline]:
         """Execute the stage.
@@ -219,46 +200,38 @@ class Stage(object):
         # Take an intersection with the other sub-pipelines
         merged = self.merge_variants(filtered)
 
-        # Construct pipelines to execute
-        variants = self.construct_pipelines(merged)
-        if not variants:
+        # Construct pipeline to execute
+        pipeline = self.construct_pipeline(merged)
+        if pipeline is None:
             logger.warn(f"Stage {self.name} did not have any variants to execute.")
             return dict()
 
-        # Run pipelines in parallel
-        object_ids = []
-        for var_name, variant in variants.items():
-            # Exectue remotely
-            variant_env = self.env.clone(
-                output_path=os.path.join(
-                    self.env.output_path,
-                    self.name,
-                    var_name
-                )
+        # Exectue the search
+        pipeline_env = self.env.clone(
+            output_path=os.path.join(
+                self.env.output_path,
+                self.name
             )
-            object_id = run_search.remote(
-                variant,
-                self.algorithm,
-                self.cpus_per_trial,
-                self.gpus_per_trial,
-                variant_env
-            )
-            object_ids.append(object_id)
+        )
+        search = Search(
+            pipeline,
+            self.algorithm,
+            self.cpus_per_trial,
+            self.gpus_per_trial
+        )
+        result = search.run(pipeline_env)
 
-        # Get results and construct output pipelines
-        results = ray.get(object_ids)
+        # Each variants object is a dictionary from variant name
+        # to a dictionary with schema, params, and checkpoint
         pipelines: Dict[str, Pipeline] = dict()
-        for variants in results:
-            # Each variants object is a dictionary from variant name
-            # to a dictionary with schema, params, and checkpoint
-            for name, var_dict in variants.items():
-                # Flatten out the pipeline schema
-                pipeline: Pipeline = var_dict['schema']
-                # Add search results to the pipeline
-                pipeline.var_ids[self.name] = var_dict['var_id']
-                pipeline.checkpoints[self.name] = var_dict['checkpoint']
-                pipeline.error = var_dict['error']
-                pipeline.metric = var_dict['metric']
-                pipelines[name] = pipeline
+        for name, var_dict in result.items():
+            # Flatten out the pipeline schema
+            variant: Pipeline = var_dict['schema']
+            # Add search results to the pipeline
+            variant.var_ids[self.name] = var_dict['var_id']
+            variant.checkpoints[self.name] = var_dict['checkpoint']
+            variant.error = var_dict['error']
+            variant.metric = var_dict['metric']
+            pipelines[name] = variant
 
         return pipelines

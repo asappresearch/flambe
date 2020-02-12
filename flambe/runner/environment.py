@@ -20,6 +20,7 @@ class Environment(Registrable):
                  remote_resources: Optional[Dict[str, str]] = None,
                  head_node_ip: Optional[str] = None,
                  worker_node_ips: Optional[List[str]] = None,
+                 remote: bool = False,
                  debug: bool = False,
                  extra: Optional[Dict[str, Any]] = None) -> None:
         """Initialize an Environment.
@@ -52,12 +53,9 @@ class Environment(Registrable):
         self.remote_resources = remote_resources or dict()
         self.head_node_ip = head_node_ip
         self.worker_node_ips = worker_node_ips or []
+        self.remote = remote
         self.debug = debug
         self.extra = extra
-
-    @classmethod
-    def yaml_load_type(cls) -> YAMLLoadType:
-        return YAMLLoadType.KWARGS
 
     def clone(self, **kwargs) -> 'Environment':
         """Clone the envrionment, updated with the provided arguments.
@@ -80,8 +78,13 @@ class Environment(Registrable):
             'remote_resources': self.remote_resources,
             'head_node_ip': self.head_node_ip,
             'worker_node_ips': self.worker_node_ips,
+            'remote': self.remote,
             'debug': self.debug,
             'extra': self.extra,
         }
         arguments.update(kwargs)
         return Environment(**arguments)  # type: ignore
+
+    @classmethod
+    def yaml_load_type(cls) -> YAMLLoadType:
+        return YAMLLoadType.KWARGS

@@ -427,6 +427,7 @@ class Cluster(Registrable):
                 extensions=updated_extensions,
                 local_resources=updated_resources,
                 remote_resources=[],
+                remote=True,
             )
 
             yaml = YAML()

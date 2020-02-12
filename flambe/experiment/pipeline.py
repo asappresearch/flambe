@@ -2,7 +2,7 @@ import copy
 from typing import Optional, Dict, List, Callable, Set, Any, Tuple
 
 from flambe.compile import Schema, UnpreparedLinkError
-from flambe.search.search import Checkpoint
+from flambe.search import Checkpoint, Choice
 
 
 def pipeline_builder(**kwargs):
@@ -34,46 +34,16 @@ class Pipeline(Schema):
             Description of parameter `checkpoints` (default is None).
 
         """
-        # Flatten first
-        flat_schemas: Dict[str, Schema] = {}
-        flat_variant_ids: Dict[str, str] = {}
-        flat_checkpoints: Dict[str, Checkpoint] = {}
-        for stage_name, schema in schemas.items():
-            if not isinstance(schema, Schema):
-                raise TypeError(f'Value at {stage_name} is not a Schema: {type(schema)}')
-            elif isinstance(schema, Pipeline):
-                flat_schemas.update(schema.schemas)  # type: ignore
-                if variant_ids:
-                    flat_variant_ids.update(pipeline.var_ids)  # type: ignore
-                if checkpoints:
-                    flat_checkpoints.update(pipeline.checkpoints)  # type: ignore
-            else:
-                flat_schemas[stage_name] = schema
-                if variant_ids:
-                    flat_variant_ids[stage_name] = variant_ids[stage_name]
-                if checkpoints:
-                    flat_checkpoints[stage_name] = checkpoints[stage_name]
-
-        # TODO check keys in variants and checkpoints
-        super().__init__(callable_=pipeline_builder, kwargs=flat_schemas, apply_defaults=False)
-
-        # Check Links
-        checked = []
-        for stage_name, schema in self.arguments.items():
-            checked.append(stage_name)
-            for link in schema.extract_links():
-                if link.schematic_path[0] not in checked:
-                    raise UnpreparedLinkError(f"{link} in stage '{stage_name}' doesn't point "
-                                              "to preceding or current stage")
+        super().__init__(callable_=pipeline_builder, kwargs=schemas, apply_defaults=False)
 
         # Precompute dependencies for each stage
         self.deps: Dict[str, Set] = dict()
         for stage_name in self.arguments:
             self._update_deps(stage_name)
 
-        self.schemas = flat_schemas
-        self.var_ids = flat_variant_ids
-        self.checkpoints = flat_checkpoints
+        self.schemas = schemas
+        self.var_ids = variant_ids if variant_ids is not None else dict()
+        self.checkpoints = checkpoints if checkpoints is not None else dict()
         self.error = False
         self.metric = None
 
@@ -87,15 +57,20 @@ class Pipeline(Schema):
 
         """
         schema = self.arguments[stage_name]
-        immediate_deps = set(map(lambda x: x.schematic_path[0], schema.extract_links()))
-        immediate_deps -= {stage_name}
-        self.deps[stage_name] = immediate_deps
-        for dep_name in immediate_deps:
-            self.deps[stage_name] |= self.deps[dep_name]
+        if isinstance(schema, Choice):
+            for option in schema.options:
+                self.deps.update(option.deps)
+        else:
+            immediate_deps = set()
+            immediate_deps = set(map(lambda x: x.schematic_path[0], schema.extract_links()))
+            immediate_deps -= {stage_name}
+            self.deps[stage_name] = immediate_deps
+            for dep_name in list(immediate_deps):
+                self.deps[stage_name] |= self.deps[dep_name]
 
     @property
     def task(self) -> Optional[str]:
-        """Get the stage that will be returned when initialized
+        """Get the stage that will be returned when initialized.
 
         Returns
         -------
@@ -103,7 +78,7 @@ class Pipeline(Schema):
             The stage name to be executed.
 
         """
-        if self.is_subpipeline:
+        if self.arguments:
             return list(self.arguments.keys())[-1]
         else:
             return None
@@ -142,6 +117,14 @@ class Pipeline(Schema):
                    path: Optional[Tuple[str]] = None,
                    cache: Optional[Dict[str, Any]] = None,
                    root: Optional['Schema'] = None) -> Any:
+        # Check Links
+        checked = []
+        for stage_name, schema in self.arguments.items():
+            checked.append(stage_name)
+            for link in schema.extract_links():
+                if link.schematic_path[0] not in checked:
+                    raise UnpreparedLinkError(f"{link} in stage '{stage_name}' doesn't point "
+                                              "to preceding or current stage")
         cache = {}
         for stage_name, checkpoint in self.checkpoints.items():
             val = checkpoint.get()
@@ -175,32 +158,6 @@ class Pipeline(Schema):
         subpipeline = Pipeline(sub_stages, var_ids, checkpoints)
         assert subpipeline.is_subpipeline
         return subpipeline
-
-    def append(self,
-               name: str,
-               schema: Schema,
-               var_id: Optional[str] = None,
-               checkpoint: Optional[Checkpoint] = None):
-        """Append a new schema.
-
-        Parameters
-        ----------
-        schema : Schema
-            [description]
-        var_id : Optional[str], optional
-            [description], by default None
-        checkpoint : Optional[Checkpoint], optional
-            [description], by default None
-
-        """
-        if name in self.arguments:
-            raise ValueError(f"{name} already in pipeline.")
-        self.arguments[name] = schema
-        self._update_deps(name)
-        if var_id is not None:
-            self.var_ids[name] = var_id
-        if checkpoint is not None:
-            self.checkpoints[name] = checkpoint
 
     def merge(self, other: 'Pipeline') -> 'Pipeline':
         """Updates internals with the provided pipeline.
@@ -239,10 +196,41 @@ class Pipeline(Schema):
             Whether the given pipeline is a match.
 
         """
-        for key in self.arguments.keys():
-            if key in other.arguments and self.var_ids[key] != other.var_ids[key]:
+        for key in self.var_ids.keys():
+            if key in other.var_ids and self.var_ids[key] != other.var_ids[key]:
                 return False
         return True
+
+    def set_param(self, path: Optional[Tuple[str]], value: Any):
+        """Set path in schema to value
+
+        Convenience method for setting a value deep in a schema. For
+        example `root.set_param(('a', 'b', 'c'), val)` is the
+        equivalent of `root['a']['b']['c'] = val`. NOTE: you can only
+        use set_param on existing paths in the schema. If `c` does not
+        already exist in the above example, a `KeyError` is raised.
+
+        Parameters
+        ----------
+        path : Optional[Tuple[str]]
+            Description of parameter `path`.
+        value : Any
+            Description of parameter `value`.
+
+        Raises
+        -------
+        KeyError
+            If any value in the path does not exist as the name of a
+            child schema
+
+        """
+        if path is not None and tuple(path) == ('__dependencies',):
+            # Trick to get rid of reset attributes
+            schemas = dict(value.schemas)
+            schemas[self.task] = self.schemas[self.task]  # type: ignore
+            Pipeline.__init__(self, value.schemas, value.var_ids, value.checkpoints)
+        else:
+            super().set_param(path, value)  # type: ignore
 
     @classmethod
     def from_yaml(cls, raw_obj: Any, callable_override: Optional[Callable] = None) -> Any:

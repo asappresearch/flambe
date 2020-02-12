@@ -1,7 +1,7 @@
 import inspect
 from reprlib import recursive_repr
 from typing import MutableMapping, Any, Callable, Optional, Dict, Sequence
-from typing import Tuple, List, Iterable, Union
+from typing import Tuple, List, Iterable
 
 import copy
 import functools
@@ -171,31 +171,6 @@ def parse_link_str(link_str: str) -> Tuple[Sequence[str], Sequence[str]]:
             raise MalformedLinkError(f"Trailing dot in {link_str}")
     attr_path = attr_path[1:]
     return schematic_path, attr_path
-
-
-class GridVariants(Options, tag_override="g"):
-
-    def __init__(self, options: Union[Dict, Iterable]):
-        if isinstance(options, Dict):
-            named_options = list(options.items())
-            options = list(options.values())
-        else:
-            named_options = [(str(opt), opt) for opt in options]
-
-        self.options = options
-        self.named_options = named_options
-
-    @classmethod
-    def to_yaml(cls, representer: Any, node: Any, tag: str) -> Any:
-        return representer.represent_sequence(tag, node.options)
-
-    @classmethod
-    def from_yaml(cls, raw_obj: Any, callable_override: Optional[Callable] = None) -> Any:
-        if not isinstance(raw_obj, list):
-            raise Exception(f'GridVariants argument {raw_obj} is not a list')
-        if callable_override is not None:
-            raise NotImplementedError('GridVariants do not support callable overrides')
-        return cls(raw_obj)
 
 
 class Link(Registrable, tag_override="@"):
@@ -387,7 +362,7 @@ class Schema(MutableMapping[str, Any]):
         else:
             yield (current_path, obj)
 
-    def set_param(self, path: Optional[Tuple[str]], value: Any) -> None:
+    def set_param(self, path: Optional[Tuple[str]], value: Any):
         """Set path in schema to value
 
         Convenience method for setting a value deep in a schema. For
@@ -412,6 +387,7 @@ class Schema(MutableMapping[str, Any]):
         """
         current_obj = self
         last_item = None
+
         try:
             for item in path[:-1]:
                 last_item = item
@@ -496,27 +472,9 @@ class Schema(MutableMapping[str, Any]):
 
         return links
 
-    def set_from_search_space(self, search_space: Dict[Tuple[str, ...], Any]) -> None:
+    def set_from_search_space(self, search_space: Dict[Tuple[str, ...], Any]) -> 'Schema':
         for path, value in search_space.items():
             self.set_param(path, value)
-
-    def iter_variants(self, only_split_grid: bool = True) -> 'Schema':
-        """Yield variants selecting the parallel options from each"""
-        no_options = True
-        if only_split_grid:
-            split_type = GridVariants
-        else:
-            split_type = Options
-        for path, item in Schema.traverse(self, yield_schema='never'):
-            if isinstance(item, split_type):
-                no_options = False
-                for name, value in item.named_options:
-                    variant = copy.deepcopy(self)
-                    variant.set_param(path, value)
-                    yield from variant.iter_variants(only_split_grid)
-                break
-        if no_options:
-            yield '', self
 
     @recursive_repr()
     def __repr__(self) -> str:

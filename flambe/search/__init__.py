@@ -5,6 +5,7 @@ from flambe.search.algorithm import Algorithm, GridSearch, RandomSearch, \
 from flambe.search.trial import Trial
 from flambe.search.search import Search
 from flambe.search.protocol import Searchable
+from flambe.search.checkpoint import Checkpoint
 
 
 __all__ = ['Beta', 'beta', 'Normal', 'normal', 'Checkpoint',
