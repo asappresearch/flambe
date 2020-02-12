@@ -5,7 +5,7 @@ import logging
 
 import ray
 
-from flambe.search import Algorithm, Search
+from flambe.search import Algorithm, Search, Choice
 from flambe.experiment.pipeline import Pipeline
 from flambe.runner import Environment
 
@@ -143,7 +143,7 @@ class Stage(object):
 
         return variants
 
-    def construct_pipelines(self, pipelines: Dict[str, 'Pipeline']) -> Dict[str, 'Pipeline']:
+    def construct_pipeline(self, pipelines: Dict[str, 'Pipeline']) -> Optional['Pipeline']:
         """Filter out erros, and apply reductions on dependencies.
 
         Parameters
@@ -161,37 +161,28 @@ class Stage(object):
         schemas = copy.deepcopy(self.pipeline)
         task = schemas[self.name]
 
-        # Get link types
-        link_types: Dict[str, str] = dict()
-        for link in task.extract_links():
-            link_type = 'choice'  # TODO: 'choice' if isinstance(link, LinkChoice) else 'variant'
-            name = link.schematic_path[0]
-            if name in link_types and link_types[name] != link_type:
-                raise ValueError("{self.name}: Links to the same stage must be of the same type.")
-            link_types[name] = link_type
-
-        # TODO: actually read out the links types correctly
-        # Build full pipelines
-        full: Dict[str, Pipeline] = dict()
-
         # Here we nest the pipelines so that we can search over
         # cross-stage parameter configurations
         if len(pipelines) == 0:
-            for var_name, var in task.iter_variants().items():
-                full[var_name] = Pipeline({
-                    self.name: var
-                })
+            pipeline = Pipeline({
+                self.name: task
+            })
+        elif len(pipelines) == 1:
+            pipeline = Pipeline({
+                'dependencies': pipelines[0],  # type: ignore
+                self.name: task
+            })
         else:
-            for name, pipeline in pipelines.items():
-                for var_name, var in task.iter_variants().items():
-                    full[f"{name}|{var_name}"] = Pipeline({
-                        'dependencies': pipeline,  # type: ignore
-                        self.name: var
-                    })
+            pipeline = Pipeline({
+                'dependencies': Choice(pipelines),  # type: ignore
+                self.name: task
+            })
 
-        # Check that pipelines are complete
-        out = {k: v for k, v in full.items() if v.is_subpipeline}
-        return out
+        # Check that the pipeline is complete
+        if pipeline.is_subpipeline:
+            return pipeline
+        else:
+            return None
 
     def run(self) -> Dict[str, Pipeline]:
         """Execute the stage.
@@ -220,30 +211,27 @@ class Stage(object):
         merged = self.merge_variants(filtered)
 
         # Construct pipelines to execute
-        variants = self.construct_pipelines(merged)
-        if not variants:
+        pipeline = self.construct_pipeline(merged)
+        if pipeline is None:
             logger.warn(f"Stage {self.name} did not have any variants to execute.")
             return dict()
 
-        # Run pipelines in parallel
-        object_ids = []
-        for var_name, variant in variants.items():
-            # Exectue remotely
-            variant_env = self.env.clone(
-                output_path=os.path.join(
-                    self.env.output_path,
-                    self.name,
-                    var_name
-                )
+        # Exectue remotely
+        pipeline_env = self.env.clone(
+            output_path=os.path.join(
+                self.env.output_path,
+                self.name
             )
-            object_id = run_search.remote(
-                variant,
-                self.algorithm,
-                self.cpus_per_trial,
-                self.gpus_per_trial,
-                variant_env
-            )
-            object_ids.append(object_id)
+        )
+        object_id = run_search.remote(
+            pipeline,
+            self.algorithm,
+            self.cpus_per_trial,
+            self.gpus_per_trial,
+            pipeline_env
+        )
+
+        return object_id
 
         # Get results and construct output pipelines
         results = ray.get(object_ids)

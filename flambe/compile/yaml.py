@@ -321,7 +321,7 @@ def load_config(yaml_config: Union[TextIO, str]) -> Any:
 
     """
     environment = _load_environment(yaml_config)
-    extensions = environment['extensions']
+    extensions = environment.get('extensions', dict())
     for module, package in extensions.items():
         if not is_installed_module(module):
             raise ImportError(

@@ -1,5 +1,5 @@
 import enum
-from typing import Dict, Any, List
+from typing import Dict, Any, List, Tuple
 
 
 class Status(enum.Enum):
@@ -30,7 +30,7 @@ class Trial(object):
     and modified, namely: `status`, `metrics` and `parameters`.
 
     """
-    def __init__(self, params: Dict[str, Any]):
+    def __init__(self, params: Dict[str, Tuple[str, Any]]):
         """Initialize a Trial.
 
         Parameters
@@ -39,14 +39,19 @@ class Trial(object):
             Set of hyperparameters to use for this trial.
 
         """
-        self.params = params
+        self._params = params
         self.status = Status.CREATED
         self.metrics: List[float] = []
 
     @property
     def parameters(self) -> Dict[str, Any]:
         """Get the set of hyperparameters for this trial."""
-        return self.params
+        return {k: v for k, (_, v) in self._params.items()}
+
+    @property
+    def named_parameters(self) -> Dict[str, Tuple[str, Any]]:
+        """Get the set of hyperparameters for this trial."""
+        return self._params
 
     @property
     def best_metric(self) -> float:

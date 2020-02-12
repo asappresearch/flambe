@@ -95,7 +95,7 @@ class Pipeline(Schema):
 
     @property
     def task(self) -> Optional[str]:
-        """Get the stage that will be returned when initialized
+        """Get the stage that will be returned when initialized.
 
         Returns
         -------
@@ -103,7 +103,7 @@ class Pipeline(Schema):
             The stage name to be executed.
 
         """
-        if self.is_subpipeline:
+        if self.arguments:
             return list(self.arguments.keys())[-1]
         else:
             return None

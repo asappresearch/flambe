@@ -173,31 +173,6 @@ def parse_link_str(link_str: str) -> Tuple[Sequence[str], Sequence[str]]:
     return schematic_path, attr_path
 
 
-class GridVariants(Options, tag_override="g"):
-
-    def __init__(self, options: Union[Dict, Iterable]):
-        if isinstance(options, Dict):
-            named_options = list(options.items())
-            options = list(options.values())
-        else:
-            named_options = [(str(opt), opt) for opt in options]
-
-        self.options = options
-        self.named_options = named_options
-
-    @classmethod
-    def to_yaml(cls, representer: Any, node: Any, tag: str) -> Any:
-        return representer.represent_sequence(tag, node.options)
-
-    @classmethod
-    def from_yaml(cls, raw_obj: Any, callable_override: Optional[Callable] = None) -> Any:
-        if not isinstance(raw_obj, list):
-            raise Exception(f'GridVariants argument {raw_obj} is not a list')
-        if callable_override is not None:
-            raise NotImplementedError('GridVariants do not support callable overrides')
-        return cls(raw_obj)
-
-
 class Link(Registrable, tag_override="@"):
 
     def __init__(self,
@@ -511,7 +486,8 @@ class Schema(MutableMapping[str, Any]):
                 for value_name, value in item.named_options:
                     variant = copy.deepcopy(self)
                     variant.set_param(path, value)
-                    for subvar_name, sub_variant in variant.iter_variants(only_split_grid):
+                    sub_variants = variant.iter_variants(only_split_grid).items()
+                    for subvar_name, sub_variant in sub_variants:
                         var_name = '|'.join((f"{'.'.join(path)}={value_name}", subvar_name))
                         variants[var_name] = variant
                 break
