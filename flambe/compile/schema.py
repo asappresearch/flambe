@@ -287,6 +287,10 @@ class Schema(MutableMapping[str, Any]):
         self.created_with_tag = tag
         self.allow_new_args = allow_new_args
 
+    @classmethod
+    def yaml_load_type(cls) -> YAMLLoadType:
+        return YAMLLoadType.SCHEMATIC
+
     @staticmethod
     def _iter_bound_args(bound_arguments):
         params = bound_arguments.signature.parameters
