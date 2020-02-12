@@ -38,18 +38,17 @@ pip install ./flambe
 
 ## Getting started
 
-Flambé executes ``Runnables``, which are simply Python objects that implement the method ``run``.
-
+Flambé executes ``Runnables``, which are simply Python objects that implement the method ``run``.  
 Flambé provides the following set of ``Runnables``, but you can easily create your own:
 
 | Runnable | Description |
 | -------|------|
 | [Script](#script) | An entry-point for users who wish to keep their code unchanged, but leverage Flambé's cluster management and distributed hyperparameter search tools.|
 | [Trainer](#trainer) | Train / Evaluate a single model on a given task. Offers an interface to automate the boilerplate code usually found in PyTorch scripts, such as multi-gpu handling, fp16 training, and training loops. |
-| [Search](#search) | Run a hyperparameter search |
-| [Experiment](#experiment) | Build a computational DAG, with with a search at any node |
+| [Search](#search) | Run a hyperparameter search over python objects and scripts. |
+| [Experiment](#experiment) | Build a computational DAG, with the possibility of running a hyperparameter search at each node, and reduce to the best variants |
 
-``Runnables`` can be executed in regular python scripts, or through YAML configurations using the command:
+``Runnables`` can be used in regular python scripts, or executed through YAML configurations with the command:
 
 ```bash
 flambe run [CONFIG]
@@ -146,7 +145,8 @@ To run a hyperparameter search over a trainer, see [here](#search).
 
 ### Search
 
-{#search-script}
+Run a hyperparameter search over a Python script:
+
 <table>
 <tr style="font-weight:bold;">
   <td>Python Code</td>
@@ -191,9 +191,8 @@ To run a hyperparameter search over a trainer, see [here](#search).
 </table>
 
 **Note**: the method ``schema`` enables passing distributions as input arguments, which is automatic in YAML.  
-For more information on how to run a hyperpameter search, see [].
 
-Easily convert to a hyperparameter search:
+Run a hyperpameter search over a ``Trainer``: 
 
 <table>
 <tr style="font-weight:bold;">
@@ -238,9 +237,77 @@ Easily convert to a hyperparameter search:
 </tr>
 </table>
 
+
 ### Experiment
 
-          
+Construct a computational graph with different training stages:
+
+<table>
+<tr style="font-weight:bold;">
+  <td>Python Code</td>
+  <td>YAML Config</td>
+  </tr>
+<tr>
+<td valign="top">
+<pre lang="python">
+
+    import flambe as fl
+ 
+    with flambe.as_schemas():
+      dataset = fl.nlp.SSTDataset()
+      model = fl.nlp.TextClassifier(
+          n_layers=fl.choice([1, 2, 3])  
+      )
+      pretrain = fl.learn.Trainer(
+          dataset=dataset,
+          model=model
+      )
+      
+      dataset = fl.nlp.SSTDataset()
+      finetune = fl.learn.Trainer(
+          dataset=dataset,
+          model=trainer.model,
+          dropout: fl.uniform(0, 1)
+      )
+ 
+    algorithm1 = fl.RandomSearch(max_steps=10, trial_budget=2)
+    algorithm2 = fl.RandomSearch(max_steps=10, trial_budget=2)
+    
+    pipeline = dict(pretrain=pretrain, finetune=finetune)
+    algorithm = dict(pretrain=algorithm1, finetune=algorithm2)
+    
+    exp = Experiment(pipeline, algorithm)
+    exp.run()
+ 
+</pre>
+</td>
+<td valign="top">
+<pre lang="yaml">
+
+    !Experiment
+  
+    pipeline:
+     pretraining: !Trainer
+       dataset: !SSTDataset
+       model: !TextClassifier
+          n_layers: !~c [1, 2, 3]
+     finetuning: !Trainer
+       dataset: !SSTDataset
+       dropout: !~u [0, 1]
+       model: !@ pretraining[model]
+   
+    algorithm:
+      pretraining:!RandomSearch
+        max_steps: 10
+        trial_budget: 2
+      finetuning:!RandomSearch
+        max_steps: 10
+        trial_budget: 2
+</pre>
+</td>
+</tr>
+</table>
+
 
 ## Next Steps
 
