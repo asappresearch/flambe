@@ -1,9 +1,8 @@
 import os
-import copy
 from typing import Dict, List, Optional
 import logging
 
-from flambe.search import Algorithm, Search, Choice
+from flambe.search import Algorithm, Search, Searchable, Choice
 from flambe.experiment.pipeline import Pipeline
 from flambe.runner import Environment
 
@@ -64,6 +63,17 @@ class Stage(object):
 
         # Flatten out the dependencies
         self.dependencies = {name: p for dep in dependencies for name, p in dep.items()}
+
+        # Get the non-searchable stages in the pipeline
+        searchables, non_searchables = [], []
+        for name, schema in list(pipeline.schemas.items())[:-1]:
+            if issubclass(schema.callable_, Searchable):  # type: ignore
+                searchables.append(name)
+            else:
+                non_searchables.append(name)
+
+        searchable_deps = {dep for n in searchables for dep in pipeline.deps[n]}
+        self.task_dependencies = [n for n in non_searchables if n not in searchable_deps]
 
     def filter_dependencies(self, pipelines: Dict[str, 'Pipeline']) -> Dict[str, 'Pipeline']:
         """Filter out erros, and apply reductions on dependencies.
@@ -141,31 +151,28 @@ class Stage(object):
             reductions applied.
 
         """
-        schemas = copy.deepcopy(self.pipeline)
-        task = schemas[self.name]
+        # Filter out not complete pipelines
+        pipelines = {k: v for k, v in pipelines.items() if v.is_subpipeline}
+
+        # Get list of new stages to add
+        append_stages = self.task_dependencies
+        append_stages.append(self.name)
+        schemas = {name: self.pipeline[name] for name in append_stages}
 
         # Here we nest the pipelines so that we can search over
         # cross-stage parameter configurations
         if len(pipelines) == 0:
-            pipeline = Pipeline({
-                self.name: task
-            })
+            pipeline = Pipeline(schemas)
+            pipeline = pipeline if pipeline.is_subpipeline else None
         elif len(pipelines) == 1:
-            pipeline = Pipeline({
-                'dependencies': pipelines[0],  # type: ignore
-                self.name: task
-            })
+            pipeline = pipelines[list(pipelines.keys())[0]]
+            schemas = dict(**pipeline.schemas, **schemas)
+            pipeline = Pipeline(schemas, pipeline.var_ids, pipeline.checkpoints)
         else:
-            pipeline = Pipeline({
-                'dependencies': Choice(pipelines),  # type: ignore
-                self.name: task
-            })
+            schemas = dict(__dependencies=Choice(pipelines), **schemas)
+            pipeline = Pipeline(schemas)
 
-        # Check that the pipeline is complete
-        if pipeline.is_subpipeline:
-            return pipeline
-        else:
-            return None
+        return pipeline
 
     def run(self) -> Dict[str, Pipeline]:
         """Execute the stage.
@@ -210,14 +217,13 @@ class Stage(object):
             pipeline,
             self.algorithm,
             self.cpus_per_trial,
-            self.gpus_per_trial,
-
+            self.gpus_per_trial
         )
         result = search.run(pipeline_env)
 
         # Each variants object is a dictionary from variant name
         # to a dictionary with schema, params, and checkpoint
-        pipelines: Dict[str, Pipeline]
+        pipelines: Dict[str, Pipeline] = dict()
         for name, var_dict in result.items():
             # Flatten out the pipeline schema
             variant: Pipeline = var_dict['schema']

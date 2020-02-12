@@ -173,8 +173,8 @@ class Search(Registrable):
                     del state[trial_id]['actor']
                     continue
                 elif trial.is_created():
-                    schema_copy = copy.deepcopy(self.schema)
                     space = dict((tuple(k.split('.')), v) for k, v in trial.parameters.items())
+                    schema_copy = copy.deepcopy(self.schema)
                     schema_copy.set_from_search_space(space)
 
                     # Update state
