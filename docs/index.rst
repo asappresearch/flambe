@@ -2,13 +2,18 @@
 Welcome to Flambé
 =================
 
-Welcome to Flambé, a `PyTorch <https://pytorch.org/>`_-based library that allows
-users to:
 
-* Run complex experiments with multiple training and processing stages.
-* Search over an arbitrary number of parameters and reduce to the best trials.
-* Run experiments remotely over many workers, including full AWS integration.
-* Easily share experiment configurations, results and model weights with others.
+Flambé is a Python framework built to accelerate the development of machine learning research.
+
+With Flambé you can:
+
+* **Run hyperparameter searches** over arbitrary Python objects or scripts.
+* **Constuct DAGs**, by searching over hyperparameters and reducing to the
+best variants at any of the nodes.
+* Distribute tasks **remotely** and **in parallel** over a cluster, with full AWS,
+GCP, and Kubernetes integrations.
+* Easily **share** experiment configurations, results, and checkpoints with others.e
+* Automate the **boilerplate code** in training models with `PyTorch <https://pytorch.org>`
 
 Visit the github repo: https://github.com/asappresearch/flambe
 
