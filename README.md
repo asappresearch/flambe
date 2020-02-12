@@ -21,7 +21,6 @@ GCP, and Kubernetes integrations.
 * Easily **share** experiment configurations, results, and checkpoints with others.
 * Automate the **boilerplate code** in training models with [PyTorch.](https://pytorch.org)
 
-
 ## Installation
 
 **From** ``PIP``:
@@ -56,7 +55,6 @@ flambe run [CONFIG]
 ```
 
 In the following examples, each code snippet is shown alongside its corresponding YAML configuration.
-
 
 ### Sript
 
@@ -100,7 +98,52 @@ leverage Flambé's cluster management and distributed hyperparameter search tool
 </tr>
 </table>
 
-Easily convert to a hyperparameter search:
+To run a hyperparameter search over your script, see [here](#search). 
+
+### Trainer
+
+The ``flambe.learn.Trainer`` offers an interface to automate the boilerplate code usually found
+in PyTorch scripts, such as multi-gpu handling, fp16 training, and training loops.
+
+<table>
+<tr style="font-weight:bold;">
+  <td>Code</td>
+  <td>YAML Config</td>
+  </tr>
+<tr>
+<td valign="top">
+<pre lang="python">
+
+    import flambe as fl
+    
+    dataset = fl.nlp.SSTDataset()
+    model = fl.nlp.TextClassifier(
+        n_layers=2
+    )
+    trainer = fl.learn.Trainer(
+        dataset=dataset,
+        model=model
+    )
+ 
+    trainer.run()
+</pre>
+</td>
+<td valign="top">
+<pre lang="yaml">
+
+    !Trainer
+    
+    dataset: !SSTDataset
+    model: !TextClassifier
+       n_layers: 2
+</pre>
+</td>
+</tr>
+</table>
+
+To run a hyperparameter search over a trainer, see [here](#search).    
+
+### Search
 
 <table>
 <tr style="font-weight:bold;">
@@ -148,48 +191,6 @@ Easily convert to a hyperparameter search:
 **Note**: the method ``schema`` enables passing distributions as input arguments, which is automatic in YAML.  
 For more information on how to run a hyperpameter search, see [].
 
-
-### Trainer
-
-The ``Trainer`` offers an interface to automate the boilerplate code usually found
-in PyTorch scripts, such as multi-gpu handling, fp16 training, and training loops.
-
-<table>
-<tr style="font-weight:bold;">
-  <td>Code</td>
-  <td>YAML Config</td>
-  </tr>
-<tr>
-<td valign="top">
-<pre lang="python">
-
-    import flambe as fl
-    
-    dataset = fl.nlp.SSTDataset()
-    model = fl.nlp.TextClassifier(
-        n_layers=2
-    )
-    trainer = fl.learn.Trainer(
-        dataset=dataset,
-        model=model
-    )
- 
-    trainer.run()
-</pre>
-</td>
-<td valign="top">
-<pre lang="yaml">
-
-    !Trainer
-    
-    dataset: !SSTDataset
-    model: !TextClassifier
-       n_layers: 2
-</pre>
-</td>
-</tr>
-</table>
-
 Easily convert to a hyperparameter search:
 
 <table>
@@ -235,24 +236,8 @@ Easily convert to a hyperparameter search:
 </tr>
 </table>
 
-### Remote execution
+### Experiment
 
-Flambé provides the following set of commands to execute runnable configurations
-locally or remotely on a cluster:
-
-| Command | Description |
-| -------|------|
-| up | Start or update the cluster. |
-| down | Teardown the cluster. |
-| submit | Submit a job to the cluster, as a YAML config. |
-| ls | List the jobs (i.e tmux sessions) running on the cluster. |
-| attach |  Attach to a running job (i.e tmux session) on the cluster. |
-| site | Launch a Web UI to monitor the activity on the cluster. |
-| kill | ill a job (i.e tmux session) running on the cluster. |
-| clean | Clean the artifacts of a job on the cluster.|
-| exec | Execute a command on the cluster head node. |
-| rsync-up | Upload files to the cluster. |
-| rsync-down |  Download files from the cluster. |
           
 
 ## Next Steps
