@@ -38,32 +38,36 @@ pip install ./flambe
 
 ## Getting started
 
-Flambé executes ``Runnables``, which are simply Python objects that implement the method ``run``.  
+Flambé executes ``Runnables``, which are simply Python objects that implement the method ``run``.
+
 Flambé provides the following set of ``Runnables``, but you can easily create your own:
 
 | Runnable | Description |
 | -------|------|
-| Script | Execute a python script |
-| Trainer | Train / Evaluate a single model on a given task |
-| Search | Run a hyperparameter search |
-| Experiment | Build a computational DAG, with with a search at any node |
+| [Script](#script) | An entry-point for users who wish to keep their code unchanged, but leverage Flambé's cluster management and distributed hyperparameter search tools.|
+| [Trainer](#trainer) | Train / Evaluate a single model on a given task. Offers an interface to automate the boilerplate code usually found in PyTorch scripts, such as multi-gpu handling, fp16 training, and training loops. |
+| [Search](#search) | Run a hyperparameter search |
+| [Experiment](#experiment) | Build a computational DAG, with with a search at any node |
 
-``Runnables`` can be executed in regular python scripts or through YAML configurations, using the command:
+``Runnables`` can be executed in regular python scripts, or through YAML configurations using the command:
 
 ```bash
 flambe run [CONFIG]
 ```
 
+or to submit to a cluster:
+
+```bash
+flambe submit [CONFIG] --cluster ~/.flambe/cluster.yaml
+```
+
 In the following examples, each code snippet is shown alongside its corresponding YAML configuration.
 
-### Sript
-
-``Script`` provides an entry-point for users who wish to keep their code unchanged, but
-leverage Flambé's cluster management and distributed hyperparameter search tools.
+### Script
 
 <table>
 <tr style="font-weight:bold;">
-  <td>Code</td>
+  <td>Python Code</td>
   <td>YAML Config</td>
   </tr>
 <tr>
@@ -102,12 +106,9 @@ To run a hyperparameter search over your script, see [here](#search).
 
 ### Trainer
 
-The ``flambe.learn.Trainer`` offers an interface to automate the boilerplate code usually found
-in PyTorch scripts, such as multi-gpu handling, fp16 training, and training loops.
-
 <table>
 <tr style="font-weight:bold;">
-  <td>Code</td>
+  <td>Python Code</td>
   <td>YAML Config</td>
   </tr>
 <tr>
@@ -145,9 +146,10 @@ To run a hyperparameter search over a trainer, see [here](#search).
 
 ### Search
 
+{#search-script}
 <table>
 <tr style="font-weight:bold;">
-  <td>Code</td>
+  <td>Python Code</td>
   <td>YAML Config</td>
   </tr>
 <tr>
@@ -156,7 +158,7 @@ To run a hyperparameter search over a trainer, see [here](#search).
 
     import flambe as fl
 
-    script = fl.Script.schema(
+    script = fl.learn.Script.schema(
       path='path/to/script/',
       output_arg='output-path'
       args={
@@ -165,8 +167,8 @@ To run a hyperparameter search over a trainer, see [here](#search).
       }
     )
     
-    algorithm = RandomSearch(trial_budget=3)
-    search = Search(script, algorithm)
+    algorithm = fl.RandomSearch(trial_budget=3)
+    search = fl.Search(script, algorithm)
     search.run()
 </pre>
 </td>
@@ -195,7 +197,7 @@ Easily convert to a hyperparameter search:
 
 <table>
 <tr style="font-weight:bold;">
-  <td>Code</td>
+  <td>Python Code</td>
   <td>YAML Config</td>
   </tr>
 <tr>
