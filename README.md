@@ -190,8 +190,6 @@ Run a hyperparameter search over a Python script:
 </tr>
 </table>
 
-**Note**: the method ``schema`` enables passing distributions as input arguments, which is automatic in YAML.  
-
 Run a hyperpameter search over a ``Trainer``: 
 
 <table>
@@ -237,6 +235,7 @@ Run a hyperpameter search over a ``Trainer``:
 </tr>
 </table>
 
+**Note**: the method ``schema`` enables passing distributions as input arguments, which is automatic in YAML.  
 
 ### Experiment
 
