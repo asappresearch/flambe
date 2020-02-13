@@ -69,8 +69,8 @@ pipeline:
     eval_sampler: !BaseSampler
       batch_size: 512
 
-schedulers: # Define how to schedule variants based on a metric
-  b2: !ray.HyperBandScheduler
-    reward_attr: dev_metric # This should be an attribute on the Trainer class
+algorithm: # Define how to schedule variants based on a metric
+  b2: !Hyperband
+
 reduce: # Only use the best variant in subsequent blocks
   b2: 1

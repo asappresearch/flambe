@@ -1,5 +1,5 @@
 import numpy as np
-from typing import Dict, Any, Optional, Tuple
+from typing import Dict, Any, Optional
 
 from flambe.search.distribution import Distribution
 from flambe.search.searcher.searcher import Space, Searcher
@@ -41,7 +41,7 @@ class RandomSearcher(Searcher):
         """
         pass
 
-    def _propose_new_params_in_model_space(self) -> Optional[Dict[str, Tuple[str, Any]]]:
+    def _propose_new_params_in_model_space(self) -> Optional[Dict[str, Any]]:
         """Samples a single hyperparameter configuration.
 
         Returns

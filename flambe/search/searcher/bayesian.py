@@ -1,4 +1,4 @@
-from typing import Any, Dict, Optional, List, Tuple
+from typing import Any, Dict, Optional, List
 
 import numpy as np
 from bayes_opt import BayesianOptimization, UtilityFunction
@@ -80,10 +80,10 @@ class BayesOptGPSearcher(ModelBasedSearcher):
         """
         dists = space.dists.values()
         if any(not isinstance(dist, Numerical) for dist in dists):
-            raise ValueError('For grid search, all dimensions \
-                             must be `continuous` or `discrete`!')
+            raise ValueError('For bayesian search, all dimensions \
+                             must be `numerical`!')
 
-    def _propose_new_params_in_model_space(self) -> Optional[Dict[str, Tuple[str, Any]]]:
+    def _propose_new_params_in_model_space(self) -> Optional[Dict[str, Any]]:
         """Propose a new hyperparameter configuration.
 
         Return the config a a dictionary, along with unique
@@ -102,15 +102,11 @@ class BayesOptGPSearcher(ModelBasedSearcher):
 
         rand_samp = self.space.sample()
         if rand_samp is None:
-            value = self.optimizer.suggest(self.utility)
-            return (str(value), value)
+            return self.optimizer.suggest(self.utility)
         else:
             return rand_samp
 
-    def _apply_transform(
-        self,
-        params_in_model_space: Dict[str, Tuple[str, Any]]
-    ) -> Dict[str, Tuple[str, Any]]:
+    def _apply_transform(self, params_in_model_space: Dict[str, Any]) -> Dict[str, Any]:
         """Apply transform to parameters in model space.
 
         Parameters
@@ -220,7 +216,7 @@ class BayesOptKDESearcher(ModelBasedSearcher):
             raise ValueError('BayesOpt KDE Searcher does not support \
                              distributions with `var_type=discrete`!')
 
-    def _propose_new_params_in_model_space(self) -> Optional[Dict[str, Tuple[str, Any]]]:
+    def _propose_new_params_in_model_space(self) -> Optional[Dict[str, Any]]:
         """Propose a new hyperparameter configuration.
 
         Return the config a a dictionary, along with unique
@@ -274,13 +270,10 @@ class BayesOptKDESearcher(ModelBasedSearcher):
                 best = val
                 best_hp = sample_hp
 
-        best_hp_dict = {n: (str(hp), hp) for n, hp in zip(self.space.dists.keys(), best_hp)}
+        best_hp_dict = {n: hp for n, hp in zip(self.space.dists.keys(), best_hp)}
         return best_hp_dict
 
-    def _apply_transform(
-        self,
-        params_in_model_space: Dict[str, Tuple[str, Any]]
-    ) -> Dict[str, Tuple[str, Any]]:
+    def _apply_transform(self, params_in_model_space: Dict[str, Any]) -> Dict[str, Any]:
         """Apply the transform to parameters in model space.
 
         Parameters
@@ -293,6 +286,7 @@ class BayesOptKDESearcher(ModelBasedSearcher):
         Dict[str, Any]
             The parameters after transform has been applied in model
             space.
+
         """
         params_in_raw_dist_space = self.space.unnormalize(params_in_model_space)
         params = self.space.apply_transform(params_in_raw_dist_space)

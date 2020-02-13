@@ -1,7 +1,7 @@
 import numpy as np
 
 from flambe.search.searcher.searcher import Space
-from flambe.search.distribution import *
+from flambe.search.distribution import Choice, Beta, QUniform
 
 
 def test_space():
@@ -34,5 +34,5 @@ def test_space():
     normalized_samp = {'var1': 0, 'var2': 0.7, 'var3': 0.5}
     assert space.normalize_to_space(rounded_samp) == normalized_samp
 
-    identity = lambda x: space.unnormalize(space.normalize_to_space(x))
+    identity = lambda x: space.unnormalize(space.normalize_to_space(x))  # noqa: E731
     assert identity(rounded_samp) == rounded_samp

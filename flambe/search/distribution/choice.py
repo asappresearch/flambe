@@ -26,15 +26,15 @@ class Choice(Distribution, tag_override="~c"):
 
         """
         if isinstance(options, dict):
-            named_options = list(options.items())
-            options = [opt for _, opt in options.items()]
+            names = list(options.keys())
+            options = options.values()  # type: ignore
         elif all(type(opt) in PRIMITIVES for opt in options):
-            named_options = [(str(opt), opt) for opt in options]
+            names = list(map(str, options))
         else:
             raise ValueError("Choices over non built-in types must be provided with a name.")
 
-        self.options = options
-        self.named_options = named_options
+        self.options: List[Any] = options  # type: ignore
+        self.names: List[str] = names
         self.n_options = len(options)
         if probs is None:
             self.probs = np.array([1 / len(options)] * len(options))
@@ -57,6 +57,11 @@ class Choice(Distribution, tag_override="~c"):
         index = np.random.choice(list(range(self.n_options)), p=self.probs)
         return self.options[index]
 
+    def name(self, sample: Any) -> str:
+        """Sample from the distribution, and name the option."""
+        index = np.random.choice(list(range(self.n_options)), p=self.probs)
+        return self.names[index]
+
     def option_to_int(self, option: Any) -> int:
         """Convert the option to a categorical integer.
 
@@ -71,11 +76,11 @@ class Choice(Distribution, tag_override="~c"):
             The index of that option in the list.
 
         """
-        idx = np.where(self.options == option)[0]
-        if len(idx) == 0:
+        try:
+            index = self.options.index(option)
+        except Exception:
             raise ValueError('Value not found in choices!')
-        else:
-            return idx[0]
+        return index
 
     def int_to_option(self, index: int) -> Any:
         """Convert a categorical integer to a choice.

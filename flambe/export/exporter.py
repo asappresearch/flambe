@@ -1,6 +1,7 @@
-from typing import Dict, Any
+from typing import Dict, Any, Optional
 
 from flambe import Component
+from flambe.runner import Environment
 
 
 class Exporter(Component):
@@ -28,7 +29,18 @@ class Exporter(Component):
             if not isinstance(obj, Component):
                 self.register_attrs(name)
 
-    def run(self) -> bool:
+    def metric(self, env: Optional[Environment] = None) -> float:
+        """Override this method to enable scheduling.
+
+        Returns
+        -------
+        float
+            The metric to compare computable varients
+
+        """
+        return 0
+
+    def step(self, env: Optional[Environment] = None) -> bool:
         """Run the exporter.
 
         Returns
@@ -37,5 +49,4 @@ class Exporter(Component):
             False, as this is a single step Component.
 
         """
-        _continue = False
-        return _continue
+        return False

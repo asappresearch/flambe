@@ -1,13 +1,12 @@
-import pytest
 import numpy as np
 
-from flambe.search.searcher import *
-from flambe.search.scheduler import *
-from flambe.search.distribution import *
+from flambe.search.searcher import GridSearcher, RandomSearcher, BayesOptKDESearcher
+from flambe.search.scheduler import BlackBoxScheduler, HyperBandScheduler
+from flambe.search.distribution import Choice, QUniform, Beta
 
 
 def set_random_metrics(trials):
-    for t in trials.values() :
+    for t in trials.values():
         if t.is_created() or t.is_resuming():
             metric = np.random.uniform()
             t.set_metric(metric)
@@ -87,7 +86,7 @@ def test_hyperband():
     assert len([t for t in trials.values() if t.is_paused()]) == 2
     assert len([t for t in trials.values() if t.is_created()]) == 2
     set_random_metrics(trials)
-    trials = scheduler.update_trials(trials) # Halving should occur
+    trials = scheduler.update_trials(trials)  # Halving should occur
     assert not scheduler.is_done()
 
     # Third step
@@ -130,7 +129,7 @@ def test_hyperband():
     assert len([t for t in trials.values() if t.is_paused()]) == 3
     assert len([t for t in trials.values() if t.is_resuming()]) == 1
     set_random_metrics(trials)
-    trials = scheduler.update_trials(trials) # Halving should occur
+    trials = scheduler.update_trials(trials)  # Halving should occur
     assert scheduler.brackets[1].has_finished
     assert not scheduler.is_done()
 
@@ -175,7 +174,7 @@ def test_bohb():
     # Second step
     trials = scheduler.release_trials(2, trials)
     set_random_metrics(trials)
-    trials = scheduler.update_trials(trials) # Halving should occur
+    trials = scheduler.update_trials(trials)  # Halving should occur
     assert len(scheduler.searchers) == 1
     assert scheduler.max_fid == 1
 

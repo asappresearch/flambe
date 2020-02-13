@@ -6,6 +6,7 @@ from typing import Optional
 
 import subprocess
 from urllib.parse import urlparse
+import torch
 
 import flambe
 from flambe.runner.environment import Environment
@@ -36,7 +37,6 @@ class Builder(Registrable):
     """
     def __init__(self,
                  component: Schema,
-                 destination: str,
                  override: bool = False,
                  storage: str = 'local',
                  compress: bool = False,
@@ -73,7 +73,6 @@ class Builder(Registrable):
         super().__init__()
 
         self.override = override
-        self.destination = destination
         self.component = component
 
         self.compiled_component: Component
@@ -92,22 +91,21 @@ class Builder(Registrable):
 
     def run(self, env: Optional[Environment] = None) -> None:
         """Run the Builder."""
-
+        env = env if env is not None else Environment()
         # Add information about the extensions. This ensures
         # the compiled component has the extensions information
         # self.component.add_extensions_metadata(self.extensions)
-
         self.compiled_component = self.component()  # Compile Schema
 
         if self.storage == 'local':
-            self.save_local()
+            self.save_local(env.output_path)
         elif self.storage == 's3':
-            self.save_s3()
+            self.save_s3(env.output_path)
         else:
             msg = f"Unknown storage {self.storage}, should be one of: [local, s3]"
             raise ValueError(msg)
 
-    def save_local(self) -> None:
+    def save_local(self, path) -> None:
         """Save an object locally.
 
         Parameters
@@ -118,17 +116,18 @@ class Builder(Registrable):
         """
         force = self.override
         if (
-            os.path.exists(self.destination) and
-            os.listdir(self.destination) and
+            os.path.exists(path) and
+            os.listdir(path) and
             not force
         ):
             raise ValueError(
-                f"Destination {self.destination} folder is not empty. " +
+                f"Destination {path} folder is not empty. " +
                 "Use --force to force the usage of this folder or " +
                 "pick another destination."
             )
 
-        flambe.save(self.compiled_component, self.destination, **self.serialization_args)
+        out_path = os.path.join(path, 'checkpoint.pt')
+        torch.save(self.compiled_component, out_path)
 
     def get_boto_session(self):
         """Get a boto Session
@@ -136,7 +135,7 @@ class Builder(Registrable):
         """
         return boto3.Session()
 
-    def save_s3(self) -> None:
+    def save_s3(self, path) -> None:
         """Save an object to s3 using awscli
 
         Parameters
@@ -147,7 +146,7 @@ class Builder(Registrable):
         """
         force = self.override
 
-        url = urlparse(self.destination)
+        url = urlparse(path)
 
         if url.scheme != 's3' or url.netloc == '':
             raise ValueError(
@@ -163,7 +162,7 @@ class Builder(Registrable):
             path = url.path[1:]  # Remove first '/'
             if content.key.startswith(path) and not force:
                 raise ValueError(
-                    f"Destination {self.destination} is not empty. " +
+                    f"Destination {path} is not empty. " +
                     "Use --force to force the usage of this bucket folder or " +
                     "pick another destination."
                 )
@@ -172,7 +171,7 @@ class Builder(Registrable):
             flambe.save(self.compiled_component, tmpdirname, **self.serialization_args)
             try:
                 subprocess.check_output(
-                    f"aws s3 cp --recursive {tmpdirname} {self.destination}".split(),
+                    f"aws s3 cp --recursive {tmpdirname} {path}".split(),
                     stderr=subprocess.STDOUT,
                     universal_newlines=True
                 )
@@ -181,4 +180,4 @@ class Builder(Registrable):
                 raise ValueError(f"Error uploading artifacts to s3. " +
                                  "Check logs for more information")
             else:
-                logger.info(cl.BL(f"Done uploading to {self.destination}"))
+                logger.info(cl.BL(f"Done uploading to {path}"))

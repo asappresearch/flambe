@@ -1,7 +1,7 @@
 import itertools
-from typing import List, Dict, Any, Optional, Tuple
+from typing import List, Dict, Any, Optional
 
-from flambe.search.distribution import Distribution, Continuous
+from flambe.search.distribution import Distribution, Choice, Discrete
 from flambe.search.searcher.searcher import Space
 from flambe.search.searcher.searcher import Searcher
 
@@ -27,7 +27,7 @@ class GridSearcher(Searcher):
         super().__init__(space)
 
         dists = self.space.dists
-        params: Dict[str, List] = {n: d.named_options for n, d in dists.items()}  # type: ignore
+        params: Dict[str, List] = {n: d.options for n, d in dists.items()}  # type: ignore
         self.params_sets = self._dict_to_cartesian_list(params)
 
     def check_space(self, space: Space):
@@ -41,13 +41,10 @@ class GridSearcher(Searcher):
             A Space object that holds the distributions to search over.
 
         """
-        if any(isinstance(d, Continuous) for d in space.dists.values()):
+        if not all(isinstance(d, (Choice, Discrete)) for d in space.dists.values()):
             raise ValueError('For grid search, all dimensions must be `discrete` or `choice`!')
 
-    def _dict_to_cartesian_list(
-        self,
-        d: Dict[str, List[Tuple[str, Any]]]
-    ) -> List[Dict[str, Tuple[str, Any]]]:
+    def _dict_to_cartesian_list(self, d: Dict[str, List[Any]]) -> List[Dict[str, Any]]:
         """Generates a list of the Cartesian product of the options.
 
         Parameters
@@ -67,7 +64,7 @@ class GridSearcher(Searcher):
         cartesian_lst = list(itertools.product(*lst))[::-1]
         return cartesian_lst
 
-    def _propose_new_params_in_model_space(self) -> Optional[Dict[str, Tuple[str, Any]]]:
+    def _propose_new_params_in_model_space(self) -> Optional[Dict[str, Any]]:
         """Propose a new hyperparameter configuration.
 
         Returns a hyperparameter configuration from the

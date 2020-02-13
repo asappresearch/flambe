@@ -311,16 +311,13 @@ Construct a computational graph with different training stages:
 </tr>
 </table>
 
-
 ## Next Steps
 
 Full documentation, tutorials and much more at [flambe.ai](http://flambe.ai/).
 
-
 ## Contributing
 
-See [contributing](http://flambe.ai/) and our [style guidelines](http://flambe.ai/).
-
+See [contributing](https://github.com/asappresearch/flambe/blob/master/CONTRIBUTING.md) and our [style guidelines](https://github.com/asappresearch/flambe/blob/master/STYLE.md).
 
 ## Cite
 

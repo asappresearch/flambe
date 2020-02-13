@@ -1,7 +1,6 @@
 !Experiment
 
 name: language_modeling
-save_path: .
 
 pipeline:
   1_train: !Trainer

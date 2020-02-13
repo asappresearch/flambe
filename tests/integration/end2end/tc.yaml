@@ -1,7 +1,6 @@
 !Experiment
 
 name: text_classification
-save_path: .
 
 pipeline:
   b1: !Trainer

@@ -207,15 +207,17 @@ def run(runnable, output, force, debug, env):
     elif num_yaml_files(runnable) > 1:
         env = load_first_config_from_file(runnable)
     else:
-        env = Environment(output_path=output)
+        env = Environment()
 
     # Check if previous job exists
-    output = os.path.join(os.path.expanduser(env.output_path), 'flambe_output')
+    output = os.path.join(os.path.expanduser(output), 'flambe_output')
     if os.path.exists(output):
         if force:
             shutil.rmtree(output)
         else:
             raise ValueError(f"{output} already exists. Use -f, --force to override.")
+
+    os.makedirs(output)
 
     # torch.multiprocessing exists, ignore mypy
     # TODO: investigate if this is actually needed
