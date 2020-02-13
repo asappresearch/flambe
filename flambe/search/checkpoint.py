@@ -8,6 +8,7 @@ import torch
 from flambe.search.protocol import Searchable
 
 
+# TODO: switch to flambe.save
 class Checkpoint(object):
 
     def __init__(self,

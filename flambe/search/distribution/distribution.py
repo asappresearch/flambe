@@ -1,5 +1,5 @@
 from abc import abstractmethod
-from typing import Any, Tuple
+from typing import Any
 
 from flambe.compile import Options, YAMLLoadType
 
@@ -11,10 +11,9 @@ class Distribution(Options):
         """Sample from the distribution."""
         pass
 
-    def named_sample(self) -> Tuple[str, Tuple[str, Any]]:
+    def name(self, sample: Any) -> str:
         """Sample from the distribution, and name the option."""
-        sample = self.sample()
-        return str(sample), sample
+        return str(sample)
 
     @classmethod
     def yaml_load_type(cls) -> YAMLLoadType:

@@ -37,7 +37,6 @@ class Discrete(Numerical):
             dist_params=dist_params
         )
 
-        self.named_options = [(str(opt), opt) for opt in options]
         self.options = np.array(options)
         self.n_options = len(options)
         if probs is None:

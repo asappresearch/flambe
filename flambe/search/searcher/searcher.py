@@ -73,7 +73,7 @@ class Space(object):
             else:
                 self.var_bounds[name] = (np.nan, np.nan)
 
-    def sample(self) -> Dict[str, Tuple[str, Any]]:
+    def sample(self) -> Dict[str, Any]:
         """Sample from the search space.
 
         Returns
@@ -85,13 +85,13 @@ class Space(object):
         samp: Dict[str, Any] = dict()
         for name, dist in self.dists.items():
             if isinstance(dist, Numerical):
-                s = dist.named_sample_raw_dist()
+                s = dist.sample_raw_dist()
             else:
-                s = dist.named_sample()  # type: ignore
+                s = dist.sample()  # type: ignore
             samp[name] = s
         return samp
 
-    def apply_transform(self, samp: Dict[str, Tuple[str, Any]]) -> Dict[str, Tuple[str, Any]]:
+    def apply_transform(self, samp: Dict[str, Any]) -> Dict[str, Any]:
         """Apply transforms to a sample drawn from the space.
 
         Parameters
@@ -106,14 +106,14 @@ class Space(object):
 
         """
         transformed = dict()
-        for name, (string, value) in samp.items():
+        for name, value in samp.items():
             dist = self.dists[name]
             if isinstance(dist, Numerical):
                 value = dist.transform_fn(value)
-            transformed[name] = (string, value)
+            transformed[name] = value
         return transformed
 
-    def round_to_space(self, hp_dict: Dict[str, Tuple[str, Any]]) -> Dict[str, Tuple[str, Any]]:
+    def round_to_space(self, hp_dict: Dict[str, Any]) -> Dict[str, Any]:
         """Round hyperparameters to possible choices for the variables.
 
         Parameters
@@ -125,16 +125,17 @@ class Space(object):
         ----------
         Dict[str, Any]
             Dictionary of hyperparameter names and rounded values.
+
         """
         rounded = {}
-        for name, (string, value) in hp_dict.items():
+        for name, value in hp_dict.items():
             dist = self.dists[name]
             if isinstance(dist, Discrete):
                 value = dist.round_to_options(value)
-            rounded[name] = (string, value)
+            rounded[name] = value
         return rounded
 
-    def normalize_to_space(self, hp_dict: Dict[str, Tuple[str, Any]]) -> Dict[str, Tuple[str, Any]]:
+    def normalize_to_space(self, hp_dict: Dict[str, Any]) -> Dict[str, Any]:
         """Normalize hyperparameters.
 
         Convert to [0, 1] based on range for numerical variables and
@@ -152,17 +153,17 @@ class Space(object):
 
         """
         normalized = dict()
-        for name, (string, value) in hp_dict.items():
+        for name, value in hp_dict.items():
             dist = self.dists[name]
             if isinstance(dist, Numerical):
                 value = dist.normalize_to_range(value)
             elif isinstance(dist, Choice):
                 value = dist.option_to_int(value)
-            normalized[name] = (string, value)
+            normalized[name] = value
 
         return normalized
 
-    def unnormalize(self, hp_dict: Dict[str, Tuple[str, Any]]) -> Dict[str, Tuple[str, Any]]:
+    def unnormalize(self, hp_dict: Dict[str, Any]) -> Dict[str, Any]:
         """Reverse the normalize_to_space function.
 
         Parameters
@@ -178,13 +179,13 @@ class Space(object):
         """
         unnormalized = dict()
 
-        for name, (string, value) in hp_dict.items():
+        for name, value in hp_dict.items():
             dist = self.dists[name]
             if isinstance(dist, Numerical):
                 value = dist.unnormalize(value)
             elif isinstance(dist, Choice):
                 value = dist.int_to_option(value)
-            unnormalized[name] = (string, value)
+            unnormalized[name] = value
 
         return unnormalized
 
@@ -211,7 +212,7 @@ class Searcher(ABC):
         space = Space(space)
         self.check_space(space)
         self.space = space
-        self.params: Dict[str, Dict[str, Any]] = dict()
+        self.params: Dict[str, Dict[str, Tuple[str, Any]]] = dict()
         self.results: Dict[str, Optional[float]] = dict()
 
     def propose_new_params(self) -> Optional[Tuple[str, Dict[str, Any]]]:
@@ -229,13 +230,15 @@ class Searcher(ABC):
             The configuration proposed by the searcher.
 
         """
-        params_in_model_space = self._propose_new_params_in_model_space()
-        if params_in_model_space is None:
+        params = self._propose_new_params_in_model_space()
+        if params is None:
             return None
         else:
-            name = generate_name({k: name for k, (name, v) in params_in_model_space.items()})
-            self.params[name] = params_in_model_space
-            params = self._apply_transform(params_in_model_space)
+            # Fetch names from the distributions
+            var_names = {k: self.space.dists[k].name(v) for k, v in params.items()}
+            name = generate_name(var_names)
+            self.params[name] = params
+            params = self._apply_transform(params)
             return name, params
 
     def register_results(self, results: Dict[str, float]):
@@ -252,10 +255,7 @@ class Searcher(ABC):
         for name, result in results.items():
             self.results[name] = result
 
-    def _apply_transform(
-        self,
-        params_in_model_space: Dict[str, Tuple[str, Any]]
-    ) -> Dict[str, Tuple[str, Any]]:
+    def _apply_transform(self, params_in_model_space: Dict[str, Any]) -> Dict[str, Any]:
         """Applies the transforms to the parameters proposed in model
         space. Subclasses must override this method.
 
@@ -290,7 +290,7 @@ class Searcher(ABC):
         pass
 
     @abstractmethod
-    def _propose_new_params_in_model_space(self) -> Optional[Dict[str, Tuple[str, Any]]]:
+    def _propose_new_params_in_model_space(self) -> Optional[Dict[str, Any]]:
         """Propose a new hyperparameter configuration.
 
         Return the config a a dictionary, along with unique
@@ -298,7 +298,7 @@ class Searcher(ABC):
 
         Returns
         -------
-        Dict[str, Tuple[str, Any]], optional
+        Dict[str, Any], optional
             The configuration proposed by the searcher.
 
         """
@@ -352,14 +352,14 @@ class ModelBasedSearcher(Searcher):
         """
         return self.n_configs_in_model >= self.min_configs_in_model
 
-    def _propose_new_params_in_model_space(self) -> Optional[Dict[str, Tuple[str, Any]]]:
+    def _propose_new_params_in_model_space(self) -> Optional[Dict[str, Any]]:
         """Generates samples in the distribution space.
 
         Subclasses must override this method.
 
         Returns
         ----------
-        Dict[str, Tuple[str, Any]], optional
+        Dict[str, Any], optional
             The configuration proposed by the model.
 
         """

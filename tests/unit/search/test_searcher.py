@@ -1,8 +1,9 @@
 import pytest
 import numpy as np
 
-from flambe.search.searcher import *
-from flambe.search.distribution import *
+from flambe.search.searcher import GridSearcher, RandomSearcher
+from flambe.search.searcher import BayesOptGPSearcher, BayesOptKDESearcher
+from flambe.search.distribution import Choice, QUniform, Beta, Uniform
 
 
 def test_grid():

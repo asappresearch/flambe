@@ -8,4 +8,4 @@ class DummyInferenceEngine(Component):
         self.model = model
 
     def run(self):
-        print(self.model)
+        pass

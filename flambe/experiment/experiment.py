@@ -34,8 +34,7 @@ def get_stage(name,
 class Experiment(Registrable):
 
     def __init__(self,
-                 name: str,
-                 save_path: str = 'flambe_output',
+                 name: Optional[str] = None,
                  pipeline: Optional[Dict[str, Schema]] = None,
                  algorithm: Optional[Dict[str, Algorithm]] = None,
                  reduce: Optional[Dict[str, int]] = None,
@@ -68,7 +67,6 @@ class Experiment(Registrable):
 
         """
         self.name = name
-        self.save_path = save_path
         self.pipeline = pipeline if pipeline is not None else dict()
         self.algorithm = algorithm if algorithm is not None else dict()
         self.reduce = reduce if reduce is not None else dict()
@@ -90,7 +88,7 @@ class Experiment(Registrable):
 
         """
         # Set up envrionment
-        env = env if env is not None else Environment(self.save_path)
+        env = env if env is not None else Environment()
         if not ray.is_initialized():
             if env.remote:
                 ray.init("auto", local_mode=env.debug)

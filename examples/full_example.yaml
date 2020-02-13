@@ -23,7 +23,7 @@ pipeline: # Define the list of components to execute
         encoder: !PooledRNNEncoder
           input_size: !@ 1_train[model][embedder][embedding].embedding_dim
           rnn_type: lstm
-          n_layers: !g [2, 3, 4]  # Grid search over the number of layers
+          n_layers: !~c [2, 3, 4]  # Grid search over the number of layers
           hidden_size: 256
           pooling: last
           dropout: 0.3
@@ -46,7 +46,7 @@ pipeline: # Define the list of components to execute
     model: !@ 2_evaluate[model] # Note that it is completely optional, as these objects can be fecthed from the saved evaluator step
     text: !@ 2_evaluate[dataset].text
 
-schedulers: # Define how to schedule variants
-  1_train: !ray.HyperBandScheduler
+algorithm: # Define how to schedule variants
+  1_train: !Hyperband
 reduce: # Only use the best variant in subsequent blocks, meaning only the best Trainer will be linked to the Evaluator stage
   1_train: 1

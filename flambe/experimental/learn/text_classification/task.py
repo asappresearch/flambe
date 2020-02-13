@@ -118,11 +118,8 @@ class TextClassification(Task):
         self.eval_scheduler = eval_scheduler
         self.iter_scheduler = iter_scheduler
 
-    def build_model(self):
+    def model(config):
         """Build the model, containing all parameters to train."""
-        if self._model is not None:
-            return self._model
-
         output_size = self.label_field.vocab_size
         if self.embedder is None:
             input_size = self.text_field.vocab_size
@@ -132,7 +129,7 @@ class TextClassification(Task):
             self.embedder = Embedder(embeddings, self.encoder, self.pooling, self.embedding_dropout)
         return TextClassifier(self.embedder, output_size, self.dropout)
 
-    def build_optimizers(self, model):
+    def optimizers(config):
         """Build the model, containing all parameters to train."""
         if self.optimizer is None:
             raise ValueError("Using the task in training mode but not optimizer was provided.")

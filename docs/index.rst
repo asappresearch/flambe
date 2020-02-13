@@ -11,7 +11,7 @@ With Flambé you can:
 * **Constuct DAGs**, by searching over hyperparameters and reducing to the
 best variants at any of the nodes.
 * Distribute tasks **remotely** and **in parallel** over a cluster, with full AWS,
-GCP, and Kubernetes integrations.
+GCP, and Kubernetefs integrations.
 * Easily **share** experiment configurations, results, and checkpoints with others.e
 * Automate the **boilerplate code** in training models with `PyTorch <https://pytorch.org>`
 
