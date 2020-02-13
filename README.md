@@ -105,6 +105,8 @@ To run a hyperparameter search over your script, see [here](#search).
 
 ### Trainer
 
+For more information see: [here](http://flambe.ai/).
+
 <table>
 <tr style="font-weight:bold;">
   <td>Python Code</td>
@@ -145,6 +147,7 @@ To run a hyperparameter search over a trainer, see [here](#search).
 
 ### Search
 
+For more information see: [here](http://flambe.ai/).
 Run a hyperparameter search over a Python script:
 
 <table>
@@ -239,6 +242,7 @@ Run a hyperpameter search over a ``Trainer``:
 
 ### Experiment
 
+For more information see: [here](http://flambe.ai/).
 Construct a computational graph with different training stages:
 
 <table>
@@ -310,7 +314,13 @@ Construct a computational graph with different training stages:
 
 ## Next Steps
 
-Full documentation, tutorials and much more in https://flambe.ai
+Full documentation, tutorials and much more at [flambe.ai](http://flambe.ai/).
+
+
+## Contributing
+
+See [contributing](http://flambe.ai/) and our [style guidelines](http://flambe.ai/).
+
 
 ## Cite
 
