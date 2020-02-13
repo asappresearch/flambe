@@ -1,4 +1,5 @@
-from typing import Callable, Optional, Any, Union, TextIO, Dict, Mapping, Type, Sequence, Iterable
+from typing import Callable, Optional, Any, Union, TextIO, Dict, Mapping, Type, Sequence, \
+    Iterable, List
 from typing_extensions import Protocol, runtime_checkable
 from enum import Enum
 import functools
@@ -14,7 +15,7 @@ TAG_DELIMETER = '.'
 TAG_BEGIN = '!'
 
 
-class MalformedConfig(Exception):
+class TagError(Exception):
     pass
 
 
@@ -77,15 +78,17 @@ class Registrable:
     lookup table
     """
     tag_to_class = {}
+    class_to_tag = {}
 
     def __init_subclass__(cls: Type['Registrable'],
                           tag_override: Optional[str] = None,
                           **kwargs: Mapping[str, Any]) -> None:
-        tag = tag_override if tag_override is not None else cls.__qualname__
+        tag = tag_override if tag_override is not None else cls.__name__
         if tag in Registrable.tag_to_class:
             assert Registrable.tag_to_class[tag].__name__ == cls.__name__
             warn(f"Re-registration of tag with class = {cls}")
         Registrable.tag_to_class[tag] = cls
+        Registrable.class_to_tag[cls] = tag
 
 
 class _DefaultYAMLLoader:
@@ -93,7 +96,7 @@ class _DefaultYAMLLoader:
     pass
 
 
-def _is_tagged_null(obj):
+def _is_tagged_null(obj: Any) -> bool:
     """Detects if Scalar object corresponds to a null value
 
     NOTE: that it's equivalent to an empty string; but in the context
@@ -105,7 +108,7 @@ def _is_tagged_null(obj):
     return isinstance(obj, ruamel.yaml.comments.TaggedScalar) and obj.value == ''
 
 
-def _resolve_callable(cls, callable_override):
+def _resolve_callable(cls: Type, callable_override: Callable) -> Callable:
     """Given cls and callable determines which should be used"""
     if callable_override is None:
         if cls is _DefaultYAMLLoader:
@@ -120,7 +123,7 @@ def _resolve_callable(cls, callable_override):
         return callable_override
 
 
-def _pass_kwargs(callable_, kwargs):
+def _pass_kwargs(callable_: Callable, kwargs: Dict[str, Any]) -> Any:
     if kwargs is None:
         raise Exception('None for kwargs for {callable_}')
     try:
@@ -131,7 +134,7 @@ def _pass_kwargs(callable_, kwargs):
     return instance
 
 
-def _pass_arg(callable_, arg):
+def _pass_arg(callable_: Callable, arg: Any) -> Any:
     if arg is None:
         raise Exception('None for arg for {callable_}; should be null Tagged Scalar')
 
@@ -148,7 +151,7 @@ def _pass_arg(callable_, arg):
     return instance
 
 
-def _pass_posargs(callable_, posargs):
+def _pass_posargs(callable_: Callable, posargs: List[Any]) -> Any:
     if posargs is None:
         raise Exception('None for positional args for {callable_}')
     try:
@@ -159,7 +162,7 @@ def _pass_posargs(callable_, posargs):
     return instance
 
 
-def schematic_from_yaml(cls, raw_obj: Any, callable_override: Optional[Callable] = None) -> 'Schema':
+def schematic_from_yaml(cls: Type, raw_obj: Any, callable_override: Optional[Callable] = None) -> 'Schema':
     from flambe.compile.schema import Schema
     tag = raw_obj.tag.value
     if isinstance(raw_obj, dict):
@@ -173,14 +176,14 @@ def schematic_from_yaml(cls, raw_obj: Any, callable_override: Optional[Callable]
     return Schema(callable_override, tag=tag)
 
 
-def schematic_to_yaml(cls, schema: 'Schema') -> Any:
+def schematic_to_yaml(cls: Type, schema: 'Schema') -> Any:
     kwargs = schema.arguments
     y = ruamel.yaml.comments.CommentedMap(kwargs)
     y.yaml_set_tag(schema.created_with_tag)
     return y
 
 
-def kwargs_from_yaml(cls, raw_obj: Any, callable_override: Optional[Callable] = None) -> Any:
+def kwargs_from_yaml(cls: Type, raw_obj: Any, callable_override: Optional[Callable] = None) -> Any:
     callable_ = _resolve_callable(cls, callable_override)
     if isinstance(raw_obj, dict):
         return _pass_kwargs(callable_, raw_obj)
@@ -189,7 +192,7 @@ def kwargs_from_yaml(cls, raw_obj: Any, callable_override: Optional[Callable] = 
     raise Exception(f'Unsupported argument type {type(raw_obj)} for {callable_}')
 
 
-def kwargs_or_arg_from_yaml(cls,
+def kwargs_or_arg_from_yaml(cls: Type,
                             raw_obj: Any,
                             callable_override: Optional[Callable] = None) -> Any:
     callable_ = _resolve_callable(cls, callable_override)
@@ -198,7 +201,7 @@ def kwargs_or_arg_from_yaml(cls,
     return _pass_arg(callable_, raw_obj)
 
 
-def kwargs_or_posargs_from_yaml(cls,
+def kwargs_or_posargs_from_yaml(cls: Type,
                                 raw_obj: Any,
                                 callable_override: Optional[Callable] = None) -> Any:
     callable_ = _resolve_callable(cls, callable_override)
@@ -211,7 +214,7 @@ def kwargs_or_posargs_from_yaml(cls,
     raise Exception(f'Unsupported argument type {type(raw_obj)} for {callable_}')
 
 
-def genargs_to_yaml(cls, instance: Any) -> Any:
+def genargs_to_yaml(cls: Type, instance: Any) -> Any:
     if hasattr(instance, '_saved_arguments'):
         return instance._saved_arguments
     raise Exception(f'{instance} doesnt have any attribute indicating args for YAML representation')
@@ -248,7 +251,7 @@ def load_type_to_yaml(load_type: YAMLLoadType,
         raise Exception('load to yaml todo')
 
 
-def _combine_tag(*args):
+def _combine_tag(*args: str):
     if len(args) == 0:
         raise ValueError('Must have >= 1 tag elements to combine')
     if args[0] == '':
@@ -263,7 +266,7 @@ def _combine_tag(*args):
     return TAG_BEGIN + TAG_DELIMETER.join(args)
 
 
-def _split_tag(tag) -> str:
+def _split_tag(tag: str) -> List[str]:
     if tag[0] != TAG_BEGIN:
         raise ValueError(f'Invalid tag {tag}')
     tag_components = tag.split(TAG_BEGIN)[1].split(TAG_DELIMETER)
@@ -272,33 +275,43 @@ def _split_tag(tag) -> str:
     return tag_components
 
 
-def fetch_callable(path, begin=None):
+def fetch_callable(path: Sequence[str], begin: Optional[Any] = None):
     if begin is None:
         mod = importlib.import_module(path[0])
         begin = mod
     obj = begin
+    container = None
     for a in path[1:]:
+        container = obj
         obj = getattr(obj, a)
     if obj is None:
-        raise Exception(f'Tag to {path} references None value')
-    return obj
+        raise TagError(f'Tag to {path} references None value')
+    return obj, container
 
 
-def create(obj: Any, lookup) -> Any:
+def _instance_methods(cls: Type) -> List[str]:
+    return [a.name for a in inspect.classify_class_attrs(cls) if a.kind == 'method']
+
+
+def create(obj: Any, lookup: Dict[str, Any]) -> Any:
     if hasattr(obj, '_yaml_tag'):
         original_tag = obj._yaml_tag.value
         tag = _split_tag(original_tag)
         if tag[0] in lookup:
-            callable_ = fetch_callable(tag[1:], lookup[tag[0]])
+            callable_, container = fetch_callable(tag[1:], lookup[tag[0]])
         else:
-            callable_ = fetch_callable(tag)
+            callable_, container = fetch_callable(tag)
         cls = None
+        if not callable(callable_):
+            raise TagError(f"{callable_} is not callable")
         if hasattr(callable_, '__self__'):
             # callable_ is a classmethod
             cls = callable_.__self__
         elif isinstance(callable_, type):
             # callable is a class
             cls = callable_
+        elif isinstance(container, type) and callable_.__name__ in _instance_methods(container):
+            raise TagError(f"{callable_} is an instance method, not valid for use in config")
         from_yaml = None
         if cls is not None:
             # Check how class wants to be treated

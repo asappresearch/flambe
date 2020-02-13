@@ -1,21 +1,32 @@
 import pytest
 from ruamel.yaml.compat import StringIO
 
-from flambe.compile.yaml import load_config, dump_config, Registrable, YAMLLoadType
+from flambe.compile.yaml import load_config, dump_config, Registrable, YAMLLoadType, TagError
 from flambe.compile.schema import Schema
 
 class A:
+    test_none = None
+    test_attr = {}
+
     def __init__(self, x=None, y=None):
         self.x = x
         self.y = y
     @classmethod
+    def from_other(cls, z=None):
+        return cls(z, z)
+    @classmethod
     def yaml_load_type(cls) -> str:
         return "schematic"
+    def test_method(self):
+        return self.x + self.y
 
 class B:
     def __init__(self, *, x=None, y=None):
         self.x = x
         self.y = y
+    @classmethod
+    def from_other(cls, z=None):
+        return cls(z, z)
     @classmethod
     def yaml_load_type(cls) -> str:
         return YAMLLoadType.KWARGS
@@ -31,6 +42,9 @@ class C:
             self.x = kwargs['x']
             self.y = kwargs['y'] if 'y' in kwargs else None
     @classmethod
+    def from_other(cls, z=None):
+        return cls(z, z)
+    @classmethod
     def yaml_load_type(cls) -> str:
         return "kwargs_or_arg"
 
@@ -39,8 +53,15 @@ class D:
         self.x = x
         self.y = y
     @classmethod
+    def from_other(cls, z=None):
+        return cls(z, z)
+    @classmethod
     def yaml_load_type(cls) -> str:
         return "kwargs_or_posargs"
+
+
+def adder(x=None, y=None):
+    return x+y if x is not None and y is not None else None
 
 
 def load_one_config(config):
@@ -90,6 +111,52 @@ class TestSchematic:
         b = load_one_config(dumped)
         dumped = dump_one_config(b)
         assert expected_config == dumped
+
+    def test_factory_nested_dump_two_trip(self):
+        config = ("!tests.unit.compile.test_yaml.A.from_other\n"
+                  "z: !tests.unit.compile.test_yaml.A\n")
+        expected_config = ("!tests.unit.compile.test_yaml.A.from_other\n"
+                  "z: !tests.unit.compile.test_yaml.A\n"
+                  "  x:\n"
+                  "  y:\n")
+        b = load_one_config(config)
+        dumped = dump_one_config(b)
+        b = load_one_config(dumped)
+        dumped = dump_one_config(b)
+        assert expected_config == dumped
+
+    def test_instance_method_fails(self):
+        config = ("!tests.unit.compile.test_yaml.A.test_method\n")
+        expected_config = ("!tests.unit.compile.test_yaml.A.test_method\n")
+        with pytest.raises(TagError):
+            b = load_one_config(config)
+
+    def test_none_fails(self):
+        config = ("!tests.unit.compile.test_yaml.A.test_none\n")
+        expected_config = ("!tests.unit.compile.test_yaml.A.test_none\n")
+        with pytest.raises(TagError):
+            b = load_one_config(config)
+
+    def test_non_callable_fails(self):
+        config = ("!tests.unit.compile.test_yaml.A.test_attr\n")
+        expected_config = ("!tests.unit.compile.test_yaml.A.test_attr\n")
+        with pytest.raises(TagError):
+            b = load_one_config(config)
+
+    def test_function_empty(self):
+        config = "!tests.unit.compile.test_yaml.adder\n"
+        adder_schema = load_one_config(config)
+        assert adder_schema['x'] is None
+        assert adder_schema['y'] is None
+        expected_config = "!tests.unit.compile.test_yaml.adder\nx:\ny:\n"
+        dumped = dump_one_config(adder_schema)
+        assert expected_config == dumped
+
+    def test_function_with_args(self):
+        config = "!tests.unit.compile.test_yaml.adder\nx: 3\ny: 4\n"
+        the_sum = load_one_config(config)
+        the_sum = the_sum()
+        assert the_sum == 7
 
 
 class TestKwargs:

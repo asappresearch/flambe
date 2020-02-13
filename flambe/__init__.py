@@ -26,8 +26,7 @@ except Exception:
 
 main_logging.disable(main_logging.WARNING)
 
-from flambe.compile import Component, Schema, save, load
-from flambe.compile import save_state_to_file, load_state_from_file
+from flambe.compile import Component, Schema
 from flambe.logging import log
 from flambe import compile, dataset, experiment, field, learn, nlp, vision, export, model
 from flambe import cluster, metric, nn, runner, sampler, tokenizer, optim, search
@@ -38,8 +37,7 @@ from flambe.logo import ASCII_LOGO
 __all__ = ['Component', 'Schema', 'log', 'tokenizer', 'search',
            'compile', 'dataset', 'experiment', 'field', 'learn', 'export',
            'cluster', 'metric', 'nn', 'model', 'optim', 'runner', 'sampler',
-            'nlp', 'vision', '__version__', 'ASCII_LOGO', 'save', 'load',
-           'load_state_from_file', 'save_state_to_file']
+            'nlp', 'vision', '__version__', 'ASCII_LOGO']
 
 
 main_logging.disable(main_logging.NOTSET)

@@ -19,9 +19,7 @@ from ruamel.yaml.comments import (CommentedMap, CommentedOrderedMap, CommentedSe
                                   CommentedKeySeq, CommentedSeq, TaggedScalar,
                                   CommentedKeyMap)
 
-from flambe.compile.serialization import load_state_from_file, State, load as flambe_load, \
-    save as flambe_save
-from flambe.compile.yaml import Registrable, YAMLLoadType
+from flambe.compile.yaml import Registrable, YAMLLoadType, _combine_tag
 from flambe.compile.schema import Schema
 from flambe.compile.const import STATE_DICT_DELIMETER, FLAMBE_SOURCE_KEY, FLAMBE_CLASS_KEY, \
     FLAMBE_CONFIG_KEY, FLAMBE_DIRECTORIES_KEY, KEEP_VARS_KEY, VERSION_KEY, FLAMBE_STASH_KEY
@@ -32,6 +30,11 @@ A = TypeVar('A')
 C = TypeVar('C', bound="Component")
 
 logger = logging.getLogger(__name__)
+
+class State(OrderedDict):
+    """A state object for Flambe."""
+
+    _metadata: Dict[str, Any]  # TODO should be instance property
 
 
 class Component(Registrable):
@@ -63,7 +66,9 @@ class Component(Registrable):
     def schema(cls, *args, **kwargs) -> Schema:
         args = None if len(args) == 0 else args
         kwargs = None if len(kwargs) == 0 else kwargs
-        return Schema(cls, args=args, kwargs=kwargs)
+        tag = _combine_tag(Registrable.class_to_tag[cls])
+        print(f'creating schema for class {cls} with tag {tag}')
+        return Schema(cls, args=args, kwargs=kwargs, tag=tag)
 
     def register_attrs(self, *names: str) -> None:
         """Set attributes that should be included in state_dict
@@ -459,20 +464,3 @@ class Component(Registrable):
             raise RuntimeError('Error(s) in loading state_dict for '
                                f'{self.__class__.__name__}:{newline_tab}'
                                f'{newline_tab.join(error_msgs)}')
-
-    @classmethod
-    def load_from_path(cls,
-                       path: str,
-                       map_location: Union[torch.device, str] = None,
-                       use_saved_config_defaults: bool = True,
-                       **kwargs: Any):
-        if use_saved_config_defaults:
-            instance = flambe_load(path, map_location=map_location)
-        else:
-            loaded_state = load_state_from_file(path, map_location=map_location)
-            instance = cls(**kwargs)
-            instance.load_state(loaded_state)
-        return instance
-
-    def save(self, path: str, **kwargs: Any):
-        flambe_save(self, path)

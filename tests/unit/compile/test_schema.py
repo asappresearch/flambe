@@ -1,7 +1,7 @@
 import pytest
 
 from flambe.compile.schema import Schema, Link, CopyLink, MalformedLinkError, \
-    UnpreparedLinkError, Options
+    UnpreparedLinkError, Options, parse_link_str, create_link_str
 
 
 class TestOptions(Options):
@@ -500,11 +500,82 @@ class TestSchemaLinks:
         assert p.c.t3.val == p.a.t1.x.val
 
 
-class TestSchemaOptions:
+class TestLinkParser:
 
-    def test_iter_variants(self, test_schemas_with_options):
-        s, _, _ = test_schemas_with_options
-        variants = list(s.iter_variants())
-        assert len(variants) == 1
-        variants = list(s.iter_variants(False))
-        assert len(variants) == 6
+    def test_only_obj(self):
+        link = 'model'
+        assert parse_link_str(link) == (['model'], [])
+
+    def test_only_attr(self):
+        link = 'model.emb'
+        assert parse_link_str(link) == (['model'], ['emb'])
+        link = 'model.emb.enc'
+        assert parse_link_str(link) == (['model'], ['emb', 'enc'])
+
+    def test_only_schematic(self):
+        link = 'model[emb]'
+        assert parse_link_str(link) == (['model', 'emb'], [])
+        link = 'model[emb][enc]'
+        assert parse_link_str(link) == (['model', 'emb', 'enc'], [])
+
+    def test_schematic_and_attr(self):
+        link = 'model[emb].attr1'
+        assert parse_link_str(link) == (['model', 'emb'], ['attr1'])
+        link = 'model[emb][enc].attr1.attr2'
+        assert parse_link_str(link) == (['model', 'emb', 'enc'], ['attr1', 'attr2'])
+
+    def test_close_unopen_schematic(self):
+        with pytest.raises(MalformedLinkError):
+            link = 'modelemb][enc].attr1.attr2'
+            parse_link_str(link)
+
+    def test_close_unopen_schematic_2(self):
+        with pytest.raises(MalformedLinkError):
+            link = 'model[emb]enc].attr1.attr2'
+            parse_link_str(link)
+
+    def test_reopen_schematic(self):
+        with pytest.raises(MalformedLinkError):
+            link = 'model[emb[enc].attr1.attr2'
+            parse_link_str(link)
+
+    def test_attr_without_dot(self):
+        with pytest.raises(MalformedLinkError):
+            link = 'model[emb][enc]attr1.attr2'
+            parse_link_str(link)
+
+    def test_no_root_obj(self):
+        with pytest.raises(MalformedLinkError):
+            link = '[emb]'
+            parse_link_str(link)
+        with pytest.raises(MalformedLinkError):
+            link = '.attr2'
+            parse_link_str(link)
+        with pytest.raises(MalformedLinkError):
+            link = '[emb][enc].attr1.attr2'
+            parse_link_str(link)
+
+
+class TestLinkCreator:
+
+    def test_only_obj(self):
+        link = (['model'], [])
+        assert create_link_str(*link) == 'model'
+
+    def test_only_attr(self):
+        link = (['model'], ['emb'])
+        assert create_link_str(*link) == 'model.emb'
+        link = (['model'], ['emb', 'enc'])
+        assert create_link_str(*link) == 'model.emb.enc'
+
+    def test_only_schematic(self):
+        link = (['model', 'emb'], [])
+        assert create_link_str(*link) == 'model[emb]'
+        link = (['model', 'emb', 'enc'], [])
+        assert create_link_str(*link) == 'model[emb][enc]'
+
+    def test_schematic_and_attr(self):
+        link = (['model', 'emb'], ['attr1'])
+        assert create_link_str(*link) == 'model[emb].attr1'
+        link = (['model', 'emb', 'enc'], ['attr1', 'attr2'])
+        assert create_link_str(*link) == 'model[emb][enc].attr1.attr2'
