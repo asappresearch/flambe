@@ -1,112 +1,176 @@
 import pytest
 from ruamel.yaml.compat import StringIO
 
-from flambe.compile.registry import get_registry
-from flambe.compile.yaml import load_config, dump_config
+from flambe.compile.yaml import load_config, dump_config, Registrable, YAMLLoadType
 from flambe.compile.schema import Schema
-from flambe.compile.registered_types import Registrable
-from flambe.metric import AUC
+
+class A:
+    def __init__(self, x=None, y=None):
+        self.x = x
+        self.y = y
+    @classmethod
+    def yaml_load_type(cls) -> str:
+        return "schematic"
+
+class B:
+    def __init__(self, *, x=None, y=None):
+        self.x = x
+        self.y = y
+    @classmethod
+    def yaml_load_type(cls) -> str:
+        return YAMLLoadType.KWARGS
+
+class C:
+    def __init__(self, *args, **kwargs):
+        if len(kwargs) == 0:
+            assert len(args) <= 1
+            self.x = args[0] if len(args) > 0 else None
+            self.y = None
+        else:
+            assert len(args) == 0
+            self.x = kwargs['x']
+            self.y = kwargs['y'] if 'y' in kwargs else None
+    @classmethod
+    def yaml_load_type(cls) -> str:
+        return "kwargs_or_arg"
+
+class D:
+    def __init__(self, x=None, y=None):
+        self.x = x
+        self.y = y
+    @classmethod
+    def yaml_load_type(cls) -> str:
+        return "kwargs_or_posargs"
 
 
-@pytest.fixture
-def make_classes():
-    registry = get_registry()
-    registry.reset()
+def load_one_config(config):
+    return list(load_config(config))[0]
 
-    class A(Registrable):
-
-        def __init__(self, akw1=0, akw2=None):
-            self.akw1 = akw1
-            self.akw2 = akw2
-            if not hasattr(self, '_created_with_tag'):
-                self._created_with_tag = '!A'
-
-        @classmethod
-        def from_yaml(cls, constructor, node, factory_name, tag):
-            kwargs, = list(constructor.construct_yaml_map(node))
-            return cls(**kwargs)
-
-        @classmethod
-        def to_yaml(cls, representer, node, tag):
-            return representer.represent_mapping(tag, {"akw1": node.akw1, "akw2": node.akw2})
-
-    class B(Registrable):
-
-        def __init__(self, bkw1=0, bkw2=''):
-            self.bkw1 = bkw1
-            self.bkw2 = bkw2
-            if not hasattr(self, '_created_with_tag'):
-                self._created_with_tag = '!B'
-
-        @classmethod
-        def from_yaml(cls, constructor, node, factory_name, tag):
-            kwargs, = list(constructor.construct_yaml_map(node))
-            return cls(**kwargs)
-
-        @classmethod
-        def to_yaml(cls, representer, node, tag):
-            return representer.represent_mapping(tag, {"bkw1": node.bkw1, "bkw2": node.bkw2})
-
-    return A, B
+def dump_one_config(obj):
+    return dump_config([obj])
 
 
-class TestLoadConfig:
+class TestSchematic:
 
-    def test_load_config(self):
-        config = "!AUC"
-        x = load_config(config)
-        assert isinstance(x, Schema)
-        x = x()
-        assert isinstance(x, AUC)
+    def test_empty_args_load(self):
+        config = '!tests.unit.compile.test_yaml.A\n'
+        a_schema = load_one_config(config)
+        assert isinstance(a_schema, Schema)
+        assert len(a_schema.arguments) == 2
+        print(a_schema.arguments)
+        assert all([x is None for x in a_schema.arguments.values()])
 
-    def test_registrable_load_basic(self, make_classes):
-        A, B = make_classes
+    def test_kwargs_load(self):
+        config = '!tests.unit.compile.test_yaml.A {x: 5}\n'
+        a_schema = load_one_config(config)
+        assert isinstance(a_schema, Schema)
+        assert len(a_schema.arguments) == 2
+        assert a_schema['x'] == 5
+        a = a_schema()
+        assert a.x == 5
+        assert a.y is None
 
-        txt = """a: !A
-  akw1: 8
-  akw2: !B
-    bkw1: 2
-    bkw2: hello world
-"""
-        config = load_config(txt)
-        a = config['a']
-        assert a.akw1 == 8
-        assert a.akw2 is not None
-        assert hasattr(a.akw2, "bkw1")
-        assert a.akw2.bkw1 == 2
+    def test_empty_args_dump(self):
+        config = '!tests.unit.compile.test_yaml.A\n'
+        a_schema = load_one_config(config)
+        expected_config = '!tests.unit.compile.test_yaml.A\nx:\ny:\n'
+        assert expected_config == dump_one_config(a_schema)
 
-
-class TestDumpConfig:
-
-    def test_registrable_dump_basic(self, make_classes):
-        A, B = make_classes
-
-        txt = """!A
-akw1: 8
-akw2: !B
-  bkw1: 2
-  bkw2: hello world
-"""
-
-        b = B(2, "hello world")
-        a = A(8, b)
-        with StringIO() as s:
-            dump_config(a, s)
-            assert s.getvalue() == txt
+    def test_nested_dump_two_trip(self):
+        config = ("!tests.unit.compile.test_yaml.A\n"
+                  "x: !tests.unit.compile.test_yaml.A\n"
+                  "y:\n")
+        expected_config = ("!tests.unit.compile.test_yaml.A\n"
+                  "x: !tests.unit.compile.test_yaml.A\n"
+                  "  x:\n"
+                  "  y:\n"
+                  "y:\n")
+        b = load_one_config(config)
+        dumped = dump_one_config(b)
+        b = load_one_config(dumped)
+        dumped = dump_one_config(b)
+        assert expected_config == dumped
 
 
-class TestConfigRoundtrip:
+class TestKwargs:
 
-    def test_registrable_roundtrip(self, make_classes):
-        A, B = make_classes
+    def test_empty_args(self):
+        config = '!tests.unit.compile.test_yaml.B'
+        b = load_one_config(config)
+        assert isinstance(b, B)
 
-        txt = """a: !A
-  akw1: 8
-  akw2: !B
-    bkw1: 2
-    bkw2: hello world
-"""
-        config = load_config(txt)
-        with StringIO() as s:
-            dump_config(config, s)
-            assert s.getvalue() == txt
+    def test_empty_args_dump(self):
+        config = '!tests.unit.compile.test_yaml.B'
+        b = load_one_config(config)
+        dumped = dump_one_config(b)
+        expected_config = '!tests.unit.compile.test_yaml.B {}\n'
+        assert expected_config == dumped
+
+    def test_nested_dump_two_trip(self):
+        config = ("!tests.unit.compile.test_yaml.B\n"
+                  "x: !tests.unit.compile.test_yaml.B\n"
+                  "y:\n")
+        expected_config = ("!tests.unit.compile.test_yaml.B\n"
+                  "x: !tests.unit.compile.test_yaml.B {}\n"
+                  "y:\n")
+        b = load_one_config(config)
+        dumped = dump_one_config(b)
+        b = load_one_config(dumped)
+        dumped = dump_one_config(b)
+        assert expected_config == dumped
+
+
+class TestKwargsOrArg:
+
+    def test_empty_args(self):
+        config = '!tests.unit.compile.test_yaml.C\n'
+        c = load_one_config(config)
+        assert isinstance(c, C)
+
+    def test_empty_args_dump(self):
+        config = '!tests.unit.compile.test_yaml.C\n'
+        c = load_one_config(config)
+        dumped = dump_one_config(c)
+        expected_config = '!tests.unit.compile.test_yaml.C {}\n'
+        assert expected_config == dumped
+
+    def test_nested_dump_two_trip(self):
+        config = ("!tests.unit.compile.test_yaml.C\n"
+                  "x: !tests.unit.compile.test_yaml.C\n"
+                  "y:\n")
+        expected_config = ("!tests.unit.compile.test_yaml.C\n"
+                  "x: !tests.unit.compile.test_yaml.C {}\n"
+                  "y:\n")
+        c = load_one_config(config)
+        dumped = dump_one_config(c)
+        c = load_one_config(dumped)
+        dumped = dump_one_config(c)
+        assert expected_config == dumped
+
+class TestKwargsOrPosArgs:
+
+    def test_empty_args(self):
+        config = '!tests.unit.compile.test_yaml.D\n'
+        d = load_one_config(config)
+        # assert False
+        assert isinstance(d, D)
+
+    def test_empty_args_dump(self):
+        config = '!tests.unit.compile.test_yaml.D\n'
+        d = load_one_config(config)
+        dumped = dump_one_config(d)
+        expected_config = '!tests.unit.compile.test_yaml.D {}\n'
+        assert expected_config == dumped
+
+    def test_nested_dump_two_trip(self):
+        config = ("!tests.unit.compile.test_yaml.D\n"
+                  "x: !tests.unit.compile.test_yaml.D\n"
+                  "y:\n")
+        expected_config = ("!tests.unit.compile.test_yaml.D\n"
+                  "x: !tests.unit.compile.test_yaml.D {}\n"
+                  "y:\n")
+        d = load_one_config(config)
+        dumped = dump_one_config(d)
+        d = load_one_config(dumped)
+        dumped = dump_one_config(d)
+        assert expected_config == dumped
