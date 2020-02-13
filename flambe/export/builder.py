@@ -168,6 +168,8 @@ class Builder(Registrable):
                 )
 
         with tempfile.TemporaryDirectory() as tmpdirname:
+            # TODO fix don't use flambe save; also probably have one helper for the save operation
+            # so that local and remote do the exact same thing
             flambe.save(self.compiled_component, tmpdirname, **self.serialization_args)
             try:
                 subprocess.check_output(

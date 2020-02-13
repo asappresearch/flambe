@@ -242,11 +242,6 @@ class Schema(MutableMapping[str, Any]):
         args = args if args is not None else []
         kwargs = kwargs if kwargs is not None else {}
         s = inspect.signature(self.factory_method)
-        # Temporary hack for 3.6
-        new_params = []
-        for param in s.parameters.values():
-            new_params.append(param.replace(annotation=inspect.Parameter.empty))
-        s = s.replace(parameters=new_params)
         self.bound_arguments = s.bind(*args, **kwargs)
         if apply_defaults:
             self.bound_arguments.apply_defaults()

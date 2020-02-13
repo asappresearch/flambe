@@ -35,6 +35,8 @@ class RayAdapter:
         """Run a step of the Trial"""
         if self.searchable is None:
             self.searchable = self.schema()
+            if not isinstance(self.searchable, Searchable):
+                return False, None
         continue_ = self.searchable.step(self.environment)
         metric = self.searchable.metric(self.environment)
         self.checkpoint.set(self.searchable)
@@ -139,6 +141,8 @@ class Search(Registrable):
             # Get all the current object ids running
             finished = []
             if running:
+                # TODO change if needed for failures to come up properly
+                # finished, running = ray.get(running, timeout=self.refresh_waitime)
                 finished, running = ray.wait(running, timeout=self.refresh_waitime)
 
             # Process finished trials
