@@ -37,12 +37,8 @@ class Stage(object):
             A name for this stage in the experiment pipeline.
         pipeline : Pipeline
             The sub-pipeline to execute in this stage.
-        algorithm : Algorithm
-            A search algorithm.
         dependencies : List[Dict[str, Any]]
             A list of previously executed pipelines.
-        reductions : Dict[str, int]
-            Reductions to apply between stages.
         cpus_per_trial : int
             The number of CPUs to allocate per trial.
             Note: if the object you are searching over spawns ray
@@ -51,6 +47,12 @@ class Stage(object):
             The number of GPUs to allocate per trial.
             Note: if the object you are searching over spawns ray
             remote tasks, then you should set this to 0.
+        environment: Environment
+            THe envrionment to use.
+        algorithm : Algorithm, optional
+            An optional search algorithm.
+        reductions : Dict[str, int], optional
+            Reductions to apply between stages.
 
         """
         self.name = name
@@ -86,8 +88,7 @@ class Stage(object):
         Returns
         -------
         Dict[str, Pipeline]
-            An updated list of pipelines with error filtering and
-            reductions applied.
+            An updated list of pipelines.
 
         """
         # Filter out error trials
@@ -106,7 +107,7 @@ class Stage(object):
         return pipelines
 
     def merge_variants(self, pipelines: Dict[str, 'Pipeline']) -> Dict[str, 'Pipeline']:
-        """Filter out erros, and apply reductions on dependencies.
+        """Merge based on conditional dependencies.
 
         Parameters
         ----------
@@ -116,8 +117,7 @@ class Stage(object):
         Returns
         -------
         Dict[str, Pipeline]
-            An updated list of pipelines with error filtering and
-            reductions applied.
+            An updated list of pipelines.
 
         """
         variants: Dict[str, Pipeline] = dict()
@@ -137,7 +137,10 @@ class Stage(object):
         return variants
 
     def construct_pipeline(self, pipelines: Dict[str, 'Pipeline']) -> Optional['Pipeline']:
-        """Filter out erros, and apply reductions on dependencies.
+        """Construct the final pipeline.
+
+        May return ``None`` in cases where there were no complete
+        pipelines available for this stage.
 
         Parameters
         ----------
@@ -146,9 +149,8 @@ class Stage(object):
 
         Returns
         -------
-        Dict[str, Pipeline]
-            An updated list of pipelines with error filtering and
-            reductions applied.
+        Pipeline, optional
+            The pipeline to exectute, or None.
 
         """
         # Filter out not complete pipelines

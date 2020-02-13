@@ -14,7 +14,7 @@ from flambe.learn.utils import select_device
 from flambe.nn import Module  # type: ignore[attr-defined]
 from flambe.sampler import Sampler
 from flambe.metric import Metric
-from flambe.logging import log
+from flambe.logging import log, TrialLogging
 from flambe.runner import Environment
 
 
@@ -410,7 +410,7 @@ class Trainer(Component):
             log(f'{tb_prefix}Validation/{metric}',
                 metric.finalize(state), self._step)  # type: ignore
 
-    def step(self) -> bool:
+    def step(self, env: Optional[Environment] = None) -> bool:
         """Evaluate and then train until the next checkpoint
 
         Returns
@@ -433,12 +433,7 @@ class Trainer(Component):
 
         return continue_
 
-    def run(self, environment: Optional[Environment] = None) -> None:
-        continue_ = True
-        while continue_:
-            continue_ = self.step()
-
-    def metric(self) -> Optional[float]:
+    def metric(self, env: Optional[Environment] = None) -> Optional[float]:
         """Override this method to enable scheduling.
 
         Returns
@@ -448,6 +443,21 @@ class Trainer(Component):
 
         """
         return self._best_metric
+
+    def run(self, env: Optional[Environment] = None) -> None:
+        """Execute the trainer as a Runnable.
+
+        Parameters
+        ----------
+        env : Environment
+            An execution envrionment.
+
+        """
+        env = env if env is not None else Environment()
+        with TrialLogging(env.output_path, verbose=env.debug):
+            continue_ = True
+            while continue_:
+                continue_ = self.step(env)
 
     def _state(self,
                state_dict: State,

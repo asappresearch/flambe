@@ -7,6 +7,7 @@ import logging
 import ray
 
 from flambe.runner import Environment
+from flambe.logging import TrialLogging
 from flambe.compile import Registrable, YAMLLoadType, Schema
 from flambe.search.trial import Trial
 from flambe.search.protocol import Searchable
@@ -18,22 +19,29 @@ from flambe.search.algorithm import Algorithm, GridSearch
 class RayAdapter:
     """Perform computation of a task."""
 
-    def __init__(self, schema: Schema, checkpoint: Checkpoint) -> None:
+    def __init__(self,
+                 schema: Schema,
+                 checkpoint: Checkpoint,
+                 environment: Environment) -> None:
         """Initialize the Trial."""
         self.schema = schema
         self.searchable: Optional[Searchable] = None
         self.checkpoint = checkpoint
+        self.environment = environment
+        self.trial_logging = TrialLogging(checkpoint.path)
+        self.trial_logging.setup()
 
-    # @ray.remote(num_return_values=2)
     def step(self) -> Any:
         """Run a step of the Trial"""
         if self.searchable is None:
             self.searchable = self.schema()
-
-        continue_ = self.searchable.step()
-        metric = self.searchable.metric()
+        continue_ = self.searchable.step(self.environment)
+        metric = self.searchable.metric(self.environment)
         self.checkpoint.set(self.searchable)
         return continue_, metric
+
+    def __del__(self):
+        self.trial_logging.teardown()
 
 
 class Search(Registrable):
@@ -57,7 +65,6 @@ class Search(Registrable):
                  algorithm: Optional[Algorithm] = None,
                  cpus_per_trial: int = 1,
                  gpus_per_trial: int = 0,
-                 output_path: str = 'flambe_output',
                  refresh_waitime: float = 30.0) -> None:
         """Initialize a hyperparameter search.
 
@@ -78,7 +85,6 @@ class Search(Registrable):
             Defaults ``1`` seconds.
 
         """
-        self.output_path = output_path
         self.n_cpus = cpus_per_trial
         self.n_gpus = gpus_per_trial
         self.refresh_waitime = refresh_waitime
@@ -96,7 +102,7 @@ class Search(Registrable):
         Parameters
         ----------
         env : Environment, optional
-            An optional environment object.
+            An environment object.
 
         Returns
         -------
@@ -106,7 +112,8 @@ class Search(Registrable):
             a Trial and a Checkpoint object respecitvely.
 
         """
-        env = env if env is not None else Environment(self.output_path)
+        env = env if env is not None else Environment()
+
         if not ray.is_initialized():
             ray.init(address="auto", local_mode=env.debug)
 
@@ -181,15 +188,20 @@ class Search(Registrable):
                     trial.set_resume()
                     state[trial_id] = dict()
                     state[trial_id]['schema'] = schema_copy
+                    trial_path = os.path.join(env.output_path, trial_id)
                     checkpoint = Checkpoint(
-                        path=os.path.join(env.output_path, trial_id),
+                        path=trial_path,
                         host=env.head_node_ip,
                         user=getpass.getuser()
                     )
                     state[trial_id]['checkpoint'] = checkpoint
-                    state[trial_id]['actor'] = RayAdapter.remote(  # type: ignore
+                    state[trial_id]['actor'] = RayAdapter.options(  # type: ignore
+                        num_cpus=self.n_cpus,
+                        um_gpus=self.n_gpus
+                    ).remote(
                         schema=schema_copy,
-                        checkpoint=checkpoint
+                        checkpoint=checkpoint,
+                        environment=env.clone(output_path=trial_path)
                     )
 
                 # Launch created and resumed

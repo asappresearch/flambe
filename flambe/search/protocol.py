@@ -1,4 +1,7 @@
+from typing import Optional
+
 from typing_extensions import Protocol, runtime_checkable
+from flambe.runner import Environment
 
 
 @runtime_checkable
@@ -22,7 +25,7 @@ class Searchable(Protocol):
 
     """
 
-    def step(self) -> bool:
+    def step(self, envrionment: Optional[Environment] = None) -> bool:
         """Implement this method to enable hyperparameter search.
 
         When used in an experiment, this computational step should
@@ -40,7 +43,7 @@ class Searchable(Protocol):
         """
         raise NotImplementedError
 
-    def metric(self) -> float:
+    def metric(self, envrionment: Optional[Environment] = None) -> float:
         """Implement this method to enable hyperparameter search.
 
         This method is called after every call to ``step``, and should

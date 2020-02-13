@@ -1,9 +1,11 @@
-from typing import Any, Dict, Optional, List
+from typing import Any, Dict, Optional, List, Callable
 import sys
 import runpy
+import tempfile
 from copy import deepcopy
+from ruamel.yaml import YAML
 
-from flambe.logging import get_trial_dir
+from flambe.logging import TrialLogging
 from flambe.compile import Component
 from flambe.runner import Environment
 
@@ -11,9 +13,9 @@ from flambe.runner import Environment
 class Script(Component):
     """Implement a Script computable.
 
-    The obejct can be used to turn any script into a Flambé computable.
-    This is useful when you want to rapidly integrate code. Note
-    however that this computable does not enable checkpointing or
+    This object can be used to turn any script into a Flambé runnable.
+    This is useful when you want to keep your code unchanged. Note
+    however that this runnable does not enable checkpointing or
     linking to internal components as it does not have any attributes.
 
     To use this object, your script needs to be in a pip installable,
@@ -30,7 +32,9 @@ class Script(Component):
                  script: str,
                  args: List[Any],
                  kwargs: Optional[Dict[str, Any]] = None,
-                 output_dir_arg: Optional[str] = None) -> None:
+                 pass_env: bool = True,
+                 max_steps: Optional[int] = None,
+                 metric_fn: Optional[Callable[[str], float]] = None) -> None:
         """Initialize a Script.
 
         Parameters
@@ -41,9 +45,6 @@ class Script(Component):
             Argument List
         kwargs: Optional[Dict[str, Any]]
             Keyword argument dictionary
-        output_dir_arg: str, optional
-            The name of the argument corresponding to the output
-            directory, should there be one.
 
         """
         self.script = script
@@ -53,10 +54,21 @@ class Script(Component):
         else:
             self.kwargs = kwargs
 
-        if output_dir_arg is not None:
-            self.kwargs[output_dir_arg] = get_trial_dir()
+        self.pass_env = pass_env
+        self.max_steps = max_steps
+        self.metric_fn = metric_fn
+        self._step = 0
 
-    def step(self) -> bool:
+        self.register_attrs('_step')
+
+    def metric(self, env: Optional[Environment] = None) -> float:
+        """Override to read a metric from your script's output."""
+        env = env if env is not None else Environment()
+        if self.metric_fn is not None:
+            return self.metric_fn(env.output_path)
+        return 0.0
+
+    def step(self, env: Optional[Environment] = None) -> bool:
         """Run the evaluation.
 
         Returns
@@ -65,20 +77,43 @@ class Script(Component):
             Whether to continue execution.
 
         """
-        parser_kwargs = {f'--{k}': v for k, v in self.kwargs.items()}
-        # Flatten the arguments into a single list to pass to sys.argv
-        parser_args_flat = [str(item) for item in self.args]
-        parser_args_flat += [str(item) for items in parser_kwargs.items() for item in items]
+        env = env if env is not None else Environment()
 
-        sys_save = deepcopy(sys.argv)
-        sys.argv = [''] + parser_args_flat  # add dummy sys[0]
-        runpy.run_module(self.script, run_name='__main__', alter_sys=True)
-        sys.argv = sys_save
+        yaml = YAML()
+        with tempfile.NamedTemporaryFile() as fp:
+            yaml.dump(env, fp)
+            # Add extra parameters
+            if self.pass_env:
+                kwargs = dict(self.kwargs)
+                kwargs['--env'] = env
 
-        continue_ = False  # Single step, so don't continue
+            # Flatten the arguments into a list to pass to sys.argv
+            parser_args_flat = [str(item) for item in self.args]
+            parser_args_flat += [str(item) for items in kwargs.items() for item in items]
+
+            # Execute the script
+            sys_save = deepcopy(sys.argv)
+            sys.argv = [''] + parser_args_flat  # add dummy sys[0]
+            runpy.run_module(self.script, run_name='__main__', alter_sys=True)
+            sys.argv = sys_save
+
+        self._step += 1
+        continue_ = True
+        if self.max_steps is None or self._step >= self.max_steps:
+            continue_ = False
         return continue_
 
-    def run(self, environment: Optional[Environment] = None) -> None:
-        continue_ = True
-        while continue_:
-            continue_ = self.step()
+    def run(self, env: Optional[Environment] = None) -> None:
+        """Execute the trainer as a Runnable.
+
+        Parameters
+        ----------
+        env : Environment
+            An execution envrionment.
+
+        """
+        env = env if env is not None else Environment()
+        with TrialLogging(env.output_path, verbose=env.debug):
+            continue_ = True
+            while continue_:
+                continue_ = self.step(env)

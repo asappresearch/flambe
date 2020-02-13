@@ -47,10 +47,10 @@ class Experiment(Registrable):
         ----------
         name : str
             The name of the experiment to run.
-        pipeline : Optional[Dict[str, Schema]], optional
-            A set of Searchable schemas, possibly including links.
         save_path : Optional[str], optional
             A save path for the experiment.
+        pipeline : Optional[Dict[str, Schema]], optional
+            A set of Searchable schemas, possibly including links.
         algorithm : Optional[Dict[str, Algorithm]], optional
             A set of hyperparameter search algorithms, one for each
             defined stage. Defaults to grid searching for all.
@@ -77,6 +77,7 @@ class Experiment(Registrable):
 
     @classmethod
     def yaml_load_type(cls) -> YAMLLoadType:
+        """Provide the YAML loading rule."""
         return YAMLLoadType.KWARGS
 
     def run(self, env: Optional[Environment] = None):

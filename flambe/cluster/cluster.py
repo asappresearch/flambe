@@ -140,6 +140,7 @@ class Cluster(Registrable):
 
     @classmethod
     def yaml_load_type(cls) -> YAMLLoadType:
+        """Provide the YAML loading rule."""
         return YAMLLoadType.KWARGS
 
     def up(self,
@@ -338,13 +339,15 @@ class Cluster(Registrable):
         Parameters
         ----------
         runnable : str
-            [description]
+            The runnable config to submit.
         name : str
-            [description]
+            A name for the job.
         force : bool, optional
-            [description], by default False
+            Whether to override a previous job of the same name.
+            Default ``False``.
         debug : bool, optional
-            [description], by default False
+            Whether to run in debug mode.
+            Default ``False``.
 
         """
         # Turn off output from ray

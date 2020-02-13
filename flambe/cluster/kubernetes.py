@@ -110,9 +110,11 @@ class KubernetesCluster(Cluster):
                 'spec': {
                     'serviceAccountName': 'autoscaler',
                     'restartPolicy': 'Never',  # Restart is not supported
-                    # This volume allocates shared memory for Ray to use for its plasma
-                    # object store. If you do not provide this, Ray will fall back to
-                    # /tmp which cause slowdowns if is not a shared memory volume.
+                    # This volume allocates shared memory for
+                    # Ray to use for its plasma
+                    # object store. If you do not provide this,
+                    # Ray will fall back to /tmp which cause slowdowns
+                    # if is not a shared memory volume.
                     'volumes': [{
                         'name': 'dshm',
                         'emptyDir': {
@@ -122,11 +124,12 @@ class KubernetesCluster(Cluster):
                     'containers': [{
                         'name': 'flambe-node',
                         'imagePullPolicy': 'Always',
-                        # You are free (and encouraged) to use your own container image,
-                        # but it should have the following installed:
-                        #   - rsync (used for `ray rsync` commands and file mounts)
+                        # You are free (and encouraged) to use your own
+                        # container image, but it should have the
+                        # following installed
+                        #   - rsync (used for `ray rsync`, file mounts)
                         #   - screen (used for `ray attach`)
-                        #   - kubectl (used by the autoscaler to manage worker pods)
+                        #   - kubectl (used by the autoscaler)
                         'image': 'rayproject/autoscaler',
                         # explicitly killed.
                         'command': ["/bin/bash", "-c", "--"],  # Do not change
@@ -180,11 +183,12 @@ class KubernetesCluster(Cluster):
                     'containers': [{
                         'name': 'flambe-node',
                         'imagePullPolicy': 'Always',
-                        # You are free (and encouraged) to use your own container image,
-                        # but it should have the following installed:
-                        #   - rsync (used for `ray rsync` commands and file mounts)
+                        # You are free (and encouraged) to use your own
+                        # container image, but it should have the
+                        # following installed
+                        #   - rsync (used for `ray rsync`, file mounts)
                         #   - screen (used for `ray attach`)
-                        #   - kubectl (used by the autoscaler to manage worker pods)
+                        #   - kubectl (used by the autoscaler)
                         'image': 'rayproject/autoscaler',
                         'command': ["/bin/bash", "-c", "--"],  # Do not change
                         'args': ["trap : TERM INT; sleep infinity & wait;"],

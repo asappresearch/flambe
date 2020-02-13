@@ -3,6 +3,7 @@ from typing import Optional, Dict, Union
 import torch
 
 from flambe.compile import Component
+from flambe.logging import TrialLogging
 from flambe.dataset import Dataset
 from flambe.learn.utils import select_device
 from flambe.nn import Module  # type: ignore[attr-defined]
@@ -61,7 +62,7 @@ class Evaluator(Component):
         self.eval_metric: Union[float, None] = None
         self.register_attrs('eval_metric')
 
-    def step(self) -> bool:
+    def step(self, env: Optional[Environment] = None) -> bool:
         """Run the evaluation.
 
         Returns
@@ -90,7 +91,7 @@ class Evaluator(Component):
 
         return False
 
-    def metric(self) -> Optional[float]:
+    def metric(self, env: Optional[Environment] = None) -> Optional[float]:
         """Override this method to enable scheduling.
 
         Returns
@@ -101,7 +102,15 @@ class Evaluator(Component):
         """
         return self.eval_metric
 
-    def run(self, environment: Optional[Environment] = None) -> None:
-        continue_ = True
-        while continue_:
-            continue_ = self.step()
+    def run(self, env: Optional[Environment] = None) -> None:
+        """Execute the evaluator as a Runnable.
+
+        Parameters
+        ----------
+        env : Environment
+            An execution envrionment.
+
+        """
+        env = env if env is not None else Environment()
+        with TrialLogging(env.output_path, verbose=env.debug):
+            self.step()

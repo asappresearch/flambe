@@ -90,7 +90,7 @@ class TrialLogging:
         self.old_root_log_level: int = logging.NOTSET
         self.hyper_params: Dict = hyper_params or {}
 
-    def __enter__(self) -> logging.Logger:
+    def setup(self) -> logging.Logger:
         colorize_exceptions()
         logger = logging.root
         self.old_root_log_level = logger.level
@@ -161,7 +161,7 @@ class TrialLogging:
         self.logger = logger
         return logger
 
-    def __exit__(self, exc_type: Any, exc_value: Any, traceback: Any) -> None:
+    def teardown(self) -> None:
         """Close the listener and restore original logging config"""
         for handler in self.logger.handlers:
             handler.removeFilter(self.context_filter)
@@ -171,6 +171,12 @@ class TrialLogging:
         self.logger.setLevel(self.old_root_log_level)
         logging.setLogRecordFactory(self.old_factory)
         delattr(logging.root, '_log_dir')
+
+    def __enter__(self) -> logging.Logger:
+        return self.setup()
+
+    def __exit__(self, exc_type: Any, exc_value: Any, traceback: Any):
+        self.teardown()
 
 
 class ContextInjection:

@@ -27,11 +27,11 @@ class Pipeline(Schema):
         Parameters
         ----------
         schemas : Dict[str, Schema]
-            Description of parameter `schemas`.
+            A mapping from stage name to corresponding schema.
         variant_ids : Optional[Dict[str, str]]
-            Description of parameter `variant_ids` (default is None).
+            An optional mapping from stage name to variant id.
         checkpoints : Optional[Dict[str, Checkpoint]]
-            Description of parameter `checkpoints` (default is None).
+            An optional mapping from stage name to checkpoint.
 
         """
         super().__init__(callable_=pipeline_builder, kwargs=schemas, apply_defaults=False)
@@ -48,12 +48,12 @@ class Pipeline(Schema):
         self.metric = None
 
     def _update_deps(self, stage_name: str):
-        """[summary]
+        """Compute the set of dependencies for this stage.
 
         Parameters
         ----------
         stage_name : str
-            [description]
+            The stage to consider.
 
         """
         schema = self.arguments[stage_name]
@@ -117,6 +117,7 @@ class Pipeline(Schema):
                    path: Optional[Tuple[str]] = None,
                    cache: Optional[Dict[str, Any]] = None,
                    root: Optional['Schema'] = None) -> Any:
+        """Override initialization to load checkpoints."""
         # Check Links
         checked = []
         for stage_name, schema in self.arguments.items():
@@ -133,7 +134,7 @@ class Pipeline(Schema):
         return super().initialize(cache=cache)
 
     def sub_pipeline(self, stage_name: str) -> 'Pipeline':
-        """Return subset of the pipeline stages ending in stage_name
+        """Return subset of the pipeline stages ending in stage_name.
 
         The subset of pipeline stages will include all dependencies
         needed for stage the given stage and all their dependencies
