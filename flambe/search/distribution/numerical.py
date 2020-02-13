@@ -4,7 +4,6 @@ from typing import Optional, Dict, Callable, Union, Any, Tuple
 
 import numpy as np
 
-from flambe.compile import YAMLLoadType
 from flambe.search.distribution.distribution import Distribution
 
 
@@ -54,10 +53,6 @@ class Numerical(Distribution):
             raise ValueError(f"transform should be a string or a function.")
 
         self.dist_params = dist_params
-
-    @classmethod
-    def yaml_load_type(cls) -> YAMLLoadType:
-        return YAMLLoadType.KWARGS_OR_POSARGS
 
     @abstractmethod
     def sample_raw_dist(self) -> float:

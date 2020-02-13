@@ -197,7 +197,7 @@ class Search(Registrable):
                     state[trial_id]['checkpoint'] = checkpoint
                     state[trial_id]['actor'] = RayAdapter.options(  # type: ignore
                         num_cpus=self.n_cpus,
-                        um_gpus=self.n_gpus
+                        num_gpus=self.n_gpus
                     ).remote(
                         schema=schema_copy,
                         checkpoint=checkpoint,

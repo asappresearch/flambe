@@ -13,7 +13,7 @@ from ray.autoscaler.updater import SSHCommandRunner
 from flambe.logging import coloredlogs as cl
 from flambe.const import FLAMBE_GLOBAL_FOLDER
 from flambe.compile import Registrable, YAMLLoadType
-from flambe.compile import load_environment_from_file
+from flambe.compile.yaml import load_first_config_from_file, num_yaml_files
 from flambe.compile.extensions import download_extensions
 from flambe.compile.downloader import download_manager
 from flambe.runner.utils import is_dev_mode, get_flambe_repo_location
@@ -350,6 +350,12 @@ class Cluster(Registrable):
             Default ``False``.
 
         """
+        # Load environment
+        if num_yaml_files(runnable) > 1:
+            env = load_first_config_from_file(runnable)
+        else:
+            env = Environment()
+
         # Turn off output from ray
         supress()
         print(cl.BL(f'[{time()}] Submitting Job: {name}.'))
@@ -390,11 +396,8 @@ class Cluster(Registrable):
                 cmd += f' && pip install -U flambe'
                 exec_cluster(fp.name, tmux(cmd))
 
-            # Load environment
-            environment = Environment(**load_environment_from_file(runnable))
-
             # Upload and install extensions
-            extensions = environment.extensions
+            extensions = env.extensions
             extensions_dir = os.path.join(FLAMBE_GLOBAL_FOLDER, 'extensions')
             if not os.path.exists(extensions_dir):
                 os.makedirs(extensions_dir)
@@ -415,27 +418,27 @@ class Cluster(Registrable):
             # Upload files
             resources_dir = os.path.join(FLAMBE_GLOBAL_FOLDER, 'resources')
             updated_resources: Dict[str, str] = dict()
-            updated_resources.update(environment.remote_resources)
-            for name, resource in environment.local_resources.items():
+            updated_resources.update(env.remote_resources)
+            for name, resource in env.local_resources.items():
                 with download_manager(resource, os.path.join(resources_dir, name)) as path:
                     target = f'$HOME/jobs/{name}/resources/{name}'
                     rsync(fp.name, path, target, None, down=False)
                     updated_resources[name] = target
 
             # Run Flambe
-            environment = environment.clone(
+            env = env.clone(
                 output_path=f"~/jobs/{name}",
                 head_node_ip=self.head_node_ip(),
                 worker_node_ips=self.worker_node_ips(),
                 extensions=updated_extensions,
                 local_resources=updated_resources,
                 remote_resources=[],
-                remote=True,
+                remote=True
             )
 
             yaml = YAML()
             with tempfile.NamedTemporaryFile() as env_file:
-                yaml.dump(environment, env_file)
+                yaml.dump(env, env_file)
                 env_target = f"$HOME/jobs/{name}/env.yaml"
                 rsync(fp.name, env_file.name, env_target, None, down=False)
 

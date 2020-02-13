@@ -129,7 +129,6 @@ class Pipeline(Schema):
         cache = {}
         for stage_name, checkpoint in self.checkpoints.items():
             val = checkpoint.get()
-            print(f"setting cache for {stage_name} to {val}")
             cache[stage_name] = val
         return super().initialize(cache=cache)
 

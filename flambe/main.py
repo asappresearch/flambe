@@ -11,9 +11,13 @@ from flambe.const import FLAMBE_CLUSTER_DEFAULT, FLAMBE_GLOBAL_FOLDER
 from flambe.logo import ASCII_LOGO, ASCII_LOGO_DEV
 from flambe.logging import coloredlogs as cl
 from flambe.runner.utils import is_dev_mode, get_flambe_repo_location
-from flambe.compile.yaml import load_config_from_file
+from flambe.compile.yaml import load_first_config_from_file, load_config_from_file, num_yaml_files
 from flambe.compile.downloader import download_manager
+from flambe.compile.extensions import is_package, is_installed_module
 from flambe.runner import Environment
+
+
+logging.getLogger('tensorflow').disabled = True
 
 
 @click.group()
@@ -27,7 +31,7 @@ def cli():
               help="Cluster config.")
 def up(cluster):
     """Launch / update the cluster based on the given config"""
-    cluster = load_config_from_file(cluster)
+    cluster = load_first_config_from_file(cluster)
     cluster.up()
 
 
@@ -37,7 +41,7 @@ def up(cluster):
               help="Cluster config.")
 def down(cluster):
     """Teardown the cluster."""
-    cluster = load_config_from_file(cluster)
+    cluster = load_first_config_from_file(cluster)
     cluster.down()
 
 
@@ -49,7 +53,7 @@ def down(cluster):
               help="Cluster config.")
 def rsync_up(source, target, cluster):
     """Upload files to the cluster."""
-    cluster = load_config_from_file(cluster)
+    cluster = load_first_config_from_file(cluster)
     cluster.rsync_up(source, target)
 
 
@@ -61,7 +65,7 @@ def rsync_up(source, target, cluster):
               help="Cluster config.")
 def rsync_down(source, target, cluster):
     """Download files from the cluster."""
-    cluster = load_config_from_file(cluster)
+    cluster = load_first_config_from_file(cluster)
     cluster.rsync_down(source, target)
 
 
@@ -72,7 +76,7 @@ def rsync_down(source, target, cluster):
 def list_cmd(cluster):
     """List the jobs (i.e tmux sessions) running on the cluster."""
     logging.disable(logging.INFO)
-    cluster = load_config_from_file(cluster)
+    cluster = load_first_config_from_file(cluster)
     cluster.list()
 
 
@@ -86,7 +90,7 @@ def list_cmd(cluster):
 def exec_cmd(command, port_forward, cluster):
     """Execute a command on the cluster head node."""
     logging.disable(logging.INFO)
-    cluster = load_config_from_file(cluster)
+    cluster = load_first_config_from_file(cluster)
     cluster.exec(command=command, port_forward=port_forward)
 
 
@@ -98,7 +102,7 @@ def exec_cmd(command, port_forward, cluster):
 def attach(name, cluster):
     """Attach to a running job (i.e tmux session) on the cluster."""
     logging.disable(logging.INFO)
-    cluster = load_config_from_file(cluster)
+    cluster = load_first_config_from_file(cluster)
     cluster.attach(name)
 
 
@@ -112,7 +116,7 @@ def attach(name, cluster):
 def kill(name, cluster, clean):
     """Kill a job (i.e tmux session) running on the cluster."""
     logging.disable(logging.INFO)
-    cluster = load_config_from_file(cluster)
+    cluster = load_first_config_from_file(cluster)
     cluster.kill(name=name)
     if clean:
         cluster.clean(name=name)
@@ -126,7 +130,7 @@ def kill(name, cluster, clean):
 def clean(name, cluster):
     """Clean the artifacts of a job on the cluster."""
     logging.disable(logging.INFO)
-    cluster = load_config_from_file(cluster)
+    cluster = load_first_config_from_file(cluster)
     cluster.clean(name=name)
 
 
@@ -157,7 +161,7 @@ def submit(runnable, name, cluster, force, debug, verbose, attach):
         print(cl.RA(ASCII_LOGO))
         print(cl.BL(f"VERSION: {flambe.__version__}\n"))
 
-    cluster = load_config_from_file(cluster)
+    cluster = load_first_config_from_file(cluster)
     cluster.submit(runnable, name, force=force, debug=debug)
     if attach:
         cluster.attach(name)
@@ -173,7 +177,7 @@ def submit(runnable, name, cluster, force, debug, verbose, attach):
 def site(name, cluster, port):
     """Launch a Web UI to monitor the activity on the cluster."""
     logging.disable(logging.INFO)
-    cluster = load_config_from_file(cluster)
+    cluster = load_first_config_from_file(cluster)
     try:
         cluster.launch_site(port=port, name=name)
     except KeyboardInterrupt:
@@ -197,13 +201,16 @@ def site(name, cluster, port):
               help='Verbose console output')
 def run(runnable, output, force, debug, env):
     """Execute a runnable config."""
+    # Load environment
+    if env:
+        env = load_first_config_from_file(env)
+    elif num_yaml_files(runnable) > 1:
+        env = load_first_config_from_file(runnable)
+    else:
+        env = Environment(output_path=output)
 
     # Check if previous job exists
-    if env:
-        env_config = load_config_from_file(env)
-        output = env_config.pop('output_path')
-
-    output = os.path.join(os.path.expanduser(output), 'flambe_output')
+    output = os.path.join(os.path.expanduser(env.output_path), 'flambe_output')
     if os.path.exists(output):
         if force:
             shutil.rmtree(output)
@@ -225,26 +232,32 @@ def run(runnable, output, force, debug, env):
     # Check if debug
     if debug:
         print(cl.YE(f"Debug mode activated\n"))
-        logging.captureWarnings(True)
+
+    # Check that all extensions are importable
+    for module, package in env.extensions.items():
+        package = os.path.expanduser(package)
+        if os.path.exists(package) and not is_package(package):
+            # Try to add to the python path
+            sys.path.append(package)
+        if not is_installed_module(module):
+            raise ValueError("Module ({module}) from package ({package}) is not installed.")
 
     try:
-        kwargs = env_config if env else dict()
-        environment = Environment(**kwargs)
-
         # Download resources
         resources_dir = os.path.join(FLAMBE_GLOBAL_FOLDER, 'resources')
         updated_resources: Dict[str, str] = dict()
-        for name, resource in environment.local_resources.items():
+        for name, resource in env.local_resources.items():
             with download_manager(resource, os.path.join(resources_dir, name)) as path:
                 updated_resources[name] = path
 
-        environment = environment.clone(
+        # Execute runnable
+        env = env.clone(
             output_path=output,
             debug=debug,
-            local_resources=updated_resources,
+            local_resources=updated_resources
         )
-        runnable_obj = load_config_from_file(runnable)
-        runnable_obj.run(environment)
+        runnable_obj = list(load_config_from_file(runnable))[-1]
+        runnable_obj.run(env)
         print(cl.GR("------------------- Done -------------------"))
     except KeyboardInterrupt:
         print(cl.RE("---- Exiting early (Keyboard Interrupt) ----"))

@@ -9,8 +9,6 @@ import io
 
 import ruamel.yaml
 
-from flambe.compile.extensions import is_installed_module
-
 
 TAG_DELIMETER = '.'
 TAG_BEGIN = '!'
@@ -136,6 +134,8 @@ def _pass_kwargs(callable_, kwargs):
 def _pass_arg(callable_, arg):
     if arg is None:
         raise Exception('None for arg for {callable_}; should be null Tagged Scalar')
+
+    processed = saved_arg = arg
     if isinstance(arg, ruamel.yaml.comments.TaggedScalar):
         processed = arg.value if arg.value != '' else None
         saved_arg = ruamel.yaml.comments.CommentedMap()
@@ -149,7 +149,7 @@ def _pass_arg(callable_, arg):
 
 
 def _pass_posargs(callable_, posargs):
-    if arg is None:
+    if posargs is None:
         raise Exception('None for positional args for {callable_}')
     try:
         instance = callable_(*posargs)
@@ -413,6 +413,14 @@ def load_first_config_from_file(file_path: str) -> Any:
     """Load first config after reading it from the file path"""
     with open(file_path) as f:
         return load_first_config(f.read())
+
+
+def num_yaml_files(file_path: str) -> int:
+    """Load first config after reading it from the file path"""
+    with open(file_path) as f:
+        yaml = ruamel.yaml.YAML()
+        results = list(yaml.load_all(f.read()))
+    return len(results)
 
 
 def dump_config(objs: Sequence[Any],

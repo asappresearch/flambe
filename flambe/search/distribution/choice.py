@@ -2,6 +2,7 @@ from typing import List, Any, Optional, Union, Dict
 
 import numpy as np
 
+from flambe.compile.yaml import YAMLLoadType
 from flambe.search.distribution.distribution import Distribution
 
 
@@ -41,9 +42,8 @@ class Choice(Distribution, tag_override="~c"):
             self.probs = np.array(probs)
 
     @classmethod
-    def from_sequence(cls, args) -> 'Choice':
-        """Build the distribution from positonal arguments."""
-        return cls(args)  # type: ignore
+    def yaml_load_type(cls) -> YAMLLoadType:
+        return YAMLLoadType.KWARGS_OR_ARG
 
     def sample(self) -> Any:
         """Sample from the categorical distribution.

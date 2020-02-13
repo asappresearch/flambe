@@ -254,6 +254,28 @@ def install_extensions(extensions: Dict[str, str],
         logger.info(cl.GR(f"Successfully installed {ext}"))
 
 
+def is_package(package_path: str) -> bool:
+    """Whether this is a pip installable package.
+
+    Parameters
+    ----------
+    package_path: str
+        The path to the package
+
+    Returns
+    -------
+    bool
+        True if this is a pip installable package.
+
+    """
+    package_path = os.path.expanduser(package_path)
+    setup_path = os.path.join(package_path, 'setup.py')
+    toml_path = os.path.join(package_path, 'pyproject.toml')
+    if os.path.exists(setup_path) or os.path.exists(toml_path):
+        return True
+    return False
+
+
 def is_installed_module(module_name: str) -> bool:
     """Whether the module is installed.
 
