@@ -1,6 +1,6 @@
 import inspect
 from reprlib import recursive_repr
-from typing import MutableMapping, Any, Callable, Optional, Dict, Sequence
+from typing import MutableMapping, Any, Callable, Optional, Dict, Sequence, Union
 from typing import Tuple, List, Iterable
 
 import copy
@@ -350,9 +350,9 @@ class Schema(MutableMapping[str, Any]):
 
     @staticmethod
     def traverse(obj: Any,
-                 current_path: Optional[List[str]] = None,
+                 current_path: Optional[List[Union[str, int]]] = None,
                  fn: Optional[Callable] = None,
-                 yield_schema: Optional[str] = None) -> Iterable[Tuple[str, Any]]:
+                 yield_schema: Optional[str] = None) -> Iterable[Tuple[Union[str, int], Any]]:
         current_path = current_path if current_path is not None else tuple()
         fn = fn if fn is not None else (lambda x: x)
         if isinstance(obj, Link):
@@ -374,7 +374,7 @@ class Schema(MutableMapping[str, Any]):
                 yield from Schema.traverse(v, next_path, fn, yield_schema)
         elif isinstance(obj, (list, tuple)):
             for i, e in enumerate(obj):
-                next_path = current_path[:] + (str(i),)
+                next_path = current_path[:] + (i,)
                 yield from Schema.traverse(e, next_path, fn, yield_schema)
         elif isinstance(obj, inspect.BoundArguments):
             for k, v, kind in Schema._iter_bound_args(obj):
@@ -415,6 +415,7 @@ class Schema(MutableMapping[str, Any]):
 
         try:
             for item in path[:-1]:
+                print(current_obj, item)
                 last_item = item
                 current_obj = current_obj[item]
             last_item = path[-1]

@@ -46,7 +46,7 @@ class Pipeline(Schema):
         self.checkpoints = checkpoints if checkpoints is not None else dict()
         self.error = False
         self.metric = None
-    
+
     def _update_deps(self, stage_name: str):
         """Compute the set of dependencies for this stage.
 
@@ -241,7 +241,6 @@ class Pipeline(Schema):
         )
         pipeline.metric = self.metric
         pipeline.error = self.error
-
         return pipeline
 
     @classmethod

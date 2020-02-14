@@ -9,7 +9,7 @@ from flambe.search.searcher import GridSearcher, RandomSearcher,\
 from flambe.search.scheduler import Scheduler, BlackBoxScheduler, HyperBandScheduler
 
 
-class Algorithm(Registrable, should_register=False):
+class Algorithm(Registrable):
     """Interface for hyperparameter search algorithms."""
 
     @classmethod

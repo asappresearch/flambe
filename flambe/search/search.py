@@ -1,8 +1,9 @@
-from typing import Optional, Dict, List, Any
+from typing import Optional, Dict, List, Any, Tuple, Union
 import os
 import copy
 import getpass
 import logging
+import json
 
 import ray
 
@@ -14,6 +15,16 @@ from flambe.search.trial import Trial
 from flambe.search.protocol import Searchable
 from flambe.search.checkpoint import Checkpoint
 from flambe.search.algorithm import Algorithm, GridSearch
+
+
+def path_to_string(path: Tuple[Union[str, int]]) -> str:
+    """Get a string representation of the schematic path."""
+    return json.dumps(path)
+
+
+def string_to_path(string: str) -> Tuple[Union[str, int]]:
+    """Get the path from a string representation."""
+    return json.loads(path)
 
 
 @ray.remote
