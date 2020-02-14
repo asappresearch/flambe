@@ -43,7 +43,6 @@ def test_blackbox():
 
     # Third step
     trials = scheduler.release_trials(2, trials)
-    print([t.metrics for t in trials.values()])
     assert len(trials) == 4
     assert len([t for t in trials.values() if t.is_created()]) == 2
     assert len([t for t in trials.values() if t.is_resuming()]) == 0

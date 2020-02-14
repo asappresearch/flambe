@@ -2,6 +2,7 @@ from typing import Optional, Dict
 
 import ray
 
+import flambe as fl
 from flambe.compile import Schema, Registrable, YAMLLoadType
 from flambe.search import Algorithm, Searchable
 from flambe.runner.environment import Environment
@@ -89,18 +90,15 @@ class Experiment(Registrable):
         """
         # Set up envrionment
         env = env if env is not None else Environment()
-        if not ray.is_initialized():
-            if env.remote:
-                ray.init("auto", local_mode=env.debug)
-            else:
-                ray.init(local_mode=env.debug)
+        fl.utils.ray.initialize(env)
 
         stages: Dict[str, int] = {}
         pipeline = Pipeline(self.pipeline)
         # Construct and execute stages as a DAG
         for name, schema in pipeline.arguments.items():
             if isinstance(schema.callable_, type) and not issubclass(schema.callable_, Searchable):
-                # If we know that the schema will produce a non searchable, don't run it
+                # If we know that the schema will
+                # produce a non searchable, don't run it
                 continue
             # Get dependencies
             sub_pipeline = pipeline.sub_pipeline(name)

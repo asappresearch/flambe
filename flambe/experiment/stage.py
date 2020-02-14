@@ -69,7 +69,8 @@ class Stage(object):
         # Get the non-searchable stages in the pipeline
         searchables, non_searchables = [], []
         for name, schema in list(pipeline.schemas.items())[:-1]:
-            if issubclass(schema.callable_, Searchable):  # type: ignore
+            if isinstance(schema.callable_, type) and \
+               issubclass(schema.callable_, Searchable):  # type: ignore
                 searchables.append(name)
             else:
                 non_searchables.append(name)
@@ -168,9 +169,10 @@ class Stage(object):
             pipeline = pipeline if pipeline.is_subpipeline else None
         elif len(pipelines) == 1:
             pipeline = pipelines[list(pipelines.keys())[0]]
-            schemas = dict(**pipeline.schemas, **schemas)
+            schemas.update(pipeline.schemas)
             pipeline = Pipeline(schemas, pipeline.var_ids, pipeline.checkpoints)
         else:
+            # Search over previous variants
             schemas = dict(__dependencies=Choice(pipelines), **schemas)
             pipeline = Pipeline(schemas)
 
@@ -226,6 +228,7 @@ class Stage(object):
         # Each variants object is a dictionary from variant name
         # to a dictionary with schema, params, and checkpoint
         pipelines: Dict[str, Pipeline] = dict()
+        print(result)
         for name, var_dict in result.items():
             # Flatten out the pipeline schema
             variant: Pipeline = var_dict['schema']

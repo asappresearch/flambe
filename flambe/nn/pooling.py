@@ -114,6 +114,47 @@ class AvgPooling(Module):
         return data / value_count
 
 
+class GeneralizedPooling(Module):
+    """Use a self attention layer for pooling."""
+
+    def __init__(self, hidden_size: int):
+        """Initialize the module.
+
+        Parameters
+        ----------
+        hidden_size : int
+            The hidden dimension
+
+        """
+        self.attn = torch.nn.MultiheadAttention(hidden_size, 1)
+        self.hidden_size = hidden_size
+
+    def forward(self,
+                data: torch.Tensor,
+                padding_mask: Optional[torch.Tensor] = None) -> torch.Tensor:
+        """Performs a forward pass.
+
+        Parameters
+        ----------
+        data : torch.Tensor
+            The input data, as a tensor of shape [B x S x H]
+        padding_mask: torch.Tensor
+            The input mask, as a tensor of shape [B X S]
+
+        Returns
+        ----------
+        torch.Tensor
+            The output data, as a tensor of shape [B x H]
+
+        """
+        padding_mask = padding_mask or _default_padding_mask(data)
+
+        score = self.attn(data.transpose(0, 1), key_padding_mask=~padding_mask)
+        output = (score.softmax() * data).sum(dim=1)
+
+        return output
+
+
 def _default_padding_mask(data: torch.Tensor) -> torch.Tensor:
     """
     Builds a 1s padding mask taking into account initial 2 dimensions

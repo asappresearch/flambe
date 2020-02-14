@@ -78,7 +78,6 @@ class TestSchematic:
         a_schema = load_one_config(config)
         assert isinstance(a_schema, Schema)
         assert len(a_schema.arguments) == 2
-        print(a_schema.arguments)
         assert all([x is None for x in a_schema.arguments.values()])
 
     def test_kwargs_load(self):

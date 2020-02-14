@@ -233,6 +233,8 @@ class Schema(MutableMapping[str, Any]):
                  apply_defaults: bool = True,
                  allow_new_args: bool = False):
         self.callable_ = callable_
+        self.factory_name = factory_name
+        self.apply_defaults = apply_defaults
         if factory_name is None:
             self.factory_method = callable_
         else:
@@ -243,7 +245,7 @@ class Schema(MutableMapping[str, Any]):
         kwargs = kwargs if kwargs is not None else {}
         s = inspect.signature(self.factory_method)
         self.bound_arguments = s.bind(*args, **kwargs)
-        if apply_defaults:
+        if self.apply_defaults:
             self.bound_arguments.apply_defaults()
         for k, v in self.bound_arguments.arguments.items():
             if s.parameters[k].kind not in [inspect.Parameter.POSITIONAL_OR_KEYWORD,
@@ -317,6 +319,34 @@ class Schema(MutableMapping[str, Any]):
                  cache: Optional[Dict[str, Any]] = None,
                  root: Optional['Schema'] = None):
         return self.initialize(path, cache, root)
+
+    def __deepcopy__(self, memo=None) -> 'Schema':
+        """Override deepcopy."""
+        args = []
+        for arg in self.bound_arguments.args:
+            if inspect.ismodule(arg) or inspect.ismethod(arg):
+                args.append(arg)
+            else:
+                arg = copy.deepcopy(arg)  # type: ignore
+                args.append(arg)
+
+        kwargs = dict()
+        for name, arg in self.bound_arguments.kwargs.items():
+            if inspect.ismodule(arg) or inspect.ismethod(arg):
+                kwargs[name] = arg
+            else:
+                arg = copy.deepcopy(arg)  # type: ignore
+                kwargs[name] = arg
+
+        return Schema(
+            callable_=copy.copy(self.callable_),
+            args=args,
+            kwargs=kwargs,
+            tag=self.created_with_tag,
+            factory_name=self.factory_name,
+            apply_defaults=self.apply_defaults,
+            allow_new_args=self.allow_new_args
+        )
 
     @staticmethod
     def traverse(obj: Any,

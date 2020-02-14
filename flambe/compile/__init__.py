@@ -5,10 +5,10 @@ from flambe.compile.yaml import load_config, load_config_from_file, dump_config,
     TagError
 from flambe.compile.component import Component, State
 from flambe.compile.extensions import is_package, is_installed_module
+from flambe.compile.serialization import load, save
 
-
-__all__ = ['LinkError', 'MalformedLinkError', 'UnpreparedLinkError', 'TagError'
+__all__ = ['LinkError', 'MalformedLinkError', 'UnpreparedLinkError', 'TagError',
            'create_link_str', 'parse_link_str', 'Link', 'Schema', 'YAMLLoadType',
            'Registrable', 'load_config', 'load_first_config', 'load_first_config_from_file',
            'load_config_from_file', 'dump_config', 'dump_one_config', 'Component',
-           'Options', 'is_installed_module', 'is_package', 'State']
+           'Options', 'is_installed_module', 'is_package', 'State', 'load', 'save']

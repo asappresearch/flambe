@@ -26,18 +26,18 @@ except Exception:
 
 main_logging.disable(main_logging.WARNING)
 
-from flambe.compile import Component, Schema
+from flambe.compile import Component, Schema, load, save
 from flambe.logging import log
 from flambe import compile, dataset, experiment, field, learn, nlp, vision, export, model
-from flambe import cluster, metric, nn, runner, sampler, tokenizer, optim, search
+from flambe import cluster, metric, nn, runner, sampler, tokenizer, optim, search, utils
 from flambe.version import VERSION as __version__
 from flambe.logo import ASCII_LOGO
 
 
-__all__ = ['Component', 'Schema', 'log', 'tokenizer', 'search',
+__all__ = ['Component', 'Schema', 'log', 'tokenizer', 'search', 'utils',
            'compile', 'dataset', 'experiment', 'field', 'learn', 'export',
            'cluster', 'metric', 'nn', 'model', 'optim', 'runner', 'sampler',
-            'nlp', 'vision', '__version__', 'ASCII_LOGO']
+            'nlp', 'vision', '__version__', 'ASCII_LOGO', 'load', 'save']
 
 
 main_logging.disable(main_logging.NOTSET)

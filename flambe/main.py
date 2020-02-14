@@ -1,6 +1,7 @@
 import logging
 import click
 import os
+import sys
 import shutil
 import traceback
 
@@ -236,14 +237,19 @@ def run(runnable, output, force, debug, env):
         print(cl.YE(f"Debug mode activated\n"))
 
     # Check that all extensions are importable
+    message = "Module ({}) from package ({}) is not installed."
     for module, package in env.extensions.items():
         package = os.path.expanduser(package)
-        if os.path.exists(package) and not is_package(package):
-            # Try to add to the python path
-            sys.path.append(package)
         if not is_installed_module(module):
-            raise ValueError("Module ({module}) from package ({package}) is not installed.")
-
+            # Check if the package exsists locally
+            if os.path.exists(package):
+                if is_package(package):
+                    # Package exsists locally but is not installed
+                    print(message.format(module, package) + " Attempting to add to path.")
+                # Try to add to the python path
+                sys.path.append(package)
+            else:
+                raise ValueError(message.format(module, package))
     try:
         # Download resources
         resources_dir = os.path.join(FLAMBE_GLOBAL_FOLDER, 'resources')

@@ -6,6 +6,7 @@ import logging
 
 import ray
 
+import flambe as fl
 from flambe.runner import Environment
 from flambe.logging import TrialLogging
 from flambe.compile import Registrable, YAMLLoadType, Schema
@@ -36,7 +37,7 @@ class RayAdapter:
         if self.searchable is None:
             self.searchable = self.schema()
             if not isinstance(self.searchable, Searchable):
-                return False, None
+                return -1  # Not searchable
         continue_ = self.searchable.step(self.environment)
         metric = self.searchable.metric(self.environment)
         self.checkpoint.set(self.searchable)
@@ -114,10 +115,9 @@ class Search(Registrable):
             a Trial and a Checkpoint object respecitvely.
 
         """
+        # Set up envrionment
         env = env if env is not None else Environment()
-
-        if not ray.is_initialized():
-            ray.init(address="auto", local_mode=env.debug)
+        fl.utils.ray.initialize(env)
 
         if not env.debug:
             total_resources = ray.cluster_resources()
@@ -136,13 +136,12 @@ class Search(Registrable):
         object_id_to_trial_id: Dict[str, str] = dict()
         trial_id_to_object_id: Dict[str, str] = dict()
 
-        while not self.algorithm.is_done():
+        while running or not self.algorithm.is_done():
 
             # Get all the current object ids running
             finished = []
             if running:
-                # TODO change if needed for failures to come up properly
-                # finished, running = ray.get(running, timeout=self.refresh_waitime)
+                # TODO change to get if needed for failures to show up
                 finished, running = ray.wait(running, timeout=self.refresh_waitime)
 
             # Process finished trials
@@ -150,7 +149,12 @@ class Search(Registrable):
                 trial_id = object_id_to_trial_id[str(object_id)]
                 trial = trials[trial_id]
                 try:
-                    _continue, metric = ray.get(object_id)
+                    # Handle non searchables
+                    returned = ray.get(object_id)
+                    if returned == -1:
+                        return dict()
+                    # Check searchable output
+                    _continue, metric = returned
                     if _continue:
                         trial.set_metric(metric)
                         trial.set_has_result()

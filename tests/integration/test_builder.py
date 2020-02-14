@@ -1,9 +1,10 @@
-import torch
-from flambe.compile import extensions
-from tempfile import TemporaryDirectory as tmpdir
-from tempfile import NamedTemporaryFile as tmpfile
-import subprocess
 import os
+import subprocess
+import sys
+from tempfile import NamedTemporaryFile as tmpfile
+from tempfile import TemporaryDirectory as tmpdir
+
+import flambe as fl
 
 
 def module_equals(model1, model2):
@@ -69,7 +70,7 @@ component: !flambe_inference.DummyInferenceEngine
   model: !torch.load
     f: {path}
 """
-        model_path = os.path.join(d, "flambe_output", "exporter", 'checkpoint.pt')
+        model_path = os.path.join(d, "flambe_output", "exporter", '0', 'checkpoint.pt')
 
         builder = builder.format(path=model_path, top_level=top_level)
         f2.write(builder)
@@ -78,19 +79,17 @@ component: !flambe_inference.DummyInferenceEngine
         ret = subprocess.run(['flambe', 'run', f2.name, '-o', d2])
         assert ret.returncode == 0
 
-        # The extensions needs to be imported using extensions.py module
-        extensions.import_modules(["flambe_inference"])
-
         # Import the module after import_modules (which registered tags already)
+        sys.path.append(f'{top_level}/tests/data/dummy_extensions/inference/')
         from flambe_inference import DummyInferenceEngine
 
-        eng1 = torch.load(os.path.join(d2, 'flambe_output', 'checkpoint.pt'))
+        eng1 = fl.load(os.path.join(d2, 'flambe_output', 'checkpoint.pt'))
 
         assert type(eng1) is DummyInferenceEngine
-        assert type(eng1.model) is TextClassifier
+        assert type(eng1.model.model) is fl.nlp.classification.TextClassifier
 
-        extension_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "tests/data/dummy_extensions/inference")
-        assert eng1._extensions == {"flambe_inference": extension_path}
+        # extension_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "tests/data/dummy_extensions/inference")
+        # assert eng1._extensions == {"flambe_inference": extension_path}
 
         # Revisit this after changes to serializations
         # eng2 = DummyInferenceEngine.load_from_path(d2)

@@ -5,8 +5,8 @@ from typing import Optional
 
 import subprocess
 from urllib.parse import urlparse
-import torch
 
+import flambe as fl
 from flambe.runner.environment import Environment
 from flambe.compile import Component, Schema, Registrable, YAMLLoadType
 from flambe.compile.const import DEFAULT_PROTOCOL
@@ -119,7 +119,7 @@ class Builder(Registrable):
 
         # TODO: switch flambe.save
         out_path = os.path.join(path, 'checkpoint.pt')
-        torch.save(self.compiled_component, out_path)
+        fl.save(self.compiled_component, out_path)
 
     def get_boto_session(self):
         """Get a boto Session
@@ -160,7 +160,7 @@ class Builder(Registrable):
                 )
 
         with tempfile.TemporaryDirectory() as tmpdirname:
-            torch.save(self.compiled_component, tmpdirname)
+            fl.save(self.compiled_component, tmpdirname)
             # TODO fix don't use flambe save; also probably have one helper for the save operation
             # so that local and remote do the exact same thing
             # flambe.save(self.compiled_component, tmpdirname, **self.serialization_args)

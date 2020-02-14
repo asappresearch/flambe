@@ -51,7 +51,7 @@ pipeline:
             # - !@ b2[model][embedder][embedding].embedding_dim
             # - !@ b1.model.embedder.embedding.embedding_dim
           rnn_type: lstm
-          n_layers: !g [2, 3]
+          n_layers: !~c [2, 3]
           hidden_size: !@ b2[model][embedder][encoder][input_size]
       output_layer: !SoftmaxLayer
         input_size: !@ b2[model][embedder][encoder].rnn.hidden_size

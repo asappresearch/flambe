@@ -237,6 +237,7 @@ class Searcher(ABC):
             # Fetch names from the distributions
             var_names = {k: self.space.dists[k].name(v) for k, v in params.items()}
             name = generate_name(var_names)
+            name = name if name else '0'
             self.params[name] = params
             params = self._apply_transform(params)
             return name, params

@@ -20,11 +20,10 @@ def _reduce_iterations(d):
             _reduce_iterations(v)
 
 
-def _preprocess_experiment(fname, save_path):
-    content = list(yaml.load_all(open(fname)))
+def _preprocess_experiment(fname):
+    content = list(yaml.load_config_from_file(fname))
     experiment = content[-1]
     if isinstance(experiment, Experiment):
-        experiment.set_serializable_attr("save_path", save_path)
         _reduce_iterations(experiment.pipeline)
         return content
 
@@ -47,10 +46,10 @@ def run_experiments(base, **kwargs):
                 content = open(full_f).read().format(**kwargs)
                 t.write(content)
                 t.flush()
-                new_exp = _preprocess_experiment(t.name, d)
+                new_exp = _preprocess_experiment(t.name)
                 if new_exp:
-                    yaml.dump_all(new_exp, f)
-                    ret = subprocess.run(['flambe', f.name, '-i'])
+                    yaml.dump_config(new_exp, f)
+                    ret = subprocess.run(['flambe', 'run', f.name, '-o', d])
                     assert ret.returncode == 0
 
 

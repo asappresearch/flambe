@@ -46,7 +46,7 @@ class Pipeline(Schema):
         self.checkpoints = checkpoints if checkpoints is not None else dict()
         self.error = False
         self.metric = None
-
+    
     def _update_deps(self, stage_name: str):
         """Compute the set of dependencies for this stage.
 
@@ -231,6 +231,18 @@ class Pipeline(Schema):
             Pipeline.__init__(self, value.schemas, value.var_ids, value.checkpoints)
         else:
             super().set_param(path, value)  # type: ignore
+
+    def __deepcopy__(self, memo=None) -> 'Pipeline':
+        """Override deepcopy."""
+        pipeline = Pipeline(
+            schemas=copy.deepcopy(self.schemas),
+            variant_ids=copy.deepcopy(self.var_ids),
+            checkpoints=copy.deepcopy(self.checkpoints)
+        )
+        pipeline.metric = self.metric
+        pipeline.error = self.error
+
+        return pipeline
 
     @classmethod
     def from_yaml(cls, raw_obj: Any, callable_override: Optional[Callable] = None) -> Any:
