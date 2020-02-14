@@ -415,7 +415,6 @@ class Schema(MutableMapping[str, Any]):
 
         try:
             for item in path[:-1]:
-                print(current_obj, item)
                 last_item = item
                 current_obj = current_obj[item]
             last_item = path[-1]

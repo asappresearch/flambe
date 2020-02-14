@@ -24,7 +24,7 @@ def path_to_string(path: Tuple[Union[str, int]]) -> str:
 
 def string_to_path(string: str) -> Tuple[Union[str, int]]:
     """Get the path from a string representation."""
-    return json.loads(path)
+    return tuple(json.loads(string))  # type: ignore
 
 
 @ray.remote
@@ -137,8 +137,8 @@ class Search(Registrable):
             elif self.n_gpus > 0 and self.n_gpus > total_resources['GPU']:
                 raise ValueError("# of CPUs required per trial is larger than the total available.")
 
-        search_space = self.schema.extract_search_space().items()
-        self.algorithm.initialize(dict((".".join(k), v) for k, v in search_space))  # type: ignore
+        _space = self.schema.extract_search_space().items()
+        self.algorithm.initialize(dict((path_to_string(k), v) for k, v in _space))  # type: ignore
         running: List[int] = []
         finished: List[int] = []
 
