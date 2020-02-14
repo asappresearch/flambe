@@ -1,14 +1,12 @@
 import tempfile
 import os
 import boto3
-import dill
 from typing import Optional
 
 import subprocess
 from urllib.parse import urlparse
 import torch
 
-import flambe
 from flambe.runner.environment import Environment
 from flambe.compile import Component, Schema, Registrable, YAMLLoadType
 from flambe.compile.const import DEFAULT_PROTOCOL
@@ -28,12 +26,6 @@ class Builder(Registrable):
 
     Currently supports local, and S3 locations.
 
-    Attributes
-    ----------
-    config: configparser.ConfigParser
-        The secrets that the user provides. For example,
-        'config["AWS"]["ACCESS_KEY"]'
-
     """
     def __init__(self,
                  component: Schema,
@@ -41,7 +33,6 @@ class Builder(Registrable):
                  storage: str = 'local',
                  compress: bool = False,
                  pickle_only: bool = False,
-                 pickle_module=dill,
                  pickle_protocol=DEFAULT_PROTOCOL) -> None:
         """Initialize the Builder.
 
@@ -78,12 +69,12 @@ class Builder(Registrable):
         self.compiled_component: Component
 
         self.storage = storage
-        self.serialization_args = {
-            'compress': compress,
-            'pickle_only': pickle_only,
-            'pickle_module': pickle_module,
-            'pickle_protocol': pickle_protocol
-        }
+        # self.serialization_args = {
+        #     'compress': compress,
+        #     'pickle_only': pickle_only,
+        #     'pickle_module': pickle_module,
+        #     'pickle_protocol': pickle_protocol
+        # }
 
     @classmethod
     def yaml_load_type(cls) -> YAMLLoadType:
@@ -126,6 +117,7 @@ class Builder(Registrable):
                 "pick another destination."
             )
 
+        # TODO: switch flambe.save
         out_path = os.path.join(path, 'checkpoint.pt')
         torch.save(self.compiled_component, out_path)
 
@@ -168,7 +160,7 @@ class Builder(Registrable):
                 )
 
         with tempfile.TemporaryDirectory() as tmpdirname:
-            flambe.save(self.compiled_component, tmpdirname, **self.serialization_args)
+            torch.save(self.compiled_component, tmpdirname)  # **self.serialization_args)
             try:
                 subprocess.check_output(
                     f"aws s3 cp --recursive {tmpdirname} {path}".split(),

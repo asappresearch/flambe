@@ -30,7 +30,7 @@ class Script(Component):
 
     def __init__(self,
                  script: str,
-                 args: List[Any],
+                 posargs: List[Any],
                  kwargs: Optional[Dict[str, Any]] = None,
                  pass_env: bool = True,
                  max_steps: Optional[int] = None,
@@ -48,7 +48,7 @@ class Script(Component):
 
         """
         self.script = script
-        self.args = args
+        self.args = posargs
         if kwargs is None:
             self.kwargs: Dict[str, Any] = {}
         else:
