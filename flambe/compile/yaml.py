@@ -279,9 +279,12 @@ def fetch_callable(path: Sequence[str], begin: Optional[Any] = None):
     if begin is None:
         mod = importlib.import_module(path[0])
         begin = mod
+        remaining_path = path[1:]
+    else:
+        remaining_path = path
     obj = begin
     container = None
-    for a in path[1:]:
+    for a in remaining_path:
         container = obj
         obj = getattr(obj, a)
     if obj is None:

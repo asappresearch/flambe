@@ -160,7 +160,10 @@ class Builder(Registrable):
                 )
 
         with tempfile.TemporaryDirectory() as tmpdirname:
-            torch.save(self.compiled_component, tmpdirname)  # **self.serialization_args)
+            torch.save(self.compiled_component, tmpdirname)
+            # TODO fix don't use flambe save; also probably have one helper for the save operation
+            # so that local and remote do the exact same thing
+            # flambe.save(self.compiled_component, tmpdirname, **self.serialization_args)
             try:
                 subprocess.check_output(
                     f"aws s3 cp --recursive {tmpdirname} {path}".split(),

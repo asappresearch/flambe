@@ -78,7 +78,7 @@ class Script(Component):
 
         """
         env = env if env is not None else Environment()
-
+        # TODO fix = don't use YAML directly
         yaml = YAML()
         with tempfile.NamedTemporaryFile() as fp:
             yaml.dump(env, fp)

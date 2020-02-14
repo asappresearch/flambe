@@ -32,7 +32,7 @@ pipeline:
       label: !LabelField
   model: !TextClassifier
     embedder: !Embedder
-      embedding: !torch.Embedding
+      embedding: !torch.nn.Embedding
         num_embeddings: !@ dataset.text.vocab_size
         embedding_dim: 30
       encoder: !PooledRNNEncoder

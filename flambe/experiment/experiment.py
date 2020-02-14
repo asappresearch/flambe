@@ -97,10 +97,10 @@ class Experiment(Registrable):
 
         stages: Dict[str, int] = {}
         pipeline = Pipeline(self.pipeline)
-
         # Construct and execute stages as a DAG
         for name, schema in pipeline.arguments.items():
-            if not issubclass(schema.callable_, Searchable):
+            if isinstance(schema.callable_, type) and not issubclass(schema.callable_, Searchable):
+                # If we know that the schema will produce a non searchable, don't run it
                 continue
             # Get dependencies
             sub_pipeline = pipeline.sub_pipeline(name)
