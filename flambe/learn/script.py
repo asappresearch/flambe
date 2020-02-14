@@ -1,13 +1,12 @@
 from typing import Any, Dict, Optional, List, Callable
 import sys
-import runpy
 import tempfile
 from copy import deepcopy
-from ruamel.yaml import YAML
 
 from flambe.logging import TrialLogging
 from flambe.compile import Component
 from flambe.runner import Environment
+from flambe.compile import dump_one_config
 
 
 class Script(Component):
@@ -30,8 +29,8 @@ class Script(Component):
 
     def __init__(self,
                  script: str,
-                 posargs: List[Any],
-                 kwargs: Optional[Dict[str, Any]] = None,
+                 pos_args: List[Any],
+                 keyword_args: Optional[Dict[str, Any]] = None,
                  pass_env: bool = True,
                  max_steps: Optional[int] = None,
                  metric_fn: Optional[Callable[[str], float]] = None) -> None:
@@ -40,7 +39,7 @@ class Script(Component):
         Parameters
         ----------
         path: str
-            The script module
+            The path to the script
         args: List[Any]
             Argument List
         kwargs: Optional[Dict[str, Any]]
@@ -48,11 +47,11 @@ class Script(Component):
 
         """
         self.script = script
-        self.args = posargs
-        if kwargs is None:
+        self.args = pos_args
+        if keyword_args is None:
             self.kwargs: Dict[str, Any] = {}
         else:
-            self.kwargs = kwargs
+            self.kwargs = keyword_args
 
         self.pass_env = pass_env
         self.max_steps = max_steps
@@ -78,10 +77,10 @@ class Script(Component):
 
         """
         env = env if env is not None else Environment()
-        # TODO fix = don't use YAML directly
-        yaml = YAML()
+
         with tempfile.NamedTemporaryFile() as fp:
-            yaml.dump(env, fp)
+            dump_one_config(env, fp)
+
             # Add extra parameters
             if self.pass_env:
                 kwargs = dict(self.kwargs)
@@ -94,7 +93,7 @@ class Script(Component):
             # Execute the script
             sys_save = deepcopy(sys.argv)
             sys.argv = [''] + parser_args_flat  # add dummy sys[0]
-            runpy.run_module(self.script, run_name='__main__', alter_sys=True)
+            exec(open(self.script, 'r').read())
             sys.argv = sys_save
 
         self._step += 1

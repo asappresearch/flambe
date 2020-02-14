@@ -1,3 +1,4 @@
+import copy
 from typing import Any, Optional, Dict, List
 
 from flambe.compile import Registrable, YAMLLoadType
@@ -57,6 +58,19 @@ class Environment(Registrable):
         self.debug = debug
         self.extra = extra
 
+        # TODO: remove this hack
+        self._saved_arguments = {
+            'output_path': self.output_path,
+            'extensions': self.extensions,
+            'local_resources': self.local_resources,
+            'remote_resources': self.remote_resources,
+            'head_node_ip': self.head_node_ip,
+            'worker_node_ips': self.worker_node_ips,
+            'remote': self.remote,
+            'debug': self.debug,
+            'extra': self.extra,
+        }
+
     def clone(self, **kwargs) -> 'Environment':
         """Clone the envrionment, updated with the provided arguments.
 
@@ -71,17 +85,7 @@ class Environment(Registrable):
             The new updated envrionement object.
 
         """
-        arguments = {
-            'output_path': self.output_path,
-            'extensions': self.extensions,
-            'local_resources': self.local_resources,
-            'remote_resources': self.remote_resources,
-            'head_node_ip': self.head_node_ip,
-            'worker_node_ips': self.worker_node_ips,
-            'remote': self.remote,
-            'debug': self.debug,
-            'extra': self.extra,
-        }
+        arguments = copy.deepcopy(self._saved_arguments)
         arguments.update(kwargs)
         return Environment(**arguments)  # type: ignore
 
