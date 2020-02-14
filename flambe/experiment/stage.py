@@ -228,7 +228,6 @@ class Stage(object):
         # Each variants object is a dictionary from variant name
         # to a dictionary with schema, params, and checkpoint
         pipelines: Dict[str, Pipeline] = dict()
-        print(result)
         for name, var_dict in result.items():
             # Flatten out the pipeline schema
             variant: Pipeline = var_dict['schema']

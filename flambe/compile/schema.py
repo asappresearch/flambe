@@ -376,7 +376,7 @@ class Schema(MutableMapping[str, Any]):
                 yield from Schema.traverse(v, next_path, yield_schema)
         elif isinstance(obj, (list, tuple)):
             for i, e in enumerate(obj):
-                next_path = current_path[:] + (str(i),)
+                next_path = current_path[:] + (i,)
                 yield from Schema.traverse(e, next_path, yield_schema)
         elif isinstance(obj, inspect.BoundArguments):
             for k, v, kind in Schema._iter_bound_args(obj):

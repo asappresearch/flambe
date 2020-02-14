@@ -3,8 +3,7 @@ import os
 import subprocess
 import socket
 
-import torch
-
+import flambe
 from flambe.search.protocol import Searchable
 
 
@@ -44,14 +43,14 @@ class Checkpoint(object):
 
         """
         if os.path.exists(self.checkpoint_path):
-            searchable = torch.load(self.checkpoint_path)
+            searchable = flambe.load(self.checkpoint_path)
         else:
             if not os.path.exists(self.path):
                 os.makedirs(self.path)
             if self.remote:
                 subprocess.run(f'rsync -az -e "ssh -i $HOME/ray_bootstrap_key.pem" \
                     {self.remote} {self.checkpoint_path}')
-                searchable = torch.load(self.checkpoint_path)
+                searchable = flambe.load(self.checkpoint_path)
             else:
                 raise ValueError(f"Checkpoint {self.checkpoint_path} couldn't be found.")
         return searchable
@@ -67,7 +66,7 @@ class Checkpoint(object):
         """
         if not os.path.exists(self.path):
             os.makedirs(self.path)
-        torch.save(searchable, self.checkpoint_path)
+        flambe.save(searchable, self.checkpoint_path)
         if self.remote:
             current_ip = socket.gethostbyname(socket.gethostname())
             if str(current_ip) != self.host:
