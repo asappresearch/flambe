@@ -77,8 +77,8 @@ class Registrable:
     are eventually used by the load_config function as a top level
     lookup table
     """
-    tag_to_class = {}
-    class_to_tag = {}
+    tag_to_class: Dict[str, Type] = {}
+    class_to_tag: Dict[Type, str] = {}
 
     def __init_subclass__(cls: Type['Registrable'],
                           tag_override: Optional[str] = None,
@@ -162,7 +162,9 @@ def _pass_posargs(callable_: Callable, posargs: List[Any]) -> Any:
     return instance
 
 
-def schematic_from_yaml(cls: Type, raw_obj: Any, callable_override: Optional[Callable] = None) -> 'Schema':
+def schematic_from_yaml(cls: Type, raw_obj: Any, callable_override: Optional[Callable] = None) -> Any:
+    if callable_override is None:
+        raise Exception('No callable found for schema')
     from flambe.compile.schema import Schema
     tag = raw_obj.tag.value
     if isinstance(raw_obj, dict):
@@ -176,7 +178,7 @@ def schematic_from_yaml(cls: Type, raw_obj: Any, callable_override: Optional[Cal
     return Schema(callable_override, tag=tag)
 
 
-def schematic_to_yaml(cls: Type, schema: 'Schema') -> Any:
+def to_yaml(cls: Type, instance: Any) -> Any:
     kwargs = schema.arguments
     y = ruamel.yaml.comments.CommentedMap(kwargs)
     y.yaml_set_tag(schema.created_with_tag)

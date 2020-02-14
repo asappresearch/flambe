@@ -1,7 +1,8 @@
+from __future__ import annotations
 import inspect
 from reprlib import recursive_repr
 from typing import MutableMapping, Any, Callable, Optional, Dict, Sequence
-from typing import Tuple, List, Iterable
+from typing import Tuple, List, Union, Iterator
 
 import copy
 import functools
@@ -15,6 +16,9 @@ from flambe.compile.yaml import Registrable, YAMLLoadType
 
 YAML_TYPES = (CommentedMap, CommentedOrderedMap, CommentedSet, CommentedKeySeq, CommentedSeq,
               TaggedScalar, CommentedKeyMap)
+
+KeyType = Union[str, int]
+PathType = Tuple[KeyType, ...]
 
 
 class LinkError(Exception):
@@ -181,14 +185,14 @@ class Link(Registrable, tag_override="@"):
                  attr_path: Optional[Sequence[str]] = None) -> None:
         if link_str is not None:
             if schematic_path is not None or attr_path is not None:
-                raise ValueError()
+                raise ValueError('If link string is given, no other arguments should be')
             schematic_path, attr_path = parse_link_str(link_str)
         if schematic_path is None:
-            raise ValueError()
+            raise ValueError('If link string is not given, schematic path is required')
         self.schematic_path = tuple(schematic_path)
-        self.attr_path = tuple(attr_path)
+        self.attr_path = tuple(attr_path) if attr_path is not None else None
 
-    def resolve(self, cache: Dict[str, Any]) -> Any:
+    def resolve(self, cache: Dict[PathType, Any]) -> Any:
         try:
             obj = cache[self.schematic_path]
         except KeyError:
@@ -208,7 +212,7 @@ class Link(Registrable, tag_override="@"):
     def yaml_load_type(cls) -> YAMLLoadType:
         return YAMLLoadType.KWARGS_OR_ARG
 
-    def __call__(self, cache: Dict[str, Any]) -> Any:
+    def __call__(self, cache: Dict[PathType, Any]) -> Any:
         return self.resolve(cache)
 
     def __repr__(self) -> str:
@@ -217,7 +221,7 @@ class Link(Registrable, tag_override="@"):
 
 class CopyLink(Link, tag_override='#'):
 
-    def resolve(self, cache: Dict[str, Any]) -> Any:
+    def resolve(self, cache: Dict[PathType, Any]) -> Any:
         obj = super().resolve(cache)
         return copy.deepcopy(obj)
 
@@ -308,19 +312,19 @@ class Schema(MutableMapping[str, Any]):
         else:
             raise KeyError(f'{key} not found in schema {self}')
 
-    def __iter__(self) -> Iterable[str]:
+    def __iter__(self) -> Iterator[str]:
         yield from self.arguments
 
     def __len__(self) -> int:
         return len(self.arguments)
 
     def __call__(self,
-                 path: Optional[List[str]] = None,
-                 cache: Optional[Dict[str, Any]] = None,
-                 root: Optional['Schema'] = None):
+                 path: Optional[PathType] = None,
+                 cache: Optional[Dict[PathType, Any]] = None,
+                 root: Optional[Schema] = None):
         return self.initialize(path, cache, root)
 
-    def __deepcopy__(self, memo=None) -> 'Schema':
+    def __deepcopy__(self, memo=None) -> Schema:
         """Override deepcopy."""
         args = []
         for arg in self.bound_arguments.args:
@@ -350,44 +354,42 @@ class Schema(MutableMapping[str, Any]):
 
     @staticmethod
     def traverse(obj: Any,
-                 current_path: Optional[List[str]] = None,
-                 fn: Optional[Callable] = None,
-                 yield_schema: Optional[str] = None) -> Iterable[Tuple[str, Any]]:
+                 current_path: Optional[PathType] = None,
+                 yield_schema: Optional[str] = None) -> Iterator[Tuple[PathType, Any]]:
         current_path = current_path if current_path is not None else tuple()
-        fn = fn if fn is not None else (lambda x: x)
         if isinstance(obj, Link):
             yield (current_path, obj)
         elif isinstance(obj, Schema):
             if yield_schema is None or yield_schema == 'before':
-                yield (current_path, fn(obj))
-                yield from Schema.traverse(obj.bound_arguments, current_path, fn, yield_schema)
+                yield (current_path, obj)
+                yield from Schema.traverse(obj.bound_arguments, current_path, yield_schema)
             elif yield_schema == 'only':
-                yield (current_path, fn(obj))
+                yield (current_path, obj)
             elif yield_schema == 'after':
-                yield from Schema.traverse(obj.bound_arguments, current_path, fn, yield_schema)
-                yield (current_path, fn(obj))
+                yield from Schema.traverse(obj.bound_arguments, current_path, yield_schema)
+                yield (current_path, obj)
             elif yield_schema == 'never':
-                yield from Schema.traverse(obj.bound_arguments, current_path, fn, yield_schema)
+                yield from Schema.traverse(obj.bound_arguments, current_path, yield_schema)
         elif isinstance(obj, dict):
             for k, v in obj.items():
                 next_path = current_path + (k,)
-                yield from Schema.traverse(v, next_path, fn, yield_schema)
+                yield from Schema.traverse(v, next_path, yield_schema)
         elif isinstance(obj, (list, tuple)):
             for i, e in enumerate(obj):
                 next_path = current_path[:] + (str(i),)
-                yield from Schema.traverse(e, next_path, fn, yield_schema)
+                yield from Schema.traverse(e, next_path, yield_schema)
         elif isinstance(obj, inspect.BoundArguments):
             for k, v, kind in Schema._iter_bound_args(obj):
                 if kind in [inspect.Parameter.POSITIONAL_OR_KEYWORD,
                             inspect.Parameter.KEYWORD_ONLY, inspect.Parameter.VAR_KEYWORD]:
                     next_path = current_path + (k,)
-                    yield from Schema.traverse(v, next_path, fn, yield_schema)
+                    yield from Schema.traverse(v, next_path, yield_schema)
                 else:
                     raise Exception(f'Invalid state for Schema. Invalid argument types at {obj}')
         else:
             yield (current_path, obj)
 
-    def set_param(self, path: Optional[Tuple[str]], value: Any):
+    def set_param(self, path: PathType, value: Any):
         """Set path in schema to value
 
         Convenience method for setting a value deep in a schema. For
@@ -398,7 +400,7 @@ class Schema(MutableMapping[str, Any]):
 
         Parameters
         ----------
-        path : Optional[Tuple[str]]
+        path : Optional[Tuple[Union[str, int], ...]]
             Description of parameter `path`.
         value : Any
             Description of parameter `value`.
@@ -412,34 +414,49 @@ class Schema(MutableMapping[str, Any]):
         """
         current_obj = self
         last_item = None
-
+        # ignore type because it's hard to specify that sometimes you
+        # can have an int in the path but only if that position is not
+        # a schema and actually a list
         try:
             for item in path[:-1]:
                 last_item = item
+                if isinstance(item, int) and isinstance(current_obj, Schema):
+                    raise ValueError()
                 current_obj = current_obj[item]
             last_item = path[-1]
             if last_item not in current_obj:
                 raise KeyError()
+            if isinstance(last_item, int) and isinstance(current_obj, Schema):
+                raise ValueError()
             current_obj[last_item] = value
         except KeyError:
             raise KeyError(f'{self} has no path {path}. Failed at {last_item}')
 
-    def get_param(self, path: Optional[Tuple[str]]) -> None:
+    def get_param(self, path: PathType) -> None:
         current_obj = self
         last_item = None
+        # ignore type because it's hard to specify that sometimes you
+        # can have an int in the path but only if that position is not
+        # a schema and actually a list
         try:
             for item in path[:-1]:
                 last_item = item
+                if isinstance(item, int) and isinstance(current_obj, Schema):
+                    raise ValueError(f"Path element {item} is an int, but current object is a "
+                                     "schema and cannot be indexed via integer")
                 current_obj = current_obj[item]
             last_item = path[-1]
+            if isinstance(last_item, int) and isinstance(current_obj, Schema):
+                raise ValueError(f"Path element {item} is an int, but current object is a "
+                                 "schema and cannot be indexed via integer")
             return current_obj[last_item]
         except KeyError:
             raise KeyError(f'{self} has no path {path}. Failed at {last_item}')
 
     def initialize(self,
-                   path: Optional[Tuple[str]] = None,
-                   cache: Optional[Dict[str, Any]] = None,
-                   root: Optional['Schema'] = None) -> Any:
+                   path: Optional[PathType] = None,
+                   cache: Optional[Dict[PathType, Any]] = None,
+                   root: Optional[Schema] = None) -> Any:
         # Set defaults for values that will be used in recursion
         cache = cache if cache is not None else {}
         path = path if path is not None else tuple()
@@ -477,7 +494,7 @@ class Schema(MutableMapping[str, Any]):
             raise te
         return cache[path]
 
-    def extract_search_space(self) -> Dict[Tuple[str, ...], Options]:
+    def extract_search_space(self) -> Dict[PathType, Options]:
         search_space = {}
 
         for path, item in Schema.traverse(self, yield_schema='never'):
@@ -497,7 +514,7 @@ class Schema(MutableMapping[str, Any]):
 
         return links
 
-    def set_from_search_space(self, search_space: Dict[Tuple[str, ...], Any]) -> 'Schema':
+    def set_from_search_space(self, search_space: Dict[PathType, Any]):
         for path, value in search_space.items():
             self.set_param(path, value)
 
@@ -511,12 +528,3 @@ class Schema(MutableMapping[str, Any]):
                                     callable_=self.callable_,
                                     factory_method=self.factory_method,
                                     args=args)
-
-
-def add_callable_from_yaml(from_yaml_fn: Callable, callable_: Callable) -> Callable:
-    """Add callable to call on from_yaml"""
-    @functools.wraps(from_yaml_fn)
-    def wrapped(constructor: Any, node: Any, factory_name: str, tag: str) -> Any:
-        obj = from_yaml_fn(constructor, node, factory_name, tag, callable_)
-        return obj
-    return wrapped
