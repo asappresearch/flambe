@@ -33,8 +33,44 @@ class UnpreparedLinkError(LinkError):
     pass
 
 
+class NonexistentResourceError(LinkError):
+    pass
+
+
 class Options(Registrable):
     pass
+
+
+def _convert_ints(schematic_path: List[str]) -> List[KeyType]:
+    for i, e in enumerate(schematic_path):
+        stay_quote = False
+        if e.startswith("'") and e.endswith("'") and len(e) > 2:
+            e = e[1:-1]
+            stay_quote = True
+        try:
+            integer = int(e)
+            if stay_quote:
+                # save as string, but leave the quotes stripped
+                schematic_path[i] = str(integer)
+            else:
+                # save as integer
+                schematic_path[i] = integer
+        except ValueError:
+            pass
+    return schematic_path
+
+
+def _represent_ints(schematic_path: Sequence[KeyType]) -> List[str]:
+    for i, e in enumerate(schematic_path):
+        if isinstance(e, int):
+            schematic_path[i] = str(e)
+        else:
+            try:
+                int(e)
+                schematic_path[i] = "'" + e + "'"
+            except ValueError:
+                pass
+    return schematic_path
 
 
 def create_link_str(schematic_path: Sequence[str],
@@ -73,6 +109,7 @@ def create_link_str(schematic_path: Sequence[str],
     """
     if len(schematic_path) == 0:
         raise MalformedLinkError("Can't create link without schematic path")
+    schematic_path = _represent_ints(schematic_path)
     root, schematic_path = schematic_path[0], schematic_path[1:]
     schematic_str = ''
     attr_str = ''
@@ -118,7 +155,7 @@ def parse_link_str(link_str: str) -> Tuple[Sequence[str], Sequence[str]]:
     should illustrate how to use the function/class.
 
     >>> parse_link_str('obj[key1][key2].attr1.attr2')
-    (['obj', 'key1', 'key2'], ['attr1', 'attr2'])
+    (('obj', 'key1', 'key2'), ('attr1', 'attr2'))
 
     """
     schematic_path: List[str] = []
@@ -174,7 +211,8 @@ def parse_link_str(link_str: str) -> Tuple[Sequence[str], Sequence[str]]:
             # Error case: trailing dot
             raise MalformedLinkError(f"Trailing dot in {link_str}")
     attr_path = attr_path[1:]
-    return schematic_path, attr_path
+    schematic_path = _convert_ints(schematic_path)
+    return tuple(schematic_path), tuple(attr_path)
 
 
 class Link(Registrable, tag_override="@"):
@@ -217,6 +255,19 @@ class Link(Registrable, tag_override="@"):
 
     def __repr__(self) -> str:
         return f'link({create_link_str(self.schematic_path, self.attr_path)})'
+
+
+class Resource(Registrable, tag_override="resource"):
+
+    def __init__(self, resource_reference: str):
+        self.resource_reference = resource_reference
+
+    def resolve(self, cache: Dict[PathType, Any]) -> Any:
+        try:
+            obj = cache[self.resource_reference]
+        except KeyError:
+            raise NonexistentResourceError(f'{self.resource_reference} is not available ')
+        return obj
 
 
 class CopyLink(Link, tag_override='#'):
