@@ -1,4 +1,4 @@
-from typing import Dict, Iterable, List, Optional, Set, Tuple
+from typing import Dict, Iterable, List, Optional, Set, Tuple, Mapping, NamedTuple, Sequence
 from collections import OrderedDict as odict
 from itertools import chain
 
@@ -16,11 +16,29 @@ from flambe.field import Field
 from flambe.tokenizer import Tokenizer, WordTokenizer
 
 
+class PretrainedEmbeddings(NamedTuple):
+    """
+    Generalization of pretrained embeddings.
+
+    Attributes
+    ----------
+    model: Mapping[str, np.ndarray]
+        The embedding model itself.
+    vocab: Sequence[str]
+        The vocabulary
+    size: int
+        The embedding size
+    """
+    model: Mapping[str, np.ndarray]
+    vocab: Sequence[str]
+    size: int
+
+
 def get_embeddings(
     embeddings: str,
     embeddings_format: str = 'glove',
     embeddings_binary: bool = False,
-) -> KeyedVectors:
+) -> PretrainedEmbeddings:
     """
     Get the embeddings model and matrix used in the setup function
 
@@ -40,29 +58,34 @@ def get_embeddings(
 
     Returns
     -------
-    KeyedVectors
-        The embeddings object specified by the parameters.
+    PretrainedEmbeddings
+        The pretrained embeddings
     """
-    model = None
-
-    if embeddings_format == 'glove':
-        with temporary_file('temp.txt') as temp:
-            glove2word2vec(embeddings, temp)
-            model = KeyedVectors.load_word2vec_format(temp, binary=embeddings_binary)
-    elif embeddings_format == 'word2vec':
-        model = KeyedVectors.load_word2vec_format(embeddings,
-                                                  binary=embeddings_binary)
-    elif embeddings_format == 'fasttext':
+    if embeddings_format == 'fasttext':
         model = fasttext.load_facebook_vectors(embeddings)
-    elif embeddings_format == 'gensim':
-        try:
-            model = KeyedVectors.load(embeddings)
-        except FileNotFoundError:
-            model = api.load(embeddings)
-    else:
-        raise ValueError("Only formats supported are word2vec, fasttext and gensim")
+        size = model.get_dimension()
+        vocab = model.words
 
-    return model
+    else:
+        if embeddings_format == 'glove':
+            with temporary_file('temp.txt') as temp:
+                glove2word2vec(embeddings, temp)
+                model = KeyedVectors.load_word2vec_format(temp, binary=embeddings_binary)
+        elif embeddings_format == 'word2vec':
+            model = KeyedVectors.load_word2vec_format(embeddings,
+                                                      binary=embeddings_binary)
+        elif embeddings_format == 'gensim':
+            try:
+                model = KeyedVectors.load(embeddings)
+            except FileNotFoundError:
+                model = api.load(embeddings)
+        else:
+            raise ValueError("Only formats supported are word2vec, fasttext and gensim")
+
+        size = model.vector_size
+        vocab = model.vocab.keys()
+
+    return PretrainedEmbeddings(model=model, vocab=vocab, size=size)
 
 
 class TextField(Field):
@@ -94,6 +117,7 @@ class TextField(Field):
                  embeddings_format: str = 'glove',
                  embeddings_binary: bool = False,
                  model: Optional[KeyedVectors] = None,
+                 pretrained_embeddings: Optional[PretrainedEmbeddings] = None,
                  unk_init_all: bool = False,
                  drop_unknown: bool = False,
                  max_seq_len: Optional[int] = None,
@@ -122,7 +146,10 @@ class TextField(Field):
             sequence (defaults to an empty list)
         model : KeyedVectors, optional
             The embeddings model used for retrieving text embeddings,
-            by default None
+            by default None. Will be deprecated soon.
+        pretrained_embeddings : PretrainedEmbeddings, optional
+            The embeddings model used for retrieving text embeddings,
+            by default None.
         unk_init_all : bool, optional
             If True, every token not provided in the input embeddings is
             given a random embedding from a normal distribution.
@@ -150,8 +177,18 @@ class TextField(Field):
             embedding matrix. Defaults to False.
 
         """
+        if model:
+            if pretrained_embeddings:
+                raise ValueError("Cannot use both model and pretrained_embeddings parameters")
+
+            warnings.warn("The model parameter will be deprecated in the next release in favor " +
+                          "of the pretrained_embeddings parameter" +
+                          "Please use the 'from_embeddings' factory.")
+
+            pretrained_embeddings = PretrainedEmbeddings(model=model, vocab=model.vocab.keys(), size=model.vector_size)
+
         if embeddings:
-            if model:
+            if model or pretrained_embeddings:
                 raise ValueError("Cannot submit a model and use the embeddings parameters" +
                                  "simultaneously. Use the 'from_embeddings' factory instead.")
 
@@ -161,9 +198,9 @@ class TextField(Field):
                           "deprecated in a future release. " +
                           "Please migrate to use the 'from_embeddings' factory.")
 
-            model = get_embeddings(embeddings, embeddings_format, embeddings_binary)
+            pretrained_embeddings = get_embeddings(embeddings, embeddings_format, embeddings_binary)
 
-        if setup_all_embeddings and not model:
+        if setup_all_embeddings and not (model or pretrained_embeddings):
             raise ValueError("'setup_all_embeddings' cannot be enabled without passing embeddings.")
 
         self.tokenizer = tokenizer or WordTokenizer()
@@ -174,7 +211,9 @@ class TextField(Field):
         self.sos = sos_token
         self.eos = eos_token
 
-        self.model = model
+        self.model = model  # Deprecating in next release in favor of using pretrained_embeddings
+        self.pretrained_embeddings = pretrained_embeddings
+
         self.embedding_matrix: Optional[torch.Tensor] = None
         self.unk_init_all = unk_init_all
         self.drop_unknown = drop_unknown
@@ -233,7 +272,7 @@ class TextField(Field):
                 if token not in self.vocab:
                     self.vocab[token] = index = index + 1
 
-    def _build_embeddings(self, model: KeyedVectors) -> Tuple[odict, torch.Tensor]:
+    def _build_embeddings(self, embeddings: PretrainedEmbeddings) -> Tuple[odict, torch.Tensor]:
         """
         Create the embeddings matrix and the new vocabulary in
         case this objects needs to use an embedding model.
@@ -243,7 +282,7 @@ class TextField(Field):
 
         Parameters
         ----------
-        model: KeyedVectors
+        embeddings: PretrainedEmbeddings
             The embeddings
 
         Returns
@@ -259,21 +298,21 @@ class TextField(Field):
         tokens: Iterable[str] = self.vocab.keys()
 
         if self.setup_all_embeddings:
-            tokens = chain(tokens, model.vocab.keys())
+            tokens = chain(tokens, embeddings.vocab)
 
         for token in tokens:
             if token not in new_vocab:
-                if token in model:
-                    embedding_matrix.append(torch.tensor(model[token]))
+                if token in embeddings.model:
+                    embedding_matrix.append(torch.tensor(embeddings.model[token]))
                     new_vocab[token] = new_index = new_index + 1
                 elif token in self.specials:
-                    embedding_matrix.append(torch.randn(model.vector_size))
+                    embedding_matrix.append(torch.randn(embeddings.size))
                     new_vocab[token] = new_index = new_index + 1
                 else:
                     self.unk_numericals.add(self.vocab[token])
 
                     if self.unk_init_all:
-                        embedding_matrix.append(torch.randn(model.vector_size))
+                        embedding_matrix.append(torch.randn(embeddings.size))
                         new_vocab[token] = new_index = new_index + 1
                     else:
                         # Collapse all OOV's to the same <unk> token id
@@ -291,8 +330,8 @@ class TextField(Field):
 
         """
         self._build_vocab(*data)
-        if self.model:
-            self.vocab, self.embedding_matrix = self._build_embeddings(self.model)
+        if self.pretrained_embeddings:
+            self.vocab, self.embedding_matrix = self._build_embeddings(self.pretrained_embeddings)
 
     # TODO update when we add generics
     def process(self, example: str) -> torch.Tensor:  # type: ignore
@@ -333,7 +372,7 @@ class TextField(Field):
             numerical = self.vocab[token]  # type: ignore
 
             if self.drop_unknown and \
-                    self.model is not None and numerical in self.unk_numericals:
+                    self.pretrained_embeddings is not None and numerical in self.unk_numericals:
                 # Don't add unknown tokens in case the flag is activated
                 continue
 
@@ -394,13 +433,13 @@ class TextField(Field):
         TextField
             The constructed text field with the requested model.
         """
-        model = get_embeddings(
+        pretrained_embeddings = get_embeddings(
             embeddings,
             embeddings_format,
             embeddings_binary,
         )
         return cls(
-            model=model,
+            pretrained_embeddings=pretrained_embeddings,
             setup_all_embeddings=setup_all_embeddings,
             unk_init_all=unk_init_all,
             drop_unknown=drop_unknown,
