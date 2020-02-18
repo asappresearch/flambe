@@ -5,7 +5,7 @@ from typing import Any, Optional, Dict, List, Iterator
 
 from flambe.compile import Registrable, YAMLLoadType
 from flambe.compile.yaml import load_first_config, load_config_from_file
-from flambe.compile.yaml import dump_one_config, num_yaml_files
+from flambe.compile.yaml import dump_config, dump_one_config, num_yaml_files
 
 
 class Environment(Registrable):
@@ -194,5 +194,5 @@ def set_env_in_config(env: Environment, input_path: str, stream: Optional[Any] =
         The loaded cluster object
 
     """
-    configs = list(load_config_from_file(path, convert=False))
+    configs = list(load_config_from_file(input_path, convert=False))
     dump_config([env, configs[-1]], stream)

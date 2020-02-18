@@ -9,7 +9,7 @@ from urllib.parse import urlparse
 import flambe as fl
 from flambe.runner.environment import Environment
 from flambe.compile import Component, Schema, Registrable, YAMLLoadType
-from flambe.compile.const import DEFAULT_PROTOCOL
+from flambe.const import DEFAULT_PROTOCOL
 from flambe.logging import coloredlogs as cl
 
 import logging

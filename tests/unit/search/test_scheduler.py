@@ -16,7 +16,7 @@ def set_random_metrics(trials):
 def test_blackbox():
 
     good_space = {'var1': Choice(['red', 'blue', 'green']),
-                  'var2': QUniform(-6, -2, 5, transform='pow10'),
+                  'var2': QUniform(-10, 10, transform='pow10'),
                   'var3': Choice([1, 2, 3])}
     searcher = GridSearcher(space=good_space)
     scheduler = BlackBoxScheduler(searcher, 4, max_steps=2)

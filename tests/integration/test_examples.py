@@ -52,7 +52,6 @@ def run_experiments(base, **kwargs):
                 new_exp = _preprocess_experiment(t.name)
                 if new_exp:
                     yaml.dump_config(new_exp, f)
-                    print(f.name)
                     ret = subprocess.run(['flambe', 'run', f.name, '-o', d])
                     assert ret.returncode == 0
 

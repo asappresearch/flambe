@@ -2,7 +2,7 @@ import pytest
 import tempfile
 import os
 
-from flambe.runner import utils
+from flambe.utils.path import get_files, get_size_MB
 
 
 MB = 2 ** 20
@@ -18,7 +18,7 @@ def create_file(filename, size_MB=1):
 def test_size_MB_file(mbs):
     with tempfile.NamedTemporaryFile("wb") as t:
         create_file(t.name, size_MB=mbs)
-        assert utils.get_size_MB(t.name) == mbs
+        assert get_size_MB(t.name) == mbs
 
 
 @pytest.mark.parametrize("mbs", [1, 2, 3, 4])
@@ -28,7 +28,7 @@ def test_size_MB_folder(mbs):
         create_file(os.path.join(t, '2.bin'), size_MB=mbs)
         create_file(os.path.join(t, '3.bin'), size_MB=mbs)
         create_file(os.path.join(t, '4.bin'), size_MB=mbs)
-        assert utils.get_size_MB(t) == 4 * mbs
+        assert get_size_MB(t) == 4 * mbs
 
 
 def test_get_files():
@@ -39,9 +39,9 @@ def test_get_files():
         open(f1, 'w+').close()
         open(f2, 'w+').close()
 
-        assert list(utils.get_files(t)) == [f1, f2]
+        assert list(get_files(t)) == [f1, f2]
 
 
 def test_get_files_invalid():
     with pytest.raises(ValueError):
-        utils.get_files('/some/non/existent/path/to/test')
+        get_files('/some/non/existent/path/to/test')
