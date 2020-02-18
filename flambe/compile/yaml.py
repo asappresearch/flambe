@@ -1,6 +1,6 @@
 from __future__ import annotations
 from typing import Callable, Optional, Any, Union, TextIO, Dict, Mapping, Type, Sequence, \
-    Iterable, List
+    Iterable, List, TYPE_CHECKING, Iterator
 from typing_extensions import Protocol, runtime_checkable
 from enum import Enum
 import functools
@@ -11,6 +11,8 @@ import io
 
 import ruamel.yaml
 
+if TYPE_CHECKING:
+    from flambe.compile.schema import Schema
 
 TAG_DELIMETER = '.'
 TAG_BEGIN = '!'
@@ -104,9 +106,12 @@ def _is_tagged_null(obj: Any) -> bool:
     return isinstance(obj, ruamel.yaml.comments.TaggedScalar) and obj.value == ''
 
 
-def _resolve_callable(cls: Type, callable_override: Callable) -> Callable:
+def _resolve_callable(cls: Optional[Type] = None,
+                      callable_override: Optional[Callable] = None) -> Callable:
     """Given cls and callable determines which should be used"""
     if callable_override is None:
+        if cls is None:
+            raise Exception('Class and callable are None')
         if inspect.isabstract(cls):
             msg = f"You're trying to initialize an abstract class {cls.__name__}. " \
                   + "If you think it's concrete, double check you've spelled " \
@@ -146,6 +151,7 @@ def _pass_arg(callable_: Callable, arg: Any) -> Any:
     if isinstance(arg, ruamel.yaml.comments.TaggedScalar):
         processed = arg.value if arg.value != '' else None
         saved_arg = ruamel.yaml.comments.CommentedMap()
+        # ruamel.yaml function to copy over any relevant attrs
         arg.copy_attributes(saved_arg)
     try:
         instance = callable_(processed) if processed is not None else callable_()
@@ -175,7 +181,7 @@ class SchematicLoader(CustomYAMLLoad):
 
     @classmethod
     def from_yaml(cls, raw_obj: Any, target_callable: Callable) -> Schema:
-        if callable_override is None:
+        if target_callable is None:
             raise Exception('No callable found for schema')
         from flambe.compile.schema import Schema
         tag = raw_obj.tag.value
@@ -232,7 +238,7 @@ class KwargsPosargsLoader(GeneralArgsLoader, CustomYAMLLoad):
     def from_yaml(cls, raw_obj: Any, target_callable: Callable) -> Any:
         if isinstance(raw_obj, dict):
             return _pass_kwargs(target_callable, raw_obj)
-        elif isinstance(raw_obj, (list, tuple)):
+        elif isinstance(raw_obj, list):
             return _pass_posargs(target_callable, raw_obj)
         elif _is_tagged_null(raw_obj):
             return _pass_arg(target_callable, raw_obj)
@@ -242,7 +248,7 @@ class KwargsPosargsLoader(GeneralArgsLoader, CustomYAMLLoad):
 def load_type_from_yaml(load_type: YAMLLoadType,
                         cls: Optional[Type] = None,
                         callable_: Optional[Callable] = None) -> Callable:
-    callable_ = _resolve_callable(cls, callable_override)
+    callable_ = _resolve_callable(cls, callable_)
     load_type = YAMLLoadType(load_type)
     if load_type == YAMLLoadType.SCHEMATIC:
         return SchematicLoader.from_yaml
@@ -259,7 +265,7 @@ def load_type_from_yaml(load_type: YAMLLoadType,
 def load_type_to_yaml(load_type: YAMLLoadType,
                       cls: Optional[Type] = None,
                       callable_: Optional[Callable] = None) -> Callable:
-    callable_ = _resolve_callable(cls, callable_override)
+    callable_ = _resolve_callable(cls, callable_)
     load_type = YAMLLoadType(load_type)
     if load_type == YAMLLoadType.SCHEMATIC:
         return SchematicLoader.to_yaml
@@ -335,10 +341,10 @@ def create(obj: Any, lookup: Dict[str, Any]) -> Any:
         from_yaml = None
         if cls is not None:
             # Check how class wants to be treated
-            if isinstance(cls, TypedYAMLLoad):
+            if issubclass(cls, TypedYAMLLoad):
                 load_type = cls.yaml_load_type()
                 from_yaml = load_type_from_yaml(load_type, cls, callable_)
-            elif isinstance(cls, CustomYAMLLoad):
+            elif issubclass(cls, CustomYAMLLoad):
                 from_yaml = cls.from_yaml
         # All classes and callables default to schematics
         if from_yaml is None:
@@ -355,7 +361,7 @@ def convert_tagged_objects(obj: Any, lookup: Dict[str, Any]) -> Any:
         for k, v in obj.items():
             obj[k] = convert_tagged_objects(v, lookup)
         obj = create(obj, lookup)
-    elif isinstance(obj, (list, tuple)):
+    elif isinstance(obj, list):
         for i, e in enumerate(obj):
             obj[i] = convert_tagged_objects(e, lookup)
         obj = create(obj, lookup)
@@ -386,12 +392,14 @@ def convert_objects_to_tagged(obj: Any) -> Any:
     return y
 
 
-def load_config(yaml_config: Union[TextIO, str], convert: bool = True) -> Iterable[Any]:
+def load_config(yaml_config: Union[TextIO, str], convert: bool = True) -> Iterator[Any]:
     """Load yaml config
 
     This function will read extensions from the YAML if any, update
     the registry, sync the registry with YAML, and then load the
     object from the YAML representation.
+
+    NOTE: We do not guarantee round trip like ruamel.yaml does
 
     Parameters
     ----------
@@ -445,7 +453,7 @@ def load_config_from_file(file_path: str, convert: bool = True) -> Iterable[Any]
         yield from load_config(f.read(), convert)
 
 
-def load_first_config_from_file(file_path: str) -> Any:
+def load_first_config_from_file(file_path: str, convert: bool = True) -> Any:
     """Load first config after reading it from the file path"""
     with open(file_path) as f:
         return load_first_config(f.read(), convert)
@@ -496,6 +504,7 @@ def dump_config(objs: Sequence[Any],
         config = stream.getvalue()
         stream.close()
         return config
+    return None
 
 
 def dump_one_config(obj: Any, stream: Optional[Any] = None) -> str:

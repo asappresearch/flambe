@@ -31,6 +31,12 @@ C = TypeVar('C', bound="Component")
 
 logger = logging.getLogger(__name__)
 
+
+class LoadError(Exception):
+    pass
+
+
+
 class State(OrderedDict):
     """A state object for Flambe."""
 
