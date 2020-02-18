@@ -74,6 +74,8 @@ class Environment(Registrable):
             'debug': self.debug,
             'extra': self.extra,
         }
+        if not hasattr(self, '_yaml_tag'):
+            self._yaml_tag = 'Environment'
 
     def clone(self, **kwargs) -> 'Environment':
         """Clone the envrionment, updated with the provided arguments.
