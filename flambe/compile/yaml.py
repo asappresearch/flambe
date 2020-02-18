@@ -215,7 +215,7 @@ class GeneralArgsLoader:
 class KwargsLoader(GeneralArgsLoader, CustomYAMLLoad):
 
     @classmethod
-    def kwargs_from_yaml(cls: Type, raw_obj: Any, target_callable: Callable) -> Any:
+    def from_yaml(cls: Type, raw_obj: Any, target_callable: Callable) -> Any:
         if isinstance(raw_obj, dict):
             return _pass_kwargs(target_callable, raw_obj)
         elif _is_tagged_null(raw_obj):
@@ -248,7 +248,6 @@ class KwargsPosargsLoader(GeneralArgsLoader, CustomYAMLLoad):
 def load_type_from_yaml(load_type: YAMLLoadType,
                         cls: Optional[Type] = None,
                         callable_: Optional[Callable] = None) -> Callable:
-    callable_ = _resolve_callable(cls, callable_)
     load_type = YAMLLoadType(load_type)
     if load_type == YAMLLoadType.SCHEMATIC:
         return SchematicLoader.from_yaml
@@ -265,7 +264,6 @@ def load_type_from_yaml(load_type: YAMLLoadType,
 def load_type_to_yaml(load_type: YAMLLoadType,
                       cls: Optional[Type] = None,
                       callable_: Optional[Callable] = None) -> Callable:
-    callable_ = _resolve_callable(cls, callable_)
     load_type = YAMLLoadType(load_type)
     if load_type == YAMLLoadType.SCHEMATIC:
         return SchematicLoader.to_yaml
@@ -349,7 +347,8 @@ def create(obj: Any, lookup: Dict[str, Any]) -> Any:
         # All classes and callables default to schematics
         if from_yaml is None:
             from_yaml = load_type_from_yaml(YAMLLoadType.SCHEMATIC, cls, callable_)
-        instance = from_yaml(obj, target_callable=callable_)
+        target_callable = _resolve_callable(cls, callable_)
+        instance = from_yaml(obj, target_callable=target_callable)
         instance._yaml_tag = original_tag
         return instance
     return obj
