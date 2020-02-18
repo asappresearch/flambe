@@ -130,7 +130,10 @@ def set_env(env: Optional['Environment'] = None, **kwargs: Dict[str, Any]):
         Arguments to modify the global environment with.
 
     """
-    env = load_first_config(os.environ['FLAMBE_ENVIRONMENT']) if env is None else env
+    if 'FLAMBE_ENVIRONMENT' not in os.environ:
+        env = Environment() if env is None else env
+    else:
+        env = load_first_config(os.environ['FLAMBE_ENVIRONMENT']) if env is None else env
     new_env = env.clone(**kwargs)
     os.environ['FLAMBE_ENVIRONMENT'] = dump_one_config(new_env)
 

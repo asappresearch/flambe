@@ -85,7 +85,7 @@ def test_bayesian_kde():
                  'var2': QUniform(-6, -2, 5, transform='pow10'),
                  'var3': Beta(2, 3)}
     with pytest.raises(ValueError):
-        searcher = BayesOptGPSearcher(space=bad_space)
+        searcher = BayesOptKDESearcher(space=bad_space)
 
     good_space = {'var1': Beta(2, 3),
                   'var2': Uniform(0, 1, transform='exp'),

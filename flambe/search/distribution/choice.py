@@ -58,8 +58,15 @@ class Choice(Distribution, tag_override="~c"):
         return self.options[index]
 
     def name(self, sample: Any) -> str:
-        """Sample from the distribution, and name the option."""
-        index = np.random.choice(list(range(self.n_options)), p=self.probs)
+        """Sample from the distribution, and name the option.
+
+        Returns
+        -------
+        str
+            A name for this sampled value.
+
+        """
+        index = self.option_to_int(sample)
         return self.names[index]
 
     def option_to_int(self, option: Any) -> int:
