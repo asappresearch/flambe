@@ -135,7 +135,7 @@ def set_env(env: Optional['Environment'] = None, **kwargs: Dict[str, Any]):
     else:
         env = load_first_config(os.environ['FLAMBE_ENVIRONMENT']) if env is None else env
     new_env = env.clone(**kwargs)
-    os.environ['FLAMBE_ENVIRONMENT'] = dump_one_config(new_env)
+    os.environ['FLAMBE_ENVIRONMENT'] = dump_one_config(new_env)  # type: ignore
 
 
 @contextmanager
@@ -184,7 +184,7 @@ def load_env_from_config(path: str) -> Optional[Environment]:
 
 
 def set_env_in_config(env: Environment, input_path: str, stream: Optional[Any] = None):
-    """Set the envrionment
+    """Set the environment.
 
     Parameters
     ----------

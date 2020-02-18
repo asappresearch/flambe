@@ -17,12 +17,12 @@ from flambe.search.checkpoint import Checkpoint
 from flambe.search.algorithm import Algorithm, GridSearch
 
 
-def path_to_string(path: Tuple[Union[str, int]]) -> str:
+def path_to_string(path: Tuple[Union[str, int], ...]) -> str:
     """Get a string representation of the schematic path."""
     return json.dumps(path)
 
 
-def string_to_path(string: str) -> Tuple[Union[str, int]]:
+def string_to_path(string: str) -> Tuple[Union[str, int], ...]:
     """Get the path from a string representation."""
     return tuple(json.loads(string))  # type: ignore
 
