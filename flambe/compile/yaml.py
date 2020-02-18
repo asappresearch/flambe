@@ -1,3 +1,4 @@
+from __future__ import annotations
 from typing import Callable, Optional, Any, Union, TextIO, Dict, Mapping, Type, Sequence, \
     Iterable, List
 from typing_extensions import Protocol, runtime_checkable
@@ -60,7 +61,7 @@ class CustomYAMLLoad(Protocol):
     """Used to implement custom YAML representations"""
 
     @classmethod
-    def from_yaml(cls, raw_obj: Any, callable_override: Optional[Callable] = None) -> Any: ...
+    def from_yaml(cls, raw_obj: Any, target_callable: Callable) -> Any: ...
     """Produce new object using raw object ruamel.yaml loaded"""
 
     @classmethod
@@ -91,11 +92,6 @@ class Registrable:
         Registrable.class_to_tag[cls] = tag
 
 
-class _DefaultYAMLLoader:
-    """Stub class used when binding from_yaml and to_yaml methods"""
-    pass
-
-
 def _is_tagged_null(obj: Any) -> bool:
     """Detects if Scalar object corresponds to a null value
 
@@ -111,8 +107,6 @@ def _is_tagged_null(obj: Any) -> bool:
 def _resolve_callable(cls: Type, callable_override: Callable) -> Callable:
     """Given cls and callable determines which should be used"""
     if callable_override is None:
-        if cls is _DefaultYAMLLoader:
-            raise Exception("No class or callable specified; Fatal error")
         if inspect.isabstract(cls):
             msg = f"You're trying to initialize an abstract class {cls.__name__}. " \
                   + "If you think it's concrete, double check you've spelled " \
@@ -124,6 +118,11 @@ def _resolve_callable(cls: Type, callable_override: Callable) -> Callable:
 
 
 def _pass_kwargs(callable_: Callable, kwargs: Dict[str, Any]) -> Any:
+    """Pass keyword args to callable
+
+    NOTE: Saves arguments to the returned object
+
+    """
     if kwargs is None:
         raise Exception('None for kwargs for {callable_}')
     try:
@@ -135,6 +134,11 @@ def _pass_kwargs(callable_: Callable, kwargs: Dict[str, Any]) -> Any:
 
 
 def _pass_arg(callable_: Callable, arg: Any) -> Any:
+    """Pass arg to callable; special handling for null TaggedScalar
+
+    NOTE: Saves arguments to the returned object
+
+    """
     if arg is None:
         raise Exception('None for arg for {callable_}; should be null Tagged Scalar')
 
@@ -152,6 +156,11 @@ def _pass_arg(callable_: Callable, arg: Any) -> Any:
 
 
 def _pass_posargs(callable_: Callable, posargs: List[Any]) -> Any:
+    """Pass positional args to callable
+
+    NOTE: Saves arguments to the returned object
+
+    """
     if posargs is None:
         raise Exception('None for positional args for {callable_}')
     try:
@@ -162,80 +171,87 @@ def _pass_posargs(callable_: Callable, posargs: List[Any]) -> Any:
     return instance
 
 
-def schematic_from_yaml(cls: Type, raw_obj: Any, callable_override: Optional[Callable] = None) -> Any:
-    if callable_override is None:
-        raise Exception('No callable found for schema')
-    from flambe.compile.schema import Schema
-    tag = raw_obj.tag.value
-    if isinstance(raw_obj, dict):
-        return Schema(callable_override, kwargs=raw_obj, tag=tag)
-    if isinstance(raw_obj, list):
-        return Schema(callable_override, args=raw_obj, tag=tag)
-    if _is_tagged_null(raw_obj):
-        return Schema(callable_override, tag=tag)
-    if raw_obj is not None:
-        return Schema(callable_override, args=[raw_obj], tag=tag)
-    return Schema(callable_override, tag=tag)
+class SchematicLoader(CustomYAMLLoad):
+
+    @classmethod
+    def from_yaml(cls, raw_obj: Any, target_callable: Callable) -> Schema:
+        if callable_override is None:
+            raise Exception('No callable found for schema')
+        from flambe.compile.schema import Schema
+        tag = raw_obj.tag.value
+        if isinstance(raw_obj, dict):
+            return Schema(target_callable, kwargs=raw_obj, tag=tag)
+        if isinstance(raw_obj, list):
+            return Schema(target_callable, args=raw_obj, tag=tag)
+        if _is_tagged_null(raw_obj):
+            return Schema(target_callable, tag=tag)
+        if raw_obj is not None:
+            return Schema(target_callable, args=[raw_obj], tag=tag)
+        return Schema(target_callable, tag=tag)
+
+    @classmethod
+    def to_yaml(cls: Type, instance: Any) -> Any:
+        kwargs = instance.arguments
+        y = ruamel.yaml.comments.CommentedMap(kwargs)
+        y.yaml_set_tag(instance.created_with_tag)
+        return y
 
 
-def to_yaml(cls: Type, instance: Any) -> Any:
-    kwargs = schema.arguments
-    y = ruamel.yaml.comments.CommentedMap(kwargs)
-    y.yaml_set_tag(schema.created_with_tag)
-    return y
+class GeneralArgsLoader:
+
+    @classmethod
+    def to_yaml(cls: Type, instance: Any) -> Any:
+        if hasattr(instance, '_saved_arguments'):
+            return instance._saved_arguments
+        raise Exception(f'{instance} doesnt have any attribute indicating args for YAML representation')
 
 
-def kwargs_from_yaml(cls: Type, raw_obj: Any, callable_override: Optional[Callable] = None) -> Any:
-    callable_ = _resolve_callable(cls, callable_override)
-    if isinstance(raw_obj, dict):
-        return _pass_kwargs(callable_, raw_obj)
-    elif _is_tagged_null(raw_obj):
-        return _pass_arg(callable_, raw_obj)
-    raise Exception(f'Unsupported argument type {type(raw_obj)} for {callable_}')
+class KwargsLoader(GeneralArgsLoader, CustomYAMLLoad):
+
+    @classmethod
+    def kwargs_from_yaml(cls: Type, raw_obj: Any, target_callable: Callable) -> Any:
+        if isinstance(raw_obj, dict):
+            return _pass_kwargs(target_callable, raw_obj)
+        elif _is_tagged_null(raw_obj):
+            return _pass_arg(target_callable, raw_obj)
+        raise Exception(f'Unsupported argument type {type(raw_obj)} for {target_callable}')
 
 
-def kwargs_or_arg_from_yaml(cls: Type,
-                            raw_obj: Any,
-                            callable_override: Optional[Callable] = None) -> Any:
-    callable_ = _resolve_callable(cls, callable_override)
-    if isinstance(raw_obj, dict):
-        return _pass_kwargs(callable_, raw_obj)
-    return _pass_arg(callable_, raw_obj)
+class KwargsArgLoader(GeneralArgsLoader, CustomYAMLLoad):
+
+    @classmethod
+    def from_yaml(cls, raw_obj: Any, target_callable: Callable) -> Any:
+        if isinstance(raw_obj, dict):
+            return _pass_kwargs(target_callable, raw_obj)
+        return _pass_arg(target_callable, raw_obj)
 
 
-def kwargs_or_posargs_from_yaml(cls: Type,
-                                raw_obj: Any,
-                                callable_override: Optional[Callable] = None) -> Any:
-    callable_ = _resolve_callable(cls, callable_override)
-    if isinstance(raw_obj, dict):
-        return _pass_kwargs(callable_, raw_obj)
-    elif isinstance(raw_obj, (list, tuple)):
-        return _pass_posargs(callable_, raw_obj)
-    elif _is_tagged_null(raw_obj):
-        return _pass_arg(callable_, raw_obj)
-    raise Exception(f'Unsupported argument type {type(raw_obj)} for {callable_}')
+class KwargsPosargsLoader(GeneralArgsLoader, CustomYAMLLoad):
 
-
-def genargs_to_yaml(cls: Type, instance: Any) -> Any:
-    if hasattr(instance, '_saved_arguments'):
-        return instance._saved_arguments
-    raise Exception(f'{instance} doesnt have any attribute indicating args for YAML representation')
+    @classmethod
+    def from_yaml(cls, raw_obj: Any, target_callable: Callable) -> Any:
+        if isinstance(raw_obj, dict):
+            return _pass_kwargs(target_callable, raw_obj)
+        elif isinstance(raw_obj, (list, tuple)):
+            return _pass_posargs(target_callable, raw_obj)
+        elif _is_tagged_null(raw_obj):
+            return _pass_arg(target_callable, raw_obj)
+        raise Exception(f'Unsupported argument type {type(raw_obj)} for {target_callable}')
 
 
 def load_type_from_yaml(load_type: YAMLLoadType,
                         cls: Optional[Type] = None,
                         callable_: Optional[Callable] = None) -> Callable:
-    cls = cls if cls is not None else _DefaultYAMLLoader
+    callable_ = _resolve_callable(cls, callable_override)
     load_type = YAMLLoadType(load_type)
-    # Bind methods to cls via __get__
     if load_type == YAMLLoadType.SCHEMATIC:
-        return functools.partial(schematic_from_yaml.__get__(cls), callable_override=callable_)
+        return SchematicLoader.from_yaml
     elif load_type == YAMLLoadType.KWARGS:
-        return kwargs_from_yaml.__get__(cls)
+        return KwargsLoader.from_yaml
     elif load_type == YAMLLoadType.KWARGS_OR_ARG:
-        return kwargs_or_arg_from_yaml.__get__(cls)
+        return KwargsArgLoader.from_yaml
     elif load_type == YAMLLoadType.KWARGS_OR_POSARGS:
-        return kwargs_or_posargs_from_yaml.__get__(cls)
+        return KwargsPosargsLoader.from_yaml
     raise Exception(f'Creating YAML loader failed with args: {{load_type={load_type}, cls={cls}, '
                     f'callable_={callable_}}}')
 
@@ -243,12 +259,16 @@ def load_type_from_yaml(load_type: YAMLLoadType,
 def load_type_to_yaml(load_type: YAMLLoadType,
                       cls: Optional[Type] = None,
                       callable_: Optional[Callable] = None) -> Callable:
-    cls = cls if cls is not None else _DefaultYAMLLoader
+    callable_ = _resolve_callable(cls, callable_override)
     load_type = YAMLLoadType(load_type)
     if load_type == YAMLLoadType.SCHEMATIC:
-        return schematic_to_yaml.__get__(cls)
-    elif load_type in [YAMLLoadType.KWARGS, YAMLLoadType.KWARGS_OR_ARG, YAMLLoadType.KWARGS_OR_POSARGS]:
-        return genargs_to_yaml.__get__(cls)
+        return SchematicLoader.to_yaml
+    elif load_type == YAMLLoadType.KWARGS:
+        return KwargsLoader.to_yaml
+    elif load_type == YAMLLoadType.KWARGS_OR_ARG:
+        return KwargsArgLoader.to_yaml
+    elif load_type == YAMLLoadType.KWARGS_OR_POSARGS:
+        return KwargsPosargsLoader.to_yaml
     else:
         raise Exception('load to yaml todo')
 
@@ -277,16 +297,9 @@ def _split_tag(tag: str) -> List[str]:
     return tag_components
 
 
-def fetch_callable(path: Sequence[str], begin: Optional[Any] = None):
-    if begin is None:
-        mod = importlib.import_module(path[0])
-        begin = mod
-        remaining_path = path[1:]
-    else:
-        remaining_path = path
-    obj = begin
+def fetch_callable(path: Sequence[str], obj: Any):
     container = None
-    for a in remaining_path:
+    for a in path:
         container = obj
         obj = getattr(obj, a)
     if obj is None:
@@ -303,9 +316,11 @@ def create(obj: Any, lookup: Dict[str, Any]) -> Any:
         original_tag = obj._yaml_tag.value
         tag = _split_tag(original_tag)
         if tag[0] in lookup:
-            callable_, container = fetch_callable(tag[1:], lookup[tag[0]])
+            some_obj = lookup[tag[0]]
+            callable_, container = fetch_callable(tag[1:], some_obj)
         else:
-            callable_, container = fetch_callable(tag)
+            mod = importlib.import_module(tag[0])
+            callable_, container = fetch_callable(tag[1:], mod)
         cls = None
         if not callable(callable_):
             raise TagError(f"{callable_} is not callable")
@@ -313,7 +328,7 @@ def create(obj: Any, lookup: Dict[str, Any]) -> Any:
             # callable_ is a classmethod
             cls = callable_.__self__
         elif isinstance(callable_, type):
-            # callable is a class
+            # callable_ is a class
             cls = callable_
         elif isinstance(container, type) and callable_.__name__ in _instance_methods(container):
             raise TagError(f"{callable_} is an instance method, not valid for use in config")
@@ -321,18 +336,14 @@ def create(obj: Any, lookup: Dict[str, Any]) -> Any:
         if cls is not None:
             # Check how class wants to be treated
             if isinstance(cls, TypedYAMLLoad):
-                proto = TypedYAMLLoad
                 load_type = cls.yaml_load_type()
                 from_yaml = load_type_from_yaml(load_type, cls, callable_)
             elif isinstance(cls, CustomYAMLLoad):
-                raise NotImplementedError(f'{cls} -- Currently no native objects support this so disabling')
-                proto = CustomYAMLLoad
                 from_yaml = cls.from_yaml
-        from_yaml = from_yaml if from_yaml is not None else load_type_from_yaml(YAMLLoadType.SCHEMATIC, cls, callable_)
-        if callable_ != cls:
-            instance = from_yaml(obj, callable_override=callable_)
-        else:
-            instance = from_yaml(obj)
+        # All classes and callables default to schematics
+        if from_yaml is None:
+            from_yaml = load_type_from_yaml(YAMLLoadType.SCHEMATIC, cls, callable_)
+        instance = from_yaml(obj, target_callable=callable_)
         instance._yaml_tag = original_tag
         return instance
     return obj
@@ -359,6 +370,8 @@ def convert_objects_to_tagged(obj: Any) -> Any:
         load_type = type(obj).yaml_load_type()
         to_yaml = load_type_to_yaml(load_type, type(obj))
         y = to_yaml(obj)
+    elif isinstance(obj, CustomYAMLLoad):
+        y = obj.to_yaml(obj)
     else:
         y = obj
     if isinstance(y, dict):
@@ -370,7 +383,7 @@ def convert_objects_to_tagged(obj: Any) -> Any:
     return y
 
 
-def load_config(yaml_config: Union[TextIO, str]) -> Iterable[Any]:
+def load_config(yaml_config: Union[TextIO, str], convert: bool = True) -> Iterable[Any]:
     """Load yaml config
 
     This function will read extensions from the YAML if any, update
@@ -382,6 +395,8 @@ def load_config(yaml_config: Union[TextIO, str]) -> Iterable[Any]:
     yaml_config: Union[TextIO, str]
         flambe config as a string, or file pointer (result from
         file.read())
+    convert: bool
+        Whether tags should be used to convert objects
 
     Returns
     -------
@@ -396,15 +411,15 @@ def load_config(yaml_config: Union[TextIO, str]) -> Iterable[Any]:
     lookup = Registrable.tag_to_class
     results = list(yaml.load_all(yaml_config))
     for result in results:
-        yield convert_tagged_objects(result, lookup)
+        yield convert_tagged_objects(result, lookup) if convert else result
 
 
-def load_first_config(yaml_config: Union[TextIO, str]) -> Any:
+def load_first_config(yaml_config: Union[TextIO, str], convert: bool = True) -> Any:
     """Load first yaml document from the config"""
-    return next(load_config(yaml_config))
+    return next(load_config(yaml_config, convert))
 
 
-def load_config_from_file(file_path: str) -> Iterable[Any]:
+def load_config_from_file(file_path: str, convert: bool = True) -> Iterable[Any]:
     """Load config after reading it from the file path
 
     Parameters
@@ -424,13 +439,13 @@ def load_config_from_file(file_path: str) -> Iterable[Any]:
 
     """
     with open(file_path) as f:
-        yield from load_config(f.read())
+        yield from load_config(f.read(), convert)
 
 
 def load_first_config_from_file(file_path: str) -> Any:
     """Load first config after reading it from the file path"""
     with open(file_path) as f:
-        return load_first_config(f.read())
+        return load_first_config(f.read(), convert)
 
 
 def num_yaml_files(file_path: str) -> int:

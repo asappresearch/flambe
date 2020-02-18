@@ -3,6 +3,7 @@ from typing import Optional, Dict, List, Callable, Set, Any, Tuple
 
 from flambe.compile import Schema, UnpreparedLinkError
 from flambe.search import Checkpoint, Choice
+from flambe.runner import get_env
 
 
 def pipeline_builder(**kwargs):
@@ -130,6 +131,8 @@ class Pipeline(Schema):
         for stage_name, checkpoint in self.checkpoints.items():
             val = checkpoint.get()
             cache[stage_name] = val
+        resources = get_env().local_resources
+        cache.update(resources)
         return super().initialize(cache=cache)
 
     def sub_pipeline(self, stage_name: str) -> 'Pipeline':
