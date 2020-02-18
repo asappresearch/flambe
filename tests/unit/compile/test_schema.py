@@ -504,25 +504,33 @@ class TestLinkParser:
 
     def test_only_obj(self):
         link = 'model'
-        assert parse_link_str(link) == (['model'], [])
+        assert parse_link_str(link) == (('model',), tuple())
 
     def test_only_attr(self):
         link = 'model.emb'
-        assert parse_link_str(link) == (['model'], ['emb'])
+        assert parse_link_str(link) == (('model',), ('emb',))
         link = 'model.emb.enc'
-        assert parse_link_str(link) == (['model'], ['emb', 'enc'])
+        assert parse_link_str(link) == (('model',), ('emb', 'enc'))
 
     def test_only_schematic(self):
         link = 'model[emb]'
-        assert parse_link_str(link) == (['model', 'emb'], [])
+        assert parse_link_str(link) == (('model', 'emb'), tuple())
         link = 'model[emb][enc]'
-        assert parse_link_str(link) == (['model', 'emb', 'enc'], [])
+        assert parse_link_str(link) == (('model', 'emb', 'enc'), tuple())
 
     def test_schematic_and_attr(self):
         link = 'model[emb].attr1'
-        assert parse_link_str(link) == (['model', 'emb'], ['attr1'])
+        assert parse_link_str(link) == (('model', 'emb'), ('attr1',))
         link = 'model[emb][enc].attr1.attr2'
-        assert parse_link_str(link) == (['model', 'emb', 'enc'], ['attr1', 'attr2'])
+        assert parse_link_str(link) == (('model', 'emb', 'enc'), ('attr1', 'attr2'))
+
+    def test_schematic_index_via_int(self):
+        link = 'model[emb][2][enc]'
+        assert parse_link_str(link) == (('model', 'emb', 2, 'enc'), tuple())
+
+    def test_schematic_string_int(self):
+        link = "model[emb]['2'][enc]"
+        assert parse_link_str(link) == (('model', 'emb', '2', 'enc'), tuple())
 
     def test_close_unopen_schematic(self):
         with pytest.raises(MalformedLinkError):
@@ -579,3 +587,9 @@ class TestLinkCreator:
         assert create_link_str(*link) == 'model[emb].attr1'
         link = (['model', 'emb', 'enc'], ['attr1', 'attr2'])
         assert create_link_str(*link) == 'model[emb][enc].attr1.attr2'
+
+    def test_schematic_and_attr(self):
+        link = (['model', 0, 'emb'], ['attr1'])
+        assert create_link_str(*link) == 'model[0][emb].attr1'
+        link = (['model', '0', 'emb', 'enc'], ['attr1', 'attr2'])
+        assert create_link_str(*link) == "model['0'][emb][enc].attr1.attr2"
