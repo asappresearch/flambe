@@ -2,7 +2,7 @@ from __future__ import annotations
 import inspect
 from reprlib import recursive_repr
 from typing import MutableMapping, Any, Callable, Optional, Dict, Sequence
-from typing import Tuple, List, Union, Iterator
+from typing import Tuple, List, Iterable, Union, Mapping
 
 import copy
 import functools
@@ -469,22 +469,24 @@ class Schema(MutableMapping[str, Any]):
 
         """
         current_obj = self
-        last_item = None
         # ignore type because it's hard to specify that sometimes you
         # can have an int in the path but only if that position is not
         # a schema and actually a list
         try:
             for item in path[:-1]:
-                last_item = item
-                if isinstance(item, int) and isinstance(current_obj, Schema):
-                    raise ValueError()
+                if isinstance(current_obj, (list, tuple)) and not isinstance(item, int):
+                    raise KeyError()
+                elif isinstance(current_obj, Schema) and isinstance(item, int):
+                    raise KeyError()
                 current_obj = current_obj[item]
+
             last_item = path[-1]
-            if last_item not in current_obj:
+            if isinstance(current_obj, (list, tuple)) and not isinstance(last_item, int):
                 raise KeyError()
-            if isinstance(last_item, int) and isinstance(current_obj, Schema):
-                raise ValueError()
+            elif isinstance(current_obj, Schema) and isinstance(last_item, int):
+                raise KeyError()
             current_obj[last_item] = value
+
         except KeyError:
             raise KeyError(f'{self} has no path {path}. Failed at {last_item}')
 

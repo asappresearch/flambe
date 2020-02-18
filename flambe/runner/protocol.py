@@ -1,7 +1,6 @@
-from typing import Optional
 from typing_extensions import Protocol, runtime_checkable
 
-from flambe.runner.environment import Environment
+from flambe.compile.yaml import load_config_from_file
 
 
 @runtime_checkable
@@ -10,19 +9,30 @@ class Runnable(Protocol):
 
     Implementing this interface enables execution through the flambe
     ``run`` command. It only requires implementing a run method.
-    The run method recieves an environment object which is used to
-    provide information that varies depending on whether execution
-    is local or remote (for example an output path)
 
     """
 
-    def run(self, environment: Optional[Environment] = None):
-        """Implement this method to execute this object.
-
-        Parameters
-        ----------
-        environment : Environment, optional
-            An optional environment object.
-
-        """
+    def run(self):
+        """Implement this method to execute this object."""
         raise NotImplementedError
+
+
+def load_runnable_from_config(path: str) -> Runnable:
+    """Load a Cluster obejct from the given config.
+
+    Parameters
+    ----------
+    path : str
+        A path to the cluster config.
+    convert: bool
+        Convert to a python object at loading time.
+
+    Returns
+    -------
+    Runnable
+        The loaded cluster object if convert is True, otherwise
+        its yaml representation.
+
+    """
+    configs = list(load_config_from_file(path))
+    return configs[-1]

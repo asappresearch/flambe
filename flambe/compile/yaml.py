@@ -383,9 +383,12 @@ def convert_objects_to_tagged(obj: Any) -> Any:
     if isinstance(y, dict):
         for k, v in y.items():
             y[k] = convert_objects_to_tagged(v)
-    elif isinstance(y, list):
+    elif isinstance(y, (list, tuple)):
+        # NOTE: tuple is not supported in YAML
+        y_out = list(y)
         for i, e in enumerate(y):
-            y[i] = convert_objects_to_tagged(e)
+            y_out[i] = convert_objects_to_tagged(e)
+        y = type(y)(y_out)
     return y
 
 
@@ -465,7 +468,7 @@ def num_yaml_files(file_path: str) -> int:
 
 
 def dump_config(objs: Sequence[Any],
-                stream: Optional[Any] = None) -> Optional[str]:
+                stream: Optional[Any] = None) -> str:
     """Dump the given objects into the stream.
 
     Only dump objects that inherit from a Flambé class, or that have
@@ -504,6 +507,6 @@ def dump_config(objs: Sequence[Any],
     return None
 
 
-def dump_one_config(obj: Any, stream: Optional[Any] = None) -> Optional[str]:
+def dump_one_config(obj: Any, stream: Optional[Any] = None) -> str:
     """Dump the given object into the stream."""
     return dump_config([obj], stream)

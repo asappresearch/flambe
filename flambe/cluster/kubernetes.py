@@ -8,13 +8,10 @@ class KubernetesCluster(Cluster):
                  name: str,
                  head_node_num_cpu: str,
                  worker_node_num_cpu: str,
-                 key_name: str,
-                 head_node_cpu: str = 'gp2',
-                 worker_node_volume_type: str = 'gp2',
                  head_node_volume_size: int = 100,
                  worker_node_volume_size: int = 100,
-                 head_node_ami: str = None,
-                 worker_node_ami: str = None, **kwargs) -> None:
+                 head_container_image: str = None,
+                 worker_container_image: str = None, **kwargs) -> None:
         """Initialize a Kubernetes cluster.
 
         Parameters

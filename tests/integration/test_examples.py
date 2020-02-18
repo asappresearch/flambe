@@ -22,6 +22,9 @@ def _reduce_iterations(d):
 
 def _preprocess_experiment(fname):
     content = list(yaml.load_config_from_file(fname))
+    if len(content) == 0:
+        return None
+
     experiment = content[-1]
     if isinstance(experiment, Experiment):
         _reduce_iterations(experiment.pipeline)
@@ -49,6 +52,7 @@ def run_experiments(base, **kwargs):
                 new_exp = _preprocess_experiment(t.name)
                 if new_exp:
                     yaml.dump_config(new_exp, f)
+                    print(f.name)
                     ret = subprocess.run(['flambe', 'run', f.name, '-o', d])
                     assert ret.returncode == 0
 

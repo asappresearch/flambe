@@ -50,3 +50,5 @@ pipeline:
 # Define how to schedule variants
 schedulers:
   train: !Hyperband
+    max_steps: 2
+    step_budget: 2

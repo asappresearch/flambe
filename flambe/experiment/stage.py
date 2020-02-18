@@ -1,4 +1,3 @@
-import os
 from typing import Dict, List, Optional
 import logging
 
@@ -211,19 +210,13 @@ class Stage(object):
             return dict()
 
         # Exectue the search
-        pipeline_env = self.env.clone(
-            output_path=os.path.join(
-                self.env.output_path,
-                self.name
-            )
-        )
         search = Search(
             pipeline,
             self.algorithm,
             self.cpus_per_trial,
             self.gpus_per_trial
         )
-        result = search.run(pipeline_env)
+        result = search.run()
 
         # Each variants object is a dictionary from variant name
         # to a dictionary with schema, params, and checkpoint

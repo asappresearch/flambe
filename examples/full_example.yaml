@@ -48,5 +48,7 @@ pipeline: # Define the list of components to execute
 
 algorithm: # Define how to schedule variants
   1_train: !Hyperband
+    max_steps: 2
+    step_budget: 2
 reduce: # Only use the best variant in subsequent blocks, meaning only the best Trainer will be linked to the Evaluator stage
   1_train: 1

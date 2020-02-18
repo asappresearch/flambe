@@ -1,5 +1,5 @@
 import copy
-from typing import Optional, Dict, List, Callable, Set, Any, Tuple
+from typing import Optional, Dict, List, Callable, Set, Any, Tuple, Union
 
 from flambe.compile import Schema, UnpreparedLinkError
 from flambe.search import Checkpoint, Choice
@@ -204,7 +204,7 @@ class Pipeline(Schema):
                 return False
         return True
 
-    def set_param(self, path: Optional[Tuple[str]], value: Any):
+    def set_param(self, path: Optional[Tuple[Union[str, int]]], value: Any):
         """Set path in schema to value
 
         Convenience method for setting a value deep in a schema. For

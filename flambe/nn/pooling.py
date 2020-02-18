@@ -147,12 +147,13 @@ class GeneralizedPooling(Module):
             The output data, as a tensor of shape [B x H]
 
         """
+        data = data.transpose(0, 1)
         padding_mask = padding_mask or _default_padding_mask(data)
-
-        score = self.attn(data.transpose(0, 1), key_padding_mask=~padding_mask)
+        
+        score = self.attn(data, key_padding_mask=~padding_mask)
         output = (score.softmax() * data).sum(dim=1)
 
-        return output
+        return score.sum(dim=0)
 
 
 def _default_padding_mask(data: torch.Tensor) -> torch.Tensor:

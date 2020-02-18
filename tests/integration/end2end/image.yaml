@@ -12,7 +12,7 @@ pipeline:
       input_size: 576
       n_layers: 2
       output_size: 10
-      output_activation: !torch.LogSoftmax
+      output_activation: !torch.nn.LogSoftmax
       hidden_size: 128
 
   train: !Trainer
