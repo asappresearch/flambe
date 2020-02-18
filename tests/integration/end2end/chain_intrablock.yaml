@@ -30,7 +30,7 @@ pipeline:
     train_sampler: !BaseSampler
     val_sampler: !BaseSampler
     model: !@ model
-    loss_fn: !torch.NLLLoss
+    loss_fn: !torch.nn.NLLLoss
     metric_fn: !Accuracy
     optimizer: !torch.optim.Adam
       params: !@ b1[model].trainable_params
@@ -58,7 +58,7 @@ pipeline:
         output_size: !@ dataset.label.vocab_size
     loss_fn: !torch.nn.NLLLoss
     metric_fn: !Accuracy
-    optimizer: !torch.Adam
+    optimizer: !torch.optim.Adam
       params: !@ b2[model].trainable_params
     max_steps: 2
     iter_per_step: 2
@@ -71,6 +71,9 @@ pipeline:
 
 algorithm: # Define how to schedule variants based on a metric
   b2: !Hyperband
+    max_steps: 2
+    step_budget: 4
+  
 
 reduce: # Only use the best variant in subsequent blocks
   b2: 1

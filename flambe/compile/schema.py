@@ -1,6 +1,6 @@
 import inspect
 from reprlib import recursive_repr
-from typing import MutableMapping, Any, Callable, Optional, Dict, Sequence, Union
+from typing import MutableMapping, Any, Callable, Optional, Dict, Sequence, Union, Mapping
 from typing import Tuple, List, Iterable
 
 import copy
@@ -387,7 +387,7 @@ class Schema(MutableMapping[str, Any]):
         else:
             yield (current_path, obj)
 
-    def set_param(self, path: Optional[Tuple[str]], value: Any):
+    def set_param(self, path: Optional[Tuple[Union[str, int]]], value: Any):
         """Set path in schema to value
 
         Convenience method for setting a value deep in a schema. For
@@ -417,9 +417,12 @@ class Schema(MutableMapping[str, Any]):
             for item in path[:-1]:
                 last_item = item
                 current_obj = current_obj[item]
+
             last_item = path[-1]
-            if last_item not in current_obj:
-                raise KeyError()
+            if isinstance(current_obj, (list, tuple)) and last_item >= len(current_obj):
+                raise KeyError
+            elif isinstance(current_obj, Mapping) and last_item not in current_obj:
+                raise KeyError
             current_obj[last_item] = value
         except KeyError:
             raise KeyError(f'{self} has no path {path}. Failed at {last_item}')
@@ -497,7 +500,8 @@ class Schema(MutableMapping[str, Any]):
 
         return links
 
-    def set_from_search_space(self, search_space: Dict[Tuple[str, ...], Any]) -> 'Schema':
+    def set_from_search_space(self,
+                              search_space: Dict[Tuple[Union[str, int]], Any]) -> 'Schema':
         for path, value in search_space.items():
             self.set_param(path, value)
 

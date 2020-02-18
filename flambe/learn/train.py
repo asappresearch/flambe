@@ -8,6 +8,7 @@ from torch.optim.optimizer import Optimizer
 from torch.optim.lr_scheduler import _LRScheduler, ReduceLROnPlateau
 from torch.nn.utils.clip_grad import clip_grad_norm_, clip_grad_value_
 
+import flambe
 from flambe.dataset import Dataset
 from flambe.compile import Schema, State, Component, Link
 from flambe.learn.utils import select_device
@@ -15,7 +16,6 @@ from flambe.nn import Module  # type: ignore[attr-defined]
 from flambe.sampler import Sampler
 from flambe.metric import Metric
 from flambe.logging import log, TrialLogging
-from flambe.runner import Environment
 
 
 class Trainer(Component):
@@ -410,7 +410,7 @@ class Trainer(Component):
             log(f'{tb_prefix}Validation/{metric}',
                 metric.finalize(state), self._step)  # type: ignore
 
-    def step(self, env: Optional[Environment] = None) -> bool:
+    def step(self) -> bool:
         """Evaluate and then train until the next checkpoint
 
         Returns
@@ -433,7 +433,7 @@ class Trainer(Component):
 
         return continue_
 
-    def metric(self, env: Optional[Environment] = None) -> Optional[float]:
+    def metric(self) -> Optional[float]:
         """Override this method to enable scheduling.
 
         Returns
@@ -444,20 +444,13 @@ class Trainer(Component):
         """
         return self._best_metric
 
-    def run(self, env: Optional[Environment] = None) -> None:
-        """Execute the trainer as a Runnable.
-
-        Parameters
-        ----------
-        env : Environment
-            An execution envrionment.
-
-        """
-        env = env if env is not None else Environment()
+    def run(self) -> None:
+        """Execute the trainer as a Runnable"""
+        env = flambe.get_env()
         with TrialLogging(env.output_path, verbose=env.debug):
             continue_ = True
             while continue_:
-                continue_ = self.step(env)
+                continue_ = self.step()
 
     def _state(self,
                state_dict: State,

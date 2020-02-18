@@ -1,15 +1,19 @@
 from typing import Dict
 
+from flambe.compile import Registrable
 from flambe.search import Searchable
 from flambe.runner import Runnable
 
 from ray.experimental.sgd.pytorch import PyTorchTrainer
 
 
-class Training(Task, Searchable):
+class Training(Registrable):
 
     # Basic setup, you do not need to modify this
-    def __init__(self, 
+    def __init__(self,
+                 dataset,
+                 model,
+                 task,
                  num_replicas: int = 1,
                  use_gpu: bool = False):
 
@@ -18,8 +22,8 @@ class Training(Task, Searchable):
             data_creator=self.dataloaders,
             model_creator=task.models,
             optimizer_creator=self.optimizers,
-            train_function=self.train_step,
-            val_function=self.val_step,
+            train_function=task.train_step,
+            val_function=task.val_step,
             num_replicas=num_replicas,
             use_gpu=use_gpu
         )

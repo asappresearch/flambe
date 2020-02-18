@@ -7,7 +7,7 @@ import json
 
 import ray
 
-import flambe as fl
+import flambe
 from flambe.runner import Environment
 from flambe.logging import TrialLogging
 from flambe.compile import Registrable, YAMLLoadType, Schema
@@ -43,12 +43,17 @@ class RayAdapter:
         self.trial_logging = TrialLogging(checkpoint.path)
         self.trial_logging.setup()
 
+        # Set environment
+        flambe.set_env(env=environment)
+
     def step(self) -> Any:
         """Run a step of the Trial"""
         if self.searchable is None:
             self.searchable = self.schema()
             if not isinstance(self.searchable, Searchable):
-                return -1  # Not searchable
+                # Not searchable, we only find that out
+                # once the object is built and we check the protocol
+                return -1
         continue_ = self.searchable.step(self.environment)
         metric = self.searchable.metric(self.environment)
         self.checkpoint.set(self.searchable)
@@ -110,13 +115,8 @@ class Search(Registrable):
     def yaml_load_type(cls) -> YAMLLoadType:
         return YAMLLoadType.KWARGS
 
-    def run(self, env: Optional[Environment] = None) -> Dict[str, Dict[str, Any]]:
+    def run(self) -> Dict[str, Dict[str, Any]]:
         """Execute the search.
-
-        Parameters
-        ----------
-        env : Environment, optional
-            An environment object.
 
         Returns
         -------
@@ -127,8 +127,8 @@ class Search(Registrable):
 
         """
         # Set up envrionment
-        env = env if env is not None else Environment()
-        fl.utils.ray.initialize(env)
+        env = flambe.get_env()
+        flambe.utils.ray.initialize(env)
 
         if not env.debug:
             total_resources = ray.cluster_resources()
@@ -199,7 +199,7 @@ class Search(Registrable):
                     del state[trial_id]['actor']
                     continue
                 elif trial.is_created():
-                    space = dict((tuple(k.split('.')), v) for k, v in trial.parameters.items())
+                    space = dict((string_to_path(k), v) for k, v in trial.parameters.items())
                     schema_copy = copy.deepcopy(self.schema)
                     schema_copy.set_from_search_space(space)
 

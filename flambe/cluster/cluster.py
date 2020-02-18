@@ -12,12 +12,10 @@ from ray.autoscaler.updater import SSHCommandRunner
 
 from flambe.logging import coloredlogs as cl
 from flambe.const import FLAMBE_GLOBAL_FOLDER
-from flambe.compile import Registrable, YAMLLoadType
-from flambe.compile.yaml import load_first_config_from_file, num_yaml_files
-from flambe.compile.extensions import download_extensions
-from flambe.compile.downloader import download_manager
-from flambe.runner.utils import is_dev_mode, get_flambe_repo_location
-from flambe.runner import Environment
+from flambe.compile import Registrable, YAMLLoadType, load_config_from_file
+from flambe.compile import download_extensions, download_manager
+from flambe.utils.path import is_dev_mode, get_flambe_repo_location
+from flambe.runner.environment import Environment, load_env_from_config, set_env_in_config
 
 
 exec_cluster = partial(
@@ -351,9 +349,8 @@ class Cluster(Registrable):
 
         """
         # Load environment
-        if num_yaml_files(runnable) > 1:
-            env = load_first_config_from_file(runnable)
-        else:
+        env = load_env_from_config(runnable)
+        if env is None:
             env = Environment()
 
         # Turn off output from ray
@@ -437,15 +434,13 @@ class Cluster(Registrable):
             )
 
             yaml = YAML()
-            with tempfile.NamedTemporaryFile() as env_file:
-                yaml.dump(env, env_file)
-                env_target = f"$HOME/jobs/{name}/env.yaml"
-                rsync(fp.name, env_file.name, env_target, None, down=False)
+            with tempfile.NamedTemporaryFile() as config_file:
+                set_env_in_config(env, runnable, config_file)
+                config_target = f"$HOME/jobs/{name}/{os.path.basename(runnable)}"
+                rsync(fp.name, config_file.name, config_target, None, down=False)
 
             # Run Flambe
-            target = f"$HOME/jobs/{name}/{os.path.basename(runnable)}"
-            rsync(fp.name, runnable, target, None, down=False)
-            cmd = f'flambe run {target} --env {env_target}'
+            cmd = f'flambe run {config_target}'
             cmd += ' -d' * int(debug) + ' -f' * int(force)
             exec_cluster(fp.name, tmux(cmd))
             print(cl.GR(f'[{time()}] Job submitted successfully.\n'))
@@ -481,3 +476,21 @@ class Cluster(Registrable):
             yaml.dump(self.config, fp)
             node_ips = get_worker_node_ips(fp.name, None)
         return node_ips
+
+
+def load_cluster_config(path: str) -> Cluster:
+    """Load a Cluster obejct from the given config.
+
+    Parameters
+    ----------
+    path : str
+        A path to the cluster config.
+
+    Returns
+    -------
+    Cluster
+        The loaded cluster object
+
+    """
+    configs = list(load_config_from_file(path))
+    return configs[-1]

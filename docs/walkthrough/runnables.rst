@@ -1,28 +1,90 @@
+.. _runnables:
+
+=========
+Runnables
+=========
+
+Flambé executes ``Runnables``, which are simply Python objects that implement the method ``run``:
+
+    .. code-block:: python
+
+        class Runnable(object):
+
+            def run(self):
+                ...
+
+
+Flambé provides the following set of ``Runnables``, but you can easily create your own:
+
+| Runnable | Description |
+| -------|------|
+| [Script](#script) | An entry-point for users who wish to keep their code unchanged, but leverage Flambé's cluster management and distributed hyperparameter search tools.|
+| [Trainer](#trainer) | Train / Evaluate a single model on a given task. Offers an interface to automate the boilerplate code usually found in PyTorch scripts, such as multi-gpu handling, fp16 training, and training loops. |
+| [Search](#search) | Run a hyperparameter search over python objects and scripts. |
+| [Experiment](#experiment) | Build a computational DAG, with the possibility of running a hyperparameter search at each node, and reduce to the best variants |
+
+``Runnables`` can be used in regular python scripts, or executed through YAML configurations with the command:
+
+```bash
+flambe run [CONFIG]
+```
+
+To see all the arguments to the ``run`` command use:
+
+```bash
+flambe run --help
+```
+
+To submit to a cluster:
+
+    .. code-block:: bash
+        
+        flambe submit [CONFIG] --cluster ~/.flambe/cluster.yaml
+
+For more information on remote execution, see: ...
+
+
 .. _understanding-extensions_label:
 
-==========
-Extensions
-==========
 
-Flambé comes with many built-in :class:`~flambe.compile.Component` and :class:`~flambe.runnable.Runnable` implementations.
-(for example :class:`~flambe.experiment.Experiment`, :class:`~flambe.learn.Trainer`,
-:class:`~flambe.dataset.TabularDataset` and :class:`~flambe.sampler.BaseSampler`). However, users
-will almost always need to write new code and include that in their executions.
-This is done via our **"extensions"** mechanism.
-
-.. tip::
-  At this point you should be familiar with the concepts of :ref:`understanding-component_label`
-  and :ref:`understanding-runnables_label`.
-    
-
-.. important::
-    The same "extensions" mechanism serves for importing custom ``Components`` and ``Runnables``.
+YAML
+-----
 
 
-.. _understanding-extensions-building_label:
 
-Building Extensions
---------------------
+Environment
+-----------
+
+When executing Flambé runnables, you can access an environment object containing
+useful information about the execution, including:
+
+- A list of the external python modules required for execution
+- A list of resources (i.e files and folders) required for execution
+- The IP's of the machines executing the runnable
+
+The envrionment object is used to manage remote execution, as well as to ensure reproducibility.
+
+To fetch the envrionment object anywhere in your code, use:
+
+.. code-block:: python
+
+    import flambe
+
+    ...
+
+    env = flambe.get_env()
+
+Note that you can also override any attribute on the envrionment by passing arguments
+to the ``get_env`` function. You can also make these changes permanent by modifying
+the global envrionment:
+
+.. code-block:: python
+
+    import flambe
+
+    ...
+
+    flambe.set_env(env=env, ...)
 
 **An extension is a pip installable package that contains valid Flambé objects as
 top level imports.** These objects could be ``Runnables`` or ``Components``.
@@ -82,8 +144,6 @@ has a special behavior not implemented by the base ``Trainer``. The **extension*
 
 .. _understanding-extensions-usage_label:
 
-Using Extensions
------------------
 
 You are able to use any extension in any YAML config by specifying it in the
 ``extensions`` section which precedes the rest of the YAML:

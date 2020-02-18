@@ -2,10 +2,9 @@ from typing import Optional, Dict
 
 import ray
 
-import flambe as fl
+import flambe
 from flambe.compile import Schema, Registrable, YAMLLoadType
 from flambe.search import Algorithm, Searchable
-from flambe.runner.environment import Environment
 from flambe.experiment.pipeline import Pipeline
 from flambe.experiment.stage import Stage
 
@@ -26,9 +25,11 @@ def get_stage(name,
         reductions=reductions,
         dependencies=dependencies,  # Passing object ids sets the order of computation
         cpus_per_trial=cpus_per_trial,
-        gpus_per_trial=gpus_per_trial,
-        environment=environment
+        gpus_per_trial=gpus_per_trial
     )
+    # Modify the output path
+    output_path = os.path.join(environment.output_path, name)
+    flambe.set_env(env=environment, output_path=output_path)
     return stage.run()
 
 
@@ -79,18 +80,10 @@ class Experiment(Registrable):
         """Provide the YAML loading rule."""
         return YAMLLoadType.KWARGS
 
-    def run(self, env: Optional[Environment] = None):
-        """Execute the Experiment.
-
-        Parameters
-        ----------
-        env : Environment, optional
-            An optional environment object.
-
-        """
+    def run(self):
+        """Execute the Experiment."""
         # Set up envrionment
-        env = env if env is not None else Environment()
-        fl.utils.ray.initialize(env)
+        env = flambe.env()
 
         stages: Dict[str, int] = {}
         pipeline = Pipeline(self.pipeline)

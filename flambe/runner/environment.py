@@ -1,7 +1,11 @@
+import os
 import copy
-from typing import Any, Optional, Dict, List
+from contextlib import contextmanager
+from typing import Any, Optional, Dict, List, Iterator
 
 from flambe.compile import Registrable, YAMLLoadType
+from flambe.compile.yaml import load_first_config, load_config_from_file
+from flambe.compile.yaml import dump_one_config, num_yaml_files
 
 
 class Environment(Registrable):
@@ -92,3 +96,103 @@ class Environment(Registrable):
     @classmethod
     def yaml_load_type(cls) -> YAMLLoadType:
         return YAMLLoadType.KWARGS
+
+
+def get_env(**kwargs: Dict[str, Any]) -> 'Environment':
+    """Get the global flambe environment and apply modifications.
+
+    Parameters
+    ----------
+    kwargs: Dict[str, Any]
+        Arguments to modify the global environment with.
+
+    Returns
+    -------
+    Environment
+        A copy of the global environment.
+
+    """
+    if 'FLAMBE_ENVIRONMENT' not in os.environ:
+        env = Environment()
+    else:
+        env = load_first_config(os.environ['FLAMBE_ENVIRONMENT'])
+    return env.clone(**kwargs)
+
+
+def set_env(env: Optional['Environment'] = None, **kwargs: Dict[str, Any]):
+    """Set the global flambe environment and apply modifications.
+
+    Parameters
+    ----------
+    env: Environment, optional
+        An optional environment to set as global
+    kwargs: Dict[str, Any]
+        Arguments to modify the global environment with.
+
+    """
+    env = load_first_config(os.environ['FLAMBE_ENVIRONMENT']) if env is None else env
+    new_env = env.clone(**kwargs)
+    os.environ['FLAMBE_ENVIRONMENT'] = dump_one_config(new_env)
+
+
+@contextmanager
+def env(env: Optional['Environment'] = None, **kwargs: Dict[str, Any]) -> Iterator['Environment']:
+    """Context manager to fetch and temporarley modify the environment.
+
+    Parameters
+    ----------
+    env: Environment, optional
+        An optional environment to set as global
+    kwargs: Dict[str, Any]
+        Arguments to modify the global environment with.
+
+    Returns
+    -------
+    Environment
+        A copy of the environment
+
+    """
+    current_env = get_env()
+    try:
+        set_env(env=env, **kwargs)
+        yield get_env()
+    finally:
+        set_env(env=current_env)
+
+
+def load_env_from_config(path: str) -> Optional[Environment]:
+    """Load a Cluster obejct from the given config.
+
+    Parameters
+    ----------
+    path : str
+        A path to the cluster config.
+
+    Returns
+    -------
+    Cluster
+        The loaded cluster object
+
+    """
+    if num_yaml_files(path) > 1:
+        configs = list(load_config_from_file(path))
+        return configs[-1]
+    return None
+
+
+def set_env_in_config(env: Environment, input_path: str, stream: Optional[Any] = None):
+    """Set the envrionment
+
+    Parameters
+    ----------
+    path : str
+        A path to the cluster config.
+
+    Returns
+    -------
+    Cluster
+        The loaded cluster object
+
+    """
+    configs = list(load_config_from_file(path, convert=False))
+    dump_config([env, configs[-1]], stream)

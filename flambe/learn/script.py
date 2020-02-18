@@ -3,9 +3,9 @@ import sys
 import tempfile
 from copy import deepcopy
 
+import flambe
 from flambe.logging import TrialLogging
 from flambe.compile import Component
-from flambe.runner import Environment
 from flambe.compile import dump_one_config
 
 
@@ -31,7 +31,6 @@ class Script(Component):
                  script: str,
                  pos_args: List[Any],
                  keyword_args: Optional[Dict[str, Any]] = None,
-                 pass_env: bool = True,
                  max_steps: Optional[int] = None,
                  metric_fn: Optional[Callable[[str], float]] = None) -> None:
         """Initialize a Script.
@@ -53,21 +52,20 @@ class Script(Component):
         else:
             self.kwargs = keyword_args
 
-        self.pass_env = pass_env
         self.max_steps = max_steps
         self.metric_fn = metric_fn
         self._step = 0
 
         self.register_attrs('_step')
 
-    def metric(self, env: Optional[Environment] = None) -> float:
+    def metric(self) -> float:
         """Override to read a metric from your script's output."""
-        env = env if env is not None else Environment()
+        env = flambe.get_env()
         if self.metric_fn is not None:
             return self.metric_fn(env.output_path)
         return 0.0
 
-    def step(self, env: Optional[Environment] = None) -> bool:
+    def step(self) -> bool:
         """Run the evaluation.
 
         Returns
@@ -76,19 +74,14 @@ class Script(Component):
             Whether to continue execution.
 
         """
-        env = env if env is not None else Environment()
+        env = flambe.get_env()
 
         with tempfile.NamedTemporaryFile() as fp:
             dump_one_config(env, fp)
 
-            # Add extra parameters
-            if self.pass_env:
-                kwargs = dict(self.kwargs)
-                kwargs['--env'] = env
-
             # Flatten the arguments into a list to pass to sys.argv
             parser_args_flat = [str(item) for item in self.args]
-            parser_args_flat += [str(item) for items in kwargs.items() for item in items]
+            parser_args_flat += [str(item) for items in self.kwargs.items() for item in items]
 
             # Execute the script
             sys_save = deepcopy(sys.argv)
@@ -102,17 +95,10 @@ class Script(Component):
             continue_ = False
         return continue_
 
-    def run(self, env: Optional[Environment] = None) -> None:
-        """Execute the trainer as a Runnable.
-
-        Parameters
-        ----------
-        env : Environment
-            An execution envrionment.
-
-        """
-        env = env if env is not None else Environment()
+    def run(self) -> None:
+        """Execute the script."""
+        env = flambe.get_env()
         with TrialLogging(env.output_path, verbose=env.debug):
             continue_ = True
             while continue_:
-                continue_ = self.step(env)
+                continue_ = self.step()

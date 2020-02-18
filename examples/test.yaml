@@ -48,5 +48,4 @@ algorithm:
       step_budget: 6
 
 reduce:
-  train: 2
-#   train: !
+  train: 2!
