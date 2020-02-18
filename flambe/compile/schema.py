@@ -42,6 +42,7 @@ class Options(Registrable):
 
 
 def _convert_ints(schematic_path: List[str]) -> List[KeyType]:
+    modified: List[KeyType] = list(schematic_path)
     for i, e in enumerate(schematic_path):
         stay_quote = False
         if e.startswith("'") and e.endswith("'") and len(e) > 2:
@@ -51,29 +52,31 @@ def _convert_ints(schematic_path: List[str]) -> List[KeyType]:
             integer = int(e)
             if stay_quote:
                 # save as string, but leave the quotes stripped
-                schematic_path[i] = str(integer)
+                modified[i] = str(integer)
             else:
                 # save as integer
-                schematic_path[i] = integer
+                modified[i] = integer
         except ValueError:
+            # The value is not an integer and can be left alone
             pass
-    return schematic_path
+    return modified
 
 
 def _represent_ints(schematic_path: Sequence[KeyType]) -> List[str]:
-    for i, e in enumerate(schematic_path):
+    modified: List[str] = []
+    for e in schematic_path:
         if isinstance(e, int):
-            schematic_path[i] = str(e)
+            modified.append(str(e))
         else:
             try:
                 int(e)
-                schematic_path[i] = "'" + e + "'"
+                modified.append("'" + e + "'")
             except ValueError:
-                pass
-    return schematic_path
+                modified.append(e)
+    return modified
 
 
-def create_link_str(schematic_path: Sequence[str],
+def create_link_str(schematic_path: Sequence[KeyType],
                     attr_path: Optional[Sequence[str]] = None) -> str:
     """Create a string representation of the specified link
 
@@ -120,7 +123,7 @@ def create_link_str(schematic_path: Sequence[str],
     return root + schematic_str + attr_str
 
 
-def parse_link_str(link_str: str) -> Tuple[Sequence[str], Sequence[str]]:
+def parse_link_str(link_str: str) -> Tuple[Tuple[KeyType, ...], Tuple[str, ...]]:
     """Parse link to extract schematic and attribute paths
 
     Links should be of the format ``obj[key1][key2].attr1.attr2`` where
@@ -219,7 +222,7 @@ class Link(Registrable, tag_override="@"):
 
     def __init__(self,
                  link_str: Optional[str] = None,
-                 schematic_path: Optional[Sequence[str]] = None,
+                 schematic_path: Optional[Sequence[KeyType]] = None,
                  attr_path: Optional[Sequence[str]] = None) -> None:
         if link_str is not None:
             if schematic_path is not None or attr_path is not None:
@@ -260,13 +263,13 @@ class Link(Registrable, tag_override="@"):
 class Resource(Registrable, tag_override="resource"):
 
     def __init__(self, resource_reference: str):
-        self.resource_reference = resource_reference
+        self.resource_path = (resource_reference,)
 
     def resolve(self, cache: Dict[PathType, Any]) -> Any:
         try:
-            obj = cache[self.resource_reference]
+            obj = cache[self.resource_path]
         except KeyError:
-            raise NonexistentResourceError(f'{self.resource_reference} is not available ')
+            raise NonexistentResourceError(f'{self.resource_path[0]} is not available ')
         return obj
 
 
@@ -304,8 +307,10 @@ class Schema(MutableMapping[str, Any]):
             self.bound_arguments.apply_defaults()
         for k, v in self.bound_arguments.arguments.items():
             if s.parameters[k].kind not in [inspect.Parameter.POSITIONAL_OR_KEYWORD,
-                                            inspect.Parameter.KEYWORD_ONLY, inspect.Parameter.VAR_KEYWORD]:
-                raise TypeError(f'Argument {k} for {callable_} is of unsupported type {s.parameters[k].kind.name}')
+                                            inspect.Parameter.KEYWORD_ONLY,
+                                            inspect.Parameter.VAR_KEYWORD]:
+                raise TypeError(f'Argument {k} for {callable_} is of '  # type: ignore
+                                f'unsupported type {s.parameters[k].kind.name}')  # type: ignore
         if tag is None:
             if isinstance(self.callable_, type):
                 tag = type(self.callable_).__name__
