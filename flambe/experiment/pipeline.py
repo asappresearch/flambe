@@ -1,7 +1,7 @@
 import copy
 from typing import Optional, Dict, List, Callable, Set, Any, Tuple, Union
 
-from flambe.compile import Schema, UnpreparedLinkError
+from flambe.compile import Schema, KeyType, PathType, UnpreparedLinkError
 from flambe.search import Checkpoint, Choice
 from flambe.runner import get_env
 
@@ -115,8 +115,8 @@ class Pipeline(Schema):
             return False
 
     def initialize(self,
-                   path: Optional[Tuple[str]] = None,
-                   cache: Optional[Dict[str, Any]] = None,
+                   path: Optional[PathType] = None,
+                   cache: Optional[Dict[PathType, Any]] = None,
                    root: Optional['Schema'] = None) -> Any:
         """Override initialization to load checkpoints."""
         # Check Links
@@ -130,8 +130,8 @@ class Pipeline(Schema):
         cache = {}
         for stage_name, checkpoint in self.checkpoints.items():
             val = checkpoint.get()
-            cache[stage_name] = val
-        resources = get_env().local_resources
+            cache[(stage_name,)] = val
+        resources: Dict[PathType, Any] = {(name,): path for name, path in get_env().local_resources}
         cache.update(resources)
         return super().initialize(cache=cache)
 
@@ -204,7 +204,7 @@ class Pipeline(Schema):
                 return False
         return True
 
-    def set_param(self, path: Optional[Tuple[Union[str, int]]], value: Any):
+    def set_param(self, path: Optional[PathType], value: Any):
         """Set path in schema to value
 
         Convenience method for setting a value deep in a schema. For

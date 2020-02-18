@@ -1,5 +1,5 @@
 from flambe.compile.schema import LinkError, MalformedLinkError, UnpreparedLinkError, \
-    create_link_str, parse_link_str, Link, Schema, Options
+    create_link_str, parse_link_str, Link, Schema, Options, KeyType, PathType
 from flambe.compile.yaml import load_config, load_config_from_file, dump_config, \
     Registrable, YAMLLoadType, load_first_config, load_first_config_from_file, dump_one_config, \
     TagError
@@ -13,4 +13,4 @@ __all__ = ['LinkError', 'MalformedLinkError', 'UnpreparedLinkError', 'TagError',
            'Registrable', 'load_config', 'load_first_config', 'load_first_config_from_file',
            'load_config_from_file', 'dump_config', 'dump_one_config', 'Component',
            'Options', 'is_installed_module', 'is_package', 'State', 'load', 'save',
-           'download_extensions', 'download_manager']
+           'download_extensions', 'download_manager', 'KeyType', 'PathType']

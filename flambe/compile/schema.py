@@ -2,7 +2,7 @@ from __future__ import annotations
 import inspect
 from reprlib import recursive_repr
 from typing import MutableMapping, Any, Callable, Optional, Dict, Sequence
-from typing import Tuple, List, Iterable, Union, Mapping
+from typing import Tuple, List, Iterator, Union, Mapping
 
 import copy
 import functools

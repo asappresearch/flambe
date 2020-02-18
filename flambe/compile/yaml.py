@@ -467,7 +467,7 @@ def num_yaml_files(file_path: str) -> int:
 
 
 def dump_config(objs: Sequence[Any],
-                stream: Optional[Any] = None) -> str:
+                stream: Optional[Any] = None) -> Optional[str]:
     """Dump the given objects into the stream.
 
     Only dump objects that inherit from a Flambé class, or that have
@@ -506,6 +506,6 @@ def dump_config(objs: Sequence[Any],
     return None
 
 
-def dump_one_config(obj: Any, stream: Optional[Any] = None) -> str:
+def dump_one_config(obj: Any, stream: Optional[Any] = None) -> Optional[str]:
     """Dump the given object into the stream."""
     return dump_config([obj], stream)
