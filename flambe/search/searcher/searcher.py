@@ -235,11 +235,12 @@ class Searcher(ABC):
             return None
         else:
             # Fetch names from the distributions
+            pre_transform_params = params
+            params = self._apply_transform(dict(params))
             var_names = {k: self.space.dists[k].name(v) for k, v in params.items()}
             name = generate_name(var_names)
             name = name if name else '0'
-            self.params[name] = params
-            params = self._apply_transform(params)
+            self.params[name] = pre_transform_params
             return name, params
 
     def register_results(self, results: Dict[str, float]):

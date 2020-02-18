@@ -83,7 +83,8 @@ class Experiment(Registrable):
     def run(self):
         """Execute the Experiment."""
         # Set up envrionment
-        env = flambe.env()
+        env = flambe.get_env()
+        flambe.utils.ray.initialize(env)
 
         stages: Dict[str, int] = {}
         pipeline = Pipeline(self.pipeline)

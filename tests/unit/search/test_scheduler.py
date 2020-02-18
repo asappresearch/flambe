@@ -2,7 +2,7 @@ import numpy as np
 
 from flambe.search.searcher import GridSearcher, RandomSearcher, BayesOptKDESearcher
 from flambe.search.scheduler import BlackBoxScheduler, HyperBandScheduler
-from flambe.search.distribution import Choice, QUniform, Beta
+from flambe.search.distribution import Choice, QUniform, Uniform
 
 
 def set_random_metrics(trials):
@@ -16,7 +16,7 @@ def set_random_metrics(trials):
 def test_blackbox():
 
     good_space = {'var1': Choice(['red', 'blue', 'green']),
-                  'var2': QUniform(-10, 10, transform='pow10'),
+                  'var2': QUniform(-10, 10, 20),
                   'var3': Choice([1, 2, 3])}
     searcher = GridSearcher(space=good_space)
     scheduler = BlackBoxScheduler(searcher, 4, max_steps=2)
@@ -61,9 +61,9 @@ def test_blackbox():
 
 
 def test_hyperband():
-    space = {'var1': QUniform(-6, -2, 5, transform='pow10'),
+    space = {'var1': QUniform(-10, 10, 20, transform='pow10'),
              'var2': Choice([1, 2, 3]),
-             'var3': Beta(4, 5),
+             'var3': Uniform(0, 1),
              'var4': Choice(['red', 'blue', 'green'])}
     searcher = RandomSearcher(space=space, seed=1234)
     scheduler = HyperBandScheduler(searcher, step_budget=18,
@@ -153,7 +153,7 @@ def test_hyperband():
 
 
 def test_bohb():
-    space = {'var1': Beta(2, 3)}
+    space = {'var1': Uniform(2, 3)}
     searcher = BayesOptKDESearcher(space=space)
     scheduler = HyperBandScheduler(searcher, step_budget=18,
                                    max_steps=3, min_steps=1,

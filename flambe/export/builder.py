@@ -1,13 +1,11 @@
 import tempfile
 import os
 import boto3
-from typing import Optional
 
 import subprocess
 from urllib.parse import urlparse
 
-import flambe as fl
-from flambe.runner.environment import Environment
+import flambe
 from flambe.compile import Component, Schema, Registrable, YAMLLoadType
 from flambe.const import DEFAULT_PROTOCOL
 from flambe.logging import coloredlogs as cl
@@ -80,9 +78,9 @@ class Builder(Registrable):
     def yaml_load_type(cls) -> YAMLLoadType:
         return YAMLLoadType.KWARGS
 
-    def run(self, env: Optional[Environment] = None) -> None:
+    def run(self) -> None:
         """Run the Builder."""
-        env = env if env is not None else Environment()
+        env = flambe.get_env()
         # Add information about the extensions. This ensures
         # the compiled component has the extensions information
         # self.component.add_extensions_metadata(self.extensions)
@@ -119,7 +117,7 @@ class Builder(Registrable):
 
         # TODO: switch flambe.save
         out_path = os.path.join(path, 'checkpoint.pt')
-        fl.save(self.compiled_component, out_path)
+        flambe.save(self.compiled_component, out_path)
 
     def get_boto_session(self):
         """Get a boto Session
@@ -160,7 +158,7 @@ class Builder(Registrable):
                 )
 
         with tempfile.TemporaryDirectory() as tmpdirname:
-            fl.save(self.compiled_component, tmpdirname)
+            flambe.save(self.compiled_component, tmpdirname)
             # TODO fix don't use flambe save; also probably have one helper for the save operation
             # so that local and remote do the exact same thing
             # flambe.save(self.compiled_component, tmpdirname, **self.serialization_args)
