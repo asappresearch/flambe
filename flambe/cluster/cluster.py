@@ -11,7 +11,7 @@ from ray.autoscaler.commands import exec_cluster, create_or_update_cluster, rsyn
 from ray.autoscaler.updater import SSHCommandRunner
 
 from flambe.logging import coloredlogs as cl
-from flambe.const import FLAMBE_GLOBAL_FOLDER
+from flambe.const import FLAMBE_GLOBAL_FOLDER, PYTHON_VERSION
 from flambe.compile import Registrable, YAMLLoadType, load_config_from_file
 from flambe.compile import download_extensions, download_manager
 from flambe.utils.path import is_dev_mode, get_flambe_repo_location
@@ -377,7 +377,7 @@ class Cluster(Registrable):
 
             tmux = lambda x: f'tmux send-keys -t {name}.0 "{x}" ENTER'  # noqa: E731
             cmd = f"mkdir -p $HOME/jobs/{name}/extensions && \
-                conda create -y -q --name {name}; echo ''"
+                conda create -y -q --name {name} python={PYTHON_VERSION}; echo ''"
             exec_cluster(fp.name, tmux(cmd))
 
             # Upload and install flambe
