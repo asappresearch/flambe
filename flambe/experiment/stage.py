@@ -3,7 +3,6 @@ import logging
 
 from flambe.search import Algorithm, Search, Searchable, Choice
 from flambe.experiment.pipeline import Pipeline
-from flambe.runner import Environment
 
 
 logger = logging.getLogger(__name__)
@@ -25,7 +24,6 @@ class Stage(object):
                  dependencies: List[Dict[str, Pipeline]],
                  cpus_per_trial: int,
                  gpus_per_trial: int,
-                 environment: Environment,
                  algorithm: Optional[Algorithm] = None,
                  reductions: Optional[Dict[str, int]] = None):
         """Initialize a Stage.
@@ -46,8 +44,6 @@ class Stage(object):
             The number of GPUs to allocate per trial.
             Note: if the object you are searching over spawns ray
             remote tasks, then you should set this to 0.
-        environment: Environment
-            THe envrionment to use.
         algorithm : Algorithm, optional
             An optional search algorithm.
         reductions : Dict[str, int], optional
@@ -60,7 +56,6 @@ class Stage(object):
         self.cpus_per_trial = cpus_per_trial
         self.gpus_per_trial = gpus_per_trial
         self.reductions = reductions if reductions is not None else dict()
-        self.env = environment
 
         # Flatten out the dependencies
         self.dependencies = {name: p for dep in dependencies for name, p in dep.items()}

@@ -1,9 +1,8 @@
 from __future__ import annotations
 from typing import Callable, Optional, Any, Union, TextIO, Dict, Mapping, Type, Sequence, \
-    Iterable, List, TYPE_CHECKING, Iterator
+    List, TYPE_CHECKING, Iterator
 from typing_extensions import Protocol, runtime_checkable
 from enum import Enum
-import functools
 from warnings import warn
 import importlib
 import inspect
@@ -47,7 +46,7 @@ class YAMLLoadType(Enum):
     SCHEMATIC = 'schematic'  # all delayed init objs
     KWARGS = 'kwargs'  # expands raw_obj via **
     KWARGS_OR_ARG = 'kwargs_or_arg'  # expands via ** if raw_obj is dict, else don't expand
-    KWARGS_OR_POSARGS = 'kwargs_or_posargs' # expands via ** if raw_obj is dict, else expands via *
+    KWARGS_OR_POSARGS = 'kwargs_or_posargs'  # expands via ** if raw_obj is dict, else expands via *
 
 
 @runtime_checkable
@@ -55,7 +54,8 @@ class TypedYAMLLoad(Protocol):
     """Used to tell flambe what YAMLLoadType the class is"""
 
     @classmethod
-    def yaml_load_type(cls) -> YAMLLoadType: ...
+    def yaml_load_type(cls) -> YAMLLoadType:
+        pass
 
 
 @runtime_checkable
@@ -63,12 +63,14 @@ class CustomYAMLLoad(Protocol):
     """Used to implement custom YAML representations"""
 
     @classmethod
-    def from_yaml(cls, raw_obj: Any, target_callable: Callable) -> Any: ...
-    """Produce new object using raw object ruamel.yaml loaded"""
+    def from_yaml(cls, raw_obj: Any, target_callable: Callable) -> Any:
+        """Produce new object using raw object ruamel.yaml loaded"""
+        pass
 
     @classmethod
-    def to_yaml(cls, instance: Any) -> Any: ...
-    """Produce ruamel.yaml compatible object from instance"""
+    def to_yaml(cls, instance: Any) -> Any:
+        """Produce ruamel.yaml compatible object from instance"""
+        pass
 
 
 class Registrable:
@@ -207,9 +209,16 @@ class GeneralArgsLoader:
 
     @classmethod
     def to_yaml(cls: Type, instance: Any) -> Any:
+        out = instance
         if hasattr(instance, '_saved_arguments'):
-            return instance._saved_arguments
-        raise Exception(f'{instance} doesnt have any attribute indicating args for YAML representation')
+            out = instance._saved_arguments
+        else:
+            msg = f'{instance} doesnt have any attribute indicating args for YAML representation'
+            raise Exception(msg)
+        if hasattr(instance, '_yaml_tag'):
+            out = ruamel.yaml.comments.CommentedMap(out)
+            out.yaml_set_tag(instance._yaml_tag)
+        return out
 
 
 class KwargsLoader(GeneralArgsLoader, CustomYAMLLoad):
@@ -429,7 +438,7 @@ def load_first_config(yaml_config: Union[TextIO, str], convert: bool = True) -> 
     return next(load_config(yaml_config, convert))
 
 
-def load_config_from_file(file_path: str, convert: bool = True) -> Iterable[Any]:
+def load_config_from_file(file_path: str, convert: bool = True) -> Iterator[Any]:
     """Load config after reading it from the file path
 
     Parameters

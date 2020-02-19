@@ -2,10 +2,9 @@ from __future__ import annotations
 import inspect
 from reprlib import recursive_repr
 from typing import MutableMapping, Any, Callable, Optional, Dict, Sequence
-from typing import Tuple, List, Iterator, Union, Mapping
+from typing import Tuple, List, Iterator, Union
 
 import copy
-import functools
 
 from ruamel.yaml.comments import (CommentedMap, CommentedOrderedMap, CommentedSet,
                                   CommentedKeySeq, CommentedSeq, TaggedScalar,
@@ -237,10 +236,12 @@ class Link(Registrable, tag_override="@"):
         try:
             obj = cache[self.schematic_path]
         except KeyError:
-            raise UnpreparedLinkError(f'Link for schema at {self.schematic_path} does not point to '
-                                     'an object that has been initialized. '
-                                     'Make sure the link points to a non-parent above the link '
-                                     'in the config.')
+            raise UnpreparedLinkError(
+                f'Link for schema at {self.schematic_path} does not point to \
+                  an object that has been initialized. \
+                  Make sure the link points to a non-parent above the link \
+                  in the config.'
+            )
         if self.attr_path is not None:
             for attr in self.attr_path:
                 try:
@@ -347,7 +348,10 @@ class Schema(MutableMapping[str, Any]):
         elif self.allow_new_args:
             existing_kwargs = self.bound_arguments.kwargs
             existing_kwargs[key] = value
-            self.bound_arguments = self.bound_arguments.signature.bind(*self.bound_arguments.args, **existing_kwargs)
+            self.bound_arguments = self.bound_arguments.signature.bind(
+                *self.bound_arguments.args,
+                **existing_kwargs
+            )
         else:
             raise KeyError(f'{key} not found in schema {self} and `allow_new_args` is False')
 

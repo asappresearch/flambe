@@ -75,7 +75,7 @@ class Environment(Registrable):
             'extra': self.extra,
         }
         if not hasattr(self, '_yaml_tag'):
-            self._yaml_tag = 'Environment'
+            self._yaml_tag = '!Environment'
 
     def clone(self, **kwargs) -> 'Environment':
         """Clone the envrionment, updated with the provided arguments.
@@ -166,7 +166,7 @@ def env(env: Optional['Environment'] = None, **kwargs: Dict[str, Any]) -> Iterat
 
 
 def load_env_from_config(path: str) -> Optional[Environment]:
-    """Load a Cluster obejct from the given config.
+    """Load an envrionment from the given config, if present.
 
     Parameters
     ----------
@@ -180,8 +180,8 @@ def load_env_from_config(path: str) -> Optional[Environment]:
 
     """
     if num_yaml_files(path) > 1:
-        configs = list(load_config_from_file(path))
-        return configs[-1]
+        config = next(load_config_from_file(path))
+        return config
     return None
 
 

@@ -1,28 +1,16 @@
-# from __future__ import annotations
 import inspect
 import dill
 import logging
-from reprlib import recursive_repr
 from warnings import warn
-from typing import Type, TypeVar, Any, Mapping, Dict, Optional, List, Union
-from typing import Generator, MutableMapping, Callable, Set, Tuple, Sequence
-from functools import WRAPPER_ASSIGNMENTS
+from typing import TypeVar, Any, Dict, Optional, List, Set
 from collections import OrderedDict
-import copy
 
-import ray
 import torch
-from io import StringIO
-from ruamel.yaml.representer import RepresenterError
-from ruamel.yaml import ScalarNode
-from ruamel.yaml.comments import (CommentedMap, CommentedOrderedMap, CommentedSet,
-                                  CommentedKeySeq, CommentedSeq, TaggedScalar,
-                                  CommentedKeyMap)
 
 from flambe.compile.yaml import Registrable, YAMLLoadType, _combine_tag
 from flambe.compile.schema import Schema
 from flambe.const import STATE_DICT_DELIMETER, FLAMBE_SOURCE_KEY, FLAMBE_CLASS_KEY, \
-    FLAMBE_CONFIG_KEY, FLAMBE_DIRECTORIES_KEY, KEEP_VARS_KEY, VERSION_KEY, FLAMBE_STASH_KEY
+    FLAMBE_DIRECTORIES_KEY, KEEP_VARS_KEY, VERSION_KEY
 
 
 _EMPTY = inspect.Parameter.empty
@@ -34,7 +22,6 @@ logger = logging.getLogger(__name__)
 
 class LoadError(Exception):
     pass
-
 
 
 class State(OrderedDict):
