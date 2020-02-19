@@ -14,7 +14,7 @@ Flambé is a Python framework built to accelerate the development of machine lea
 With Flambé you can:
 
 * **Run hyperparameter searches** over arbitrary Python objects or scripts.
-* **Constuct DAGs**, by searching over hyperparameters and reducing to the
+* **Constuct DAGs**, searching over hyperparameters and reducing to the
 best variants at any of the nodes.
 * Distribute tasks **remotely** and **in parallel** over a cluster, with full AWS,
 GCP, and Kubernetes integrations.
@@ -63,6 +63,8 @@ flambe submit [CONFIG] --cluster ~/.flambe/cluster.yaml
 In the following examples, each code snippet is shown alongside its corresponding YAML configuration.
 
 ### Script
+
+For more information see: [here](http://flambe.ai/).
 
 <table>
 <tr style="font-weight:bold;">
@@ -148,6 +150,7 @@ To run a hyperparameter search over a trainer, see [here](#search).
 ### Search
 
 For more information see: [here](http://flambe.ai/).
+
 Run a hyperparameter search over a Python script:
 
 <table>
@@ -243,6 +246,7 @@ Run a hyperpameter search over a ``Trainer``:
 ### Experiment
 
 For more information see: [here](http://flambe.ai/).
+
 Construct a computational graph with different training stages:
 
 <table>
