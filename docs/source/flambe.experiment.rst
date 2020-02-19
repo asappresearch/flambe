@@ -6,21 +6,11 @@ flambe.experiment package
    :undoc-members:
    :show-inheritance:
 
-Subpackages
------------
-
-.. toctree::
-
-   flambe.experiment.webapp
-
 Submodules
 ----------
 
 .. toctree::
 
    flambe.experiment.experiment
-   flambe.experiment.options
-   flambe.experiment.progress
-   flambe.experiment.tune_adapter
-   flambe.experiment.utils
-   flambe.experiment.wording
+   flambe.experiment.pipeline
+   flambe.experiment.stage

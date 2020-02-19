@@ -1,4 +1,9 @@
-from typing import List, Dict, Optional
+from typing import List, Dict, Optional, Any
+from ruamel.yaml import YAML
+import tempfile
+import copy
+
+from ray.autoscaler.commands import teardown_cluster
 
 from flambe.const import AWS_AMI
 from flambe.cluster.cluster import Cluster
@@ -27,7 +32,8 @@ class AWSCluster(Cluster):
                  worker_node_volume_size: int = 100,
                  head_node_ami: str = None,
                  worker_node_ami: str = None,
-                 dedicated: bool = False, **kwargs) -> None:
+                 dedicated: bool = False,
+                 terminate_on_down: bool = False, **kwargs) -> None:
         """Initialize an AWS cluster.
 
         Parameters
@@ -85,6 +91,9 @@ class AWSCluster(Cluster):
             The AMI to be used for the worker nodes.
         dedicated: bool, optional
             Wether all instances should be dedicated or shared.
+        terminate_on_down: bool, optional
+            Wether instances should be terminated on flambe down.
+            Default ``False``.
 
         See flambe.cluster.Cluster for extra arguments.
 
@@ -94,10 +103,11 @@ class AWSCluster(Cluster):
         head_node_ami = head_node_ami or AWS_AMI
         worker_node_ami = worker_node_ami or AWS_AMI
 
-        config = {
+        config: Dict[str, Any] = {
             'provider': {
                 'type': 'aws',
                 'region': region,
+                'cache_stopped_nodes': terminate_on_down
             },
             'head_node': {
                 'KeyName': key_name,
@@ -182,3 +192,23 @@ class AWSCluster(Cluster):
         ]
 
         self.config.update(config)
+
+    def down(self, yes: bool = False, workers_only: bool = False, terminate: bool = False):
+        """Teardown the cluster.
+
+        Parameters
+        ----------
+        yes : bool, optional
+            Tear the cluster down.
+        workers_only : bool, optional
+            Kill only worker nodes, by default False.
+        terminate: bool, optional
+            Whether to terminate the instances
+
+        """
+        config = copy.deepcopy(self.config)
+        config['provider']['cache_stopped_nodes'] = terminate
+        yaml = YAML()
+        with tempfile.NamedTemporaryFile() as fp:
+            yaml.dump(config, fp)
+            teardown_cluster(fp.name, yes, workers_only, None)

@@ -5,3 +5,10 @@ flambe.vision package
    :members:
    :undoc-members:
    :show-inheritance:
+
+Subpackages
+-----------
+
+.. toctree::
+
+   flambe.vision.classification

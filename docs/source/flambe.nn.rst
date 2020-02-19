@@ -19,10 +19,12 @@ Submodules
 .. toctree::
 
    flambe.nn.cnn
-   flambe.nn.embedder
+   flambe.nn.embedding
    flambe.nn.mlp
    flambe.nn.module
    flambe.nn.mos
+   flambe.nn.pooling
    flambe.nn.rnn
    flambe.nn.sequential
    flambe.nn.softmax
+   flambe.nn.transformer

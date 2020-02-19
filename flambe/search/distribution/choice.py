@@ -27,13 +27,13 @@ class Choice(Distribution, tag_override="~c"):
         """
         if isinstance(options, dict):
             names = list(options.keys())
-            options = options.values()  # type: ignore
+            options = list(options.values())
         elif all(type(opt) in PRIMITIVES for opt in options):
             names = list(map(str, options))
         else:
             raise ValueError("Choices over non built-in types must be provided with a name.")
 
-        self.options: List[Any] = options  # type: ignore
+        self.options: List[Any] = options
         self.names: List[str] = names
         self.n_options = len(options)
         if probs is None:

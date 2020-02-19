@@ -1,7 +1,7 @@
 from typing import Dict, List, Optional
 import logging
 
-from flambe.search import Algorithm, Search, Searchable, Choice
+from flambe.search import Algorithm, Search, Searchable, Choice, Trial, Checkpoint
 from flambe.experiment.pipeline import Pipeline
 
 
@@ -211,19 +211,28 @@ class Stage(object):
             self.cpus_per_trial,
             self.gpus_per_trial
         )
-        result = search.run()
+        trials: Dict[str, Trial] = search.run()
 
         # Each variants object is a dictionary from variant name
         # to a dictionary with schema, params, and checkpoint
         pipelines: Dict[str, Pipeline] = dict()
-        for name, var_dict in result.items():
+        for name, trial in trials.items():
             # Flatten out the pipeline schema
-            variant: Pipeline = var_dict['schema']
-            # Add search results to the pipeline
-            variant.var_ids[self.name] = var_dict['var_id']
-            variant.checkpoints[self.name] = var_dict['checkpoint']
-            variant.error = var_dict['error']
-            variant.metric = var_dict['metric']
+            variant: Optional[Pipeline] = trial.get_schema()  # type: ignore
+            if variant is None:
+                raise ValueError(f"No schema set on output pipeline {name}")
+
+            var_id: Optional[str] = trial.get_var_id()
+            if var_id is None:
+                raise ValueError(f"No variant id set on output pipeline {name}")
+
+            checkpoint: Optional[Checkpoint] = trial.get_checkpoint()
+            if checkpoint is None:
+                raise ValueError(f"No variant id set on output pipeline {name}")
+            variant.var_ids[self.name] = var_id
+            variant.checkpoints[self.name] = checkpoint
+            variant.error = trial.is_error()
+            variant.metric = trial.best_metric
             pipelines[name] = variant
 
         return pipelines

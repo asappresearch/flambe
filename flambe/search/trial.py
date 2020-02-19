@@ -1,5 +1,8 @@
 import enum
-from typing import Dict, Any, List
+from typing import Dict, Any, List, Optional
+
+from flambe.compile.schema import Schema
+from flambe.search.checkpoint import Checkpoint
 
 
 class Status(enum.Enum):
@@ -43,6 +46,10 @@ class Trial(object):
         self.status = Status.CREATED
         self.metrics: List[float] = []
 
+        self.schema: Optional[Schema] = None
+        self.var_id: Optional[str] = None
+        self.checkpoint: Optional[Checkpoint] = None
+
     @property
     def params(self) -> Dict[str, Any]:
         """Get the set of hyperparameters for this trial."""
@@ -56,7 +63,7 @@ class Trial(object):
     @property
     def best_metric(self) -> float:
         """Get the best metric recorded so far."""
-        return max(self.metrics) if self.metrics else 0
+        return max(self.metrics) if self.metrics else float('-inf')
 
     def get_metric(self, step: int) -> float:
         """Get the current trial results."""
@@ -70,6 +77,18 @@ class Trial(object):
     def get_status(self) -> Status:
         """Get the current trial status."""
         return self.status
+
+    def get_var_id(self) -> Optional[str]:
+        """Get the variant id."""
+        return self.var_id
+
+    def get_checkpoint(self) -> Optional[Checkpoint]:
+        """Sets the variant id."""
+        return self.checkpoint
+
+    def get_schema(self) -> Optional[Schema]:
+        """Sets the variant id."""
+        return self.schema
 
     def set_metric(self, metric: float, step: int = None):
         """Set the current trial results. #1 indexed."""
@@ -139,6 +158,18 @@ class Trial(object):
     def set_created(self):
         """Sets the trial status to created."""
         self.status = Status.CREATED
+
+    def set_var_id(self, var_id: str):
+        """Sets the variant id."""
+        self.var_id = var_id
+
+    def set_checkpoint(self, checkpoint: Checkpoint):
+        """Sets the variant id."""
+        self.checkpoint = checkpoint
+
+    def set_schema(self, schema: Schema):
+        """Sets the variant id."""
+        self.schema = schema
 
     def __repr__(self):
         # name = self.generate_name()

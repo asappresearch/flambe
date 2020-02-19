@@ -1,7 +1,7 @@
 import copy
-from typing import Optional, Dict, List, Callable, Set, Any, Tuple, Union
+from typing import Optional, Dict, List, Callable, Set, Any
 
-from flambe.compile import Schema, KeyType, PathType, UnpreparedLinkError
+from flambe.compile import Schema, PathType, UnpreparedLinkError
 from flambe.search import Checkpoint, Choice
 from flambe.runner import get_env
 
@@ -46,7 +46,7 @@ class Pipeline(Schema):
         self.var_ids = variant_ids if variant_ids is not None else dict()
         self.checkpoints = checkpoints if checkpoints is not None else dict()
         self.error = False
-        self.metric = None
+        self.metric: Optional[float] = None
 
     def _update_deps(self, stage_name: str):
         """Compute the set of dependencies for this stage.

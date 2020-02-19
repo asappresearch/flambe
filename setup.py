@@ -45,7 +45,7 @@ setup(
     author_email=EMAIL,
 
     # What is packaged here.
-    packages=find_packages(exclude=("tests", "tests.*", "extensions")),
+    packages=find_packages(exclude=("tests", "tests.*")),
     scripts=[
         'bin/flambe'
     ],

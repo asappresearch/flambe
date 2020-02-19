@@ -14,3 +14,4 @@ Submodules
    flambe.nlp.language_modeling.datasets
    flambe.nlp.language_modeling.fields
    flambe.nlp.language_modeling.model
+   flambe.nlp.language_modeling.sampler

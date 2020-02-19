@@ -6,13 +6,6 @@ flambe.cluster package
    :undoc-members:
    :show-inheritance:
 
-Subpackages
------------
-
-.. toctree::
-
-   flambe.cluster.instance
-
 Submodules
 ----------
 
@@ -20,7 +13,5 @@ Submodules
 
    flambe.cluster.aws
    flambe.cluster.cluster
-   flambe.cluster.const
-   flambe.cluster.errors
-   flambe.cluster.ssh
-   flambe.cluster.utils
+   flambe.cluster.gcp
+   flambe.cluster.kubernetes

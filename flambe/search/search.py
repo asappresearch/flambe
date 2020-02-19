@@ -39,7 +39,6 @@ class RayAdapter:
         self.schema = schema
         self.searchable: Optional[Searchable] = None
         self.checkpoint = checkpoint
-        self.environment = environment
         self.trial_logging = TrialLogging(checkpoint.path)
         self.trial_logging.setup()
 
@@ -54,8 +53,8 @@ class RayAdapter:
                 # Not searchable, we only find that out
                 # once the object is built and we check the protocol
                 return -1
-        continue_ = self.searchable.step(self.environment)
-        metric = self.searchable.metric(self.environment)
+        continue_ = self.searchable.step()
+        metric = self.searchable.metric()
         self.checkpoint.set(self.searchable)
         return continue_, metric
 
@@ -110,12 +109,13 @@ class Search(Registrable):
 
         self.schema = schema
         self.algorithm = GridSearch() if algorithm is None else algorithm
+        self.trials: Dict[str, Trial] = dict()
 
     @classmethod
     def yaml_load_type(cls) -> YAMLLoadType:
         return YAMLLoadType.KWARGS
 
-    def run(self) -> Dict[str, Dict[str, Any]]:
+    def run(self) -> Dict[str, Trial]:
         """Execute the search.
 
         Returns
@@ -142,8 +142,7 @@ class Search(Registrable):
         running: List[int] = []
         finished: List[int] = []
 
-        trials: Dict[str, Trial] = dict()
-        state: Dict[str, Dict[str, Any]] = dict()
+        actors: Dict[str, Any] = dict()
         object_id_to_trial_id: Dict[str, str] = dict()
         trial_id_to_object_id: Dict[str, str] = dict()
 
@@ -158,7 +157,7 @@ class Search(Registrable):
             # Process finished trials
             for object_id in finished:
                 trial_id = object_id_to_trial_id[str(object_id)]
-                trial = trials[trial_id]
+                trial = self.trials[trial_id]
                 try:
                     # Handle non searchables
                     returned = ray.get(object_id)
@@ -179,7 +178,8 @@ class Search(Registrable):
 
             # Compute maximum number of trials to create
             if env.debug:
-                max_queries = int(all(t.is_terminated() or t.is_error() for t in trials.values()))
+                trials = self.trials.values()
+                max_queries = int(all(t.is_terminated() or t.is_error() for t in trials))
             else:
                 current_resources = ray.available_resources()
                 max_queries = current_resources.get('CPU', 0) // self.n_cpus
@@ -188,15 +188,15 @@ class Search(Registrable):
                     max_queries = min(max_queries, n_possible_gpu)
 
             # Update the algorithm and get new trials
-            trials = self.algorithm.update(trials, maximum=max_queries)
+            self.trials = self.algorithm.update(self.trials, maximum=max_queries)
 
             # Update based on trial status
-            for trial_id, trial in trials.items():
+            for trial_id, trial in self.trials.items():
                 # Handle creation and termination
                 if trial.is_paused() or trial.is_running():
                     continue
-                elif (trial.is_error() or trial.is_terminated()) and 'actor' in state[trial_id]:
-                    del state[trial_id]['actor']
+                elif (trial.is_error() or trial.is_terminated()) and trial_id in actors:
+                    del actors[trial_id]
                     continue
                 elif trial.is_created():
                     space = dict((string_to_path(k), v) for k, v in trial.parameters.items())
@@ -205,16 +205,15 @@ class Search(Registrable):
 
                     # Update state
                     trial.set_resume()
-                    state[trial_id] = dict()
-                    state[trial_id]['schema'] = schema_copy
+                    trial.set_schema(schema_copy)
                     trial_path = os.path.join(env.output_path, trial_id)
                     checkpoint = Checkpoint(
                         path=trial_path,
                         host=env.head_node_ip,
                         user=getpass.getuser()
                     )
-                    state[trial_id]['checkpoint'] = checkpoint
-                    state[trial_id]['actor'] = RayAdapter.options(  # type: ignore
+                    trial.set_checkpoint(checkpoint)
+                    actors[trial_id] = RayAdapter.options(  # type: ignore
                         num_cpus=self.n_cpus,
                         num_gpus=self.n_gpus
                     ).remote(
@@ -222,24 +221,15 @@ class Search(Registrable):
                         checkpoint=checkpoint,
                         environment=env.clone(output_path=trial_path)
                     )
+                    var_id = str(actors[trial_id]._actor_id.hex())
+                    trial.set_var_id(var_id)
 
                 # Launch created and resumed
                 if trial.is_resuming():
-                    object_id = state[trial_id]['actor'].step.remote()
+                    object_id = actors[trial_id].step.remote()
                     object_id_to_trial_id[str(object_id)] = trial_id
                     trial_id_to_object_id[trial_id] = str(object_id)
                     running.append(object_id)
                     trial.set_running()
 
-        # Construct result output
-        results = dict()
-        for trial_id, trial in trials.items():
-            results[trial_id] = ({
-                'schema': state[trial_id].get('schema'),
-                'checkpoint': state[trial_id].get('checkpoint', None),
-                'error': trial.is_error(),
-                'metric': trial.best_metric,
-                # The ray object id is guarenteed to be unique
-                'var_id': str(trial_id_to_object_id[trial_id])
-            })
-        return results
+        return self.trials

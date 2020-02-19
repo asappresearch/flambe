@@ -11,6 +11,5 @@ Submodules
 
 .. toctree::
 
-   flambe.nlp.transformers.bert
-   flambe.nlp.transformers.openai
-   flambe.nlp.transformers.optim
+   flambe.nlp.transformers.field
+   flambe.nlp.transformers.model

@@ -12,9 +12,8 @@ Submodules
 .. toctree::
 
    flambe.compile.component
-   flambe.compile.const
    flambe.compile.downloader
    flambe.compile.extensions
-   flambe.compile.registrable
+   flambe.compile.schema
    flambe.compile.serialization
-   flambe.compile.utils
+   flambe.compile.yaml

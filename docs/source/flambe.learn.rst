@@ -15,3 +15,4 @@ Submodules
    flambe.learn.eval
    flambe.learn.script
    flambe.learn.train
+   flambe.learn.utils

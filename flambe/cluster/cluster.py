@@ -384,9 +384,10 @@ class Cluster(Registrable):
             cmd = f'source activate {name}'
             if is_dev_mode():
                 flambe_repo = get_flambe_repo_location()
-                target = f'~/jobs/{name}'
+                target = f'$HOME/jobs/{name}'
                 rsync(fp.name, flambe_repo, target, None, down=False)
 
+                target = f'~/jobs/{name}'
                 cmd += f' && pip install -U -e {target}/flambe'
                 exec_cluster(fp.name, tmux(cmd))
             else:
@@ -404,9 +405,10 @@ class Cluster(Registrable):
             for module, package in extensions.items():
                 target = package
                 if os.path.exists(package):
-                    target = f'$HOME/jobs/{name}/extensions'
+                    package = os.path.join(package, '')
+                    target = f'$HOME/jobs/{name}/extensions/{module}'
                     rsync(fp.name, package, target, None, down=False)
-                    target = f'{target}/{os.path.basename(package)}'
+                    target = f'~/jobs/{name}/extensions/{module}'
 
                 updated_extensions[module] = target
                 cmd = f'pip install -U {target}'

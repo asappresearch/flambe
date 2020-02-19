@@ -41,10 +41,16 @@ def up(cluster):
 @click.command()
 @click.option('-c', '--cluster', type=str, default=FLAMBE_CLUSTER_DEFAULT,
               help="Cluster config.")
-def down(cluster):
+@click.option('-y', '--yes', is_flag=True, default=False,
+              help='Run without confirmation.')
+@click.option('--workers-only', is_flag=True, default=False,
+              help='Only teardown the worker nodes.')
+@click.option('--terminate', is_flag=True, default=False,
+              help='Terminate the instances (AWS only).')
+def down(cluster, yes, workers_only, terminate):
     """Teardown the cluster."""
     cluster = load_cluster_config(cluster)
-    cluster.down()
+    cluster.down(yes, workers_only, terminate)
 
 
 # ----------------- flambe rsync up ------------------ #
@@ -155,7 +161,10 @@ def clean(name, cluster):
               help='Attach after submitting the job.')
 def submit(runnable, name, cluster, force, debug, verbose, attach):
     """Submit a job to the cluster, as a YAML config."""
-    logging.disable(logging.INFO)
+    if debug:
+        logging.disable(logging.INFO)
+    else:
+        logging.disable(logging.ERROR)
     if is_dev_mode():
         print(cl.RA(ASCII_LOGO_DEV))
         print(cl.BL(f"Location: {get_flambe_repo_location()}\n"))

@@ -3,30 +3,23 @@ Welcome to Flambé
 =================
 
 
-Flambé is a Python framework built to accelerate the development of machine learning research.
-
+Flambé is a Python framework built to accelerate the development of machine learning research.  
 With Flambé you can:
 
 * **Run hyperparameter searches** over arbitrary Python objects or scripts.
-* **Constuct DAGs**, by searching over hyperparameters and reducing to the
-best variants at any of the nodes.
-* Distribute tasks **remotely** and **in parallel** over a cluster, with full AWS,
-GCP, and Kubernetefs integrations.
+* **Constuct DAGs**, by searching over hyperparameters and reducing to the best variants at any of the nodes.
+* Distribute tasks **remotely** and **in parallel** over a cluster, with full AWS, GCP, and Kubernetefs integrations.
 * Easily **share** experiment configurations, results, and checkpoints with others.e
-* Automate the **boilerplate code** in training models with `PyTorch <https://pytorch.org>`
+* Automate the **boilerplate code** in training models with `PyTorch <https://pytorch.org>`_
 
-Visit our website: https://flambe.ai
+Visit our website: https://flambe.ai  
 Visit out github repo: https://github.com/asappresearch/flambe  
-
-
-**Getting Started**
 
 Check out our :ref:`Installation Guide <starting-install_label>` and :ref:`_runnables` sections to get up and
 running with Flambé in just a few minutes!
 
 .. toctree::
-   :maxdepth: 2
-   :hidden:
+   :titlesonly: 
    :caption: Getting Started
 
    starting/motivation
@@ -34,31 +27,16 @@ running with Flambé in just a few minutes!
    starting/contribute
 
 .. toctree::
-   :maxdepth: 2
-   :hidden:
+   :maxdepth: 1
    :caption: Walkthrough
   
-   understanding/runnables
-   understanding/searchable
-   understanding/remote
-   understanding/advanced
+   walkthrough/runnable
+   walkthrough/remote
+   walkthrough/advanced
+
 
 .. toctree::
    :titlesonly:
-   :hidden:
-   :caption: Tutorials
-
-   tutorials/script
-   tutorials/trainer
-   tutorials/search
-   tutorials/experiment
-   tutorials/export
-   tutorials/aws
-   tutorials/kubernetes
-
-.. toctree::
-   :titlesonly:
-   :hidden:
    :caption: Package Reference
 
    autoapi/flambe/dataset/index
