@@ -53,7 +53,7 @@ setup(
     install_requires=required(),
     include_package_data=True,
 
-    python_requires='>=3.6.1',
+    python_requires='>=3.7.1',
     zip_safe=True
 
 )
