@@ -101,7 +101,7 @@ def up(name, yes, create, config, min_workers, max_workers):
 @click.option('--terminate', is_flag=True, default=False,
               help='Terminate the instances instead of stopping them (AWS only).')
 @click.option('--destroy', is_flag=True, default=False,
-              help='Destroys this cluster permanently.')
+              help='Destroy this cluster permanently.')
 def down(name, yes, workers_only, terminate, destroy):
     """Take down the cluster, optionally destroy it permanently."""
     cluster = load_cluster_config_helper(name)
@@ -137,7 +137,7 @@ def rsync_down(source, target, cluster):
 @click.option('-c', '--cluster', type=str, default=None,
               help="Cluster name.")
 @click.option('-a', '--all-clusters', is_flag=True, default=False,
-              help="Cluster name.")
+              help="List jobs on all clusters.")
 def list_cmd(cluster, all_clusters):
     """List the jobs (i.e tmux sessions) running on the cluster."""
     logging.disable(logging.INFO)
@@ -152,7 +152,7 @@ def list_cmd(cluster, all_clusters):
         cluster_obj.list()
     else:
         files = os.listdir(FLAMBE_CLUSTER_DEFAULT_FOLDER)
-        clusters = [f.strip('.yaml') for f in files if '.yaml' in files]
+        clusters = [f.strip('.yaml') for f in files if '.yaml' in f]
         if len(clusters) == 0:
             print("No clusters to inspect.")
         else:
@@ -166,10 +166,10 @@ def list_cmd(cluster, all_clusters):
 # ----------------- flambe exec ------------------ #
 @click.command()
 @click.argument('command', type=str)
-@click.option('-p', '--port-forward', type=int, default=None,
-              help='Port in which the site will be running url')
 @click.option('-c', '--cluster', type=str, default=None,
               help="Cluster name.")
+@click.option('-p', '--port-forward', type=int, default=None,
+              help='Port forwarding')
 def exec_cmd(command, port_forward, cluster):
     """Execute a command on the cluster head node."""
     logging.disable(logging.INFO)
@@ -259,7 +259,7 @@ def submit(config, name, cluster, force, debug, verbose, attach):
 @click.option('-c', '--cluster', type=str, default=None,
               help="Cluster name.")
 @click.option('-p', '--port', type=int, default=49558,
-              help='Port in which the site will be running url')
+              help='Port on which the site will be running.')
 def site(name, cluster, port):
     """Launch a Web UI to monitor the activity on the cluster."""
     logging.disable(logging.INFO)
@@ -274,8 +274,8 @@ def site(name, cluster, port):
 @click.command()
 @click.argument('config', type=str, required=True)
 @click.option('-o', '--output', default='./',
-              help='Override existing job with this name. Be careful \
-                    when using this flag as it could have undesired effects.')
+              help='An output directory. A folder named \
+              `flambe_output` will be created there.')
 @click.option('-f', '--force', is_flag=True, default=False,
               help='Override existing job with this name. Be careful \
                     when using this flag as it could have undesired effects.')

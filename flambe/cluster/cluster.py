@@ -7,6 +7,7 @@ import subprocess
 import inspect
 from datetime import datetime
 from functools import partial
+from ruamel.yaml import comments
 
 from ray.autoscaler.commands import get_head_node_ip, get_worker_node_ips
 from ray.autoscaler.commands import exec_cluster, create_or_update_cluster, rsync, teardown_cluster
