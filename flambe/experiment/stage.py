@@ -159,18 +159,27 @@ class Stage(object):
         # Here we nest the pipelines so that we can search over
         # cross-stage parameter configurations
         if len(pipelines) == 0:
-            pipeline = Pipeline(schemas)
-            pipeline = pipeline if pipeline.is_subpipeline else None
+            try:
+                pipeline = Pipeline(schemas)
+                out = pipeline if pipeline.is_subpipeline else None
+            except Exception:
+                logger.info(f"Found incomplete pipeline at stage {self.name}")
+                out = None
         elif len(pipelines) == 1:
             pipeline = pipelines[list(pipelines.keys())[0]]
             schemas.update(pipeline.schemas)
-            pipeline = Pipeline(schemas, pipeline.var_ids, pipeline.checkpoints)
+            try:
+                pipeline = Pipeline(schemas, pipeline.var_ids, pipeline.checkpoints)
+                out = pipeline if pipeline.is_subpipeline else None
+            except Exception:
+                logger.info(f"Found incomplete pipeline at stage {self.name}")
+                out = None
         else:
             # Search over previous variants
             schemas = dict(__dependencies=Choice(pipelines), **schemas)
-            pipeline = Pipeline(schemas)
+            out = Pipeline(schemas)
 
-        return pipeline
+        return out
 
     def run(self) -> Dict[str, Pipeline]:
         """Execute the stage.
@@ -193,13 +202,13 @@ class Stage(object):
         """
         # Each dependency is the output of stage, which is
         # a pipeline object with all the variants that ran
-        filtered = self.filter_dependencies(self.dependencies)
+        pipelines = self.filter_dependencies(self.dependencies)
 
         # Take an intersection with the other sub-pipelines
-        merged = self.merge_variants(filtered)
+        pipelines = self.merge_variants(pipelines)
 
         # Construct pipeline to execute
-        pipeline = self.construct_pipeline(merged)
+        pipeline = self.construct_pipeline(pipelines)
         if pipeline is None:
             logger.warn(f"Stage {self.name} did not have any variants to execute.")
             return dict()

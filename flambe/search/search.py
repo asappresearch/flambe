@@ -173,8 +173,8 @@ class Search(Registrable):
                 except Exception as e:
                     trial.set_error()
                     if env.debug:
-                        logging.warn(str(e))
-                    logging.warn(f"Trial {trial_id} failed.")
+                        logging.info(str(e))
+                    logging.info(f"Trial {trial_id} failed.")
 
             # Compute maximum number of trials to create
             if env.debug:
