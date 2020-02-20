@@ -34,7 +34,7 @@ exec_cluster = partial(
 
 
 # TODO: find a cleaner solution
-def supress():
+def supress(supress_all=False):
     """Supress the messages coming from the ssh command."""
     def supress_ssh(func):
         """Set SSH level for ray calls to QUIET"""
@@ -46,7 +46,7 @@ def supress():
         """Surpess rsync messages from ray."""
         def wrapper(args, *, stdin=None, stdout=None, stderr=None,
                     shell=False, cwd=None, timeout=None):
-            if args[0] == 'rsync':
+            if args[0] == 'rsync' or supress_all:
                 stdout = subprocess.DEVNULL
             func(args, stdin=None, stdout=stdout, stderr=None,
                  shell=False, cwd=None, timeout=None)
@@ -295,7 +295,7 @@ class Cluster(Registrable):
             yaml.dump(self.config, fp)
             exec_cluster(fp.name, cmd)
 
-        print(f"Job {name} killed.")
+        print(cl.GR(f"Job {name} killed."))
 
     def clean(self, name: str):
         """Clean the artifacts of a job.
@@ -314,7 +314,7 @@ class Cluster(Registrable):
             yaml.dump(self.config, fp)
             exec_cluster(fp.name, cmd)
 
-        print(f"Job {name} cleaned.")
+        print(cl.GR(f"Job {name} cleaned."))
 
     def exec(self, command: str, port_forward: Optional[int] = None):
         """Run a command on the cluster.
@@ -391,7 +391,6 @@ class Cluster(Registrable):
         yaml = YAML()
         with tempfile.NamedTemporaryFile() as fp:
             yaml.dump(self.config, fp)
-
             # Check if a job is currently running
             try:
                 cmd = f"tmux has-session -t {name}"
@@ -402,81 +401,95 @@ class Cluster(Registrable):
             if running and not force:
                 raise ValueError(f"Job {name} currently running. Use -f, --force to override.")
 
-            # Create new directory, new tmux session, and virtual env
-            cmd = f"tmux kill-session -t {name}; tmux new -d -s {name}"
-            exec_cluster(fp.name, cmd)
+        # Create new directory, new tmux session, and virtual env
+        setup_commands = []
+        file_mounts = {}
 
-            tmux = lambda x: f'tmux send-keys -t {name}.0 "{x}" ENTER'  # noqa: E731
-            cmd = f"mkdir -p $HOME/jobs/{name}/extensions && \
-                conda create -y -q --name {name} python={PYTHON_VERSION}; echo ''"
+        cmd = f"tmux kill-session -t {name}; tmux new -d -s {name}"
+        setup_commands.append(cmd)
+
+        tmux = lambda x: f'tmux send-keys -t {name}.0 "{x}" ENTER'  # noqa: E731
+        cmd = f"mkdir -p $HOME/jobs/{name}/extensions && \
+            conda create -y -q --name {name} python={PYTHON_VERSION}; echo ''"
+        setup_commands.append(tmux(cmd))
+
+        # Upload and install flambe
+        activate = f'source activate {name}'
+        if is_dev_mode():
+            flambe_repo = get_flambe_repo_location()
+            target = f'~/jobs/{name}/flambe'
+            file_mounts[target] = flambe_repo
+
+            target = f'~/jobs/{name}/flambe'
+            cmd = f'{activate} && pip install -U -e {target}'
+            setup_commands.append(tmux(cmd))
+        else:
+            cmd = f'{activate} && pip install -U flambe'
+            setup_commands.append(tmux(cmd))
+
+        # Upload and install extensions
+        extensions = env.extensions
+        extensions_dir = os.path.join(FLAMBE_GLOBAL_FOLDER, 'extensions')
+        if not os.path.exists(extensions_dir):
+            os.makedirs(extensions_dir)
+
+        extensions = download_extensions(extensions, extensions_dir)
+        updated_extensions: Dict[str, str] = dict()
+        for module, package in extensions.items():
+            target = package
+            if os.path.exists(package):
+                package = os.path.join(package, '')
+                target = f'~/jobs/{name}/extensions/{module}'
+                file_mounts[target] = package
+                target = f'~/jobs/{name}/extensions/{module}'
+
+            updated_extensions[module] = target
+            cmd = f'pip install -U {target}'
+            setup_commands.append(tmux(cmd))
+
+        # Upload files
+        files_dir = os.path.join(FLAMBE_GLOBAL_FOLDER, 'files')
+        updated_files: Dict[str, str] = dict()
+        updated_files.update(env.remote_files)
+        for name, file in env.local_files.items():
+            with download_manager(file, os.path.join(files_dir, name)) as path:
+                target = f'~/jobs/{name}/files/{name}'
+                file_mounts[target] = path
+                updated_files[name] = target
+
+        # Run Flambe
+        env = env.clone(
+            output_path=f"~/jobs/{name}",
+            head_node_ip=self.head_node_ip(),
+            worker_node_ips=self.worker_node_ips(),
+            extensions=updated_extensions,
+            local_files=updated_files,
+            remote_files=[],
+            remote=True
+        )
+
+        yaml = YAML()
+        with tempfile.NamedTemporaryFile() as config_file:
+            set_env_in_config(env, runnable, config_file)
+            config_target = f"~/jobs/{name}/{os.path.basename(runnable)}"
+            file_mounts[config_target] = config_file.name
+
+            # Rsync files and run setup commands
+            config: Dict = copy.deepcopy(self.config)
+            config['setup_commands'].extend(setup_commands)
+            config['file_mounts'].update(file_mounts)
+            with tempfile.NamedTemporaryFile() as fp:
+                yaml.dump(config, fp)
+                create_or_update_cluster(fp.name, None, None, True, False, True, None)
+
+        # Run Flambe
+        cmd = f'flambe run {config_target}'
+        cmd += ' -d' * int(debug) + ' -f' * int(force)
+        with tempfile.NamedTemporaryFile() as fp:
+            yaml.dump(self.config, fp)
             exec_cluster(fp.name, tmux(cmd))
 
-            # Upload and install flambe
-            cmd = f'source activate {name}'
-            if is_dev_mode():
-                flambe_repo = get_flambe_repo_location()
-                target = f'$HOME/jobs/{name}'
-                rsync(fp.name, flambe_repo, target, None, down=False)
-
-                target = f'~/jobs/{name}'
-                cmd += f' && pip install -U -e {target}/flambe'
-                exec_cluster(fp.name, tmux(cmd))
-            else:
-                cmd += f' && pip install -U flambe'
-                exec_cluster(fp.name, tmux(cmd))
-
-            # Upload and install extensions
-            extensions = env.extensions
-            extensions_dir = os.path.join(FLAMBE_GLOBAL_FOLDER, 'extensions')
-            if not os.path.exists(extensions_dir):
-                os.makedirs(extensions_dir)
-
-            extensions = download_extensions(extensions, extensions_dir)
-            updated_extensions: Dict[str, str] = dict()
-            for module, package in extensions.items():
-                target = package
-                if os.path.exists(package):
-                    package = os.path.join(package, '')
-                    target = f'$HOME/jobs/{name}/extensions/{module}'
-                    rsync(fp.name, package, target, None, down=False)
-                    target = f'~/jobs/{name}/extensions/{module}'
-
-                updated_extensions[module] = target
-                cmd = f'pip install -U {target}'
-                exec_cluster(fp.name, tmux(cmd))
-
-            # Upload files
-            files_dir = os.path.join(FLAMBE_GLOBAL_FOLDER, 'resources')
-            updated_files: Dict[str, str] = dict()
-            updated_files.update(env.remote_files)
-            for name, resource in env.local_files.items():
-                with download_manager(resource, os.path.join(files_dir, name)) as path:
-                    target = f'$HOME/jobs/{name}/resources/{name}'
-                    rsync(fp.name, path, target, None, down=False)
-                    updated_files[name] = target
-
-            # Run Flambe
-            env = env.clone(
-                output_path=f"~/jobs/{name}",
-                head_node_ip=self.head_node_ip(),
-                worker_node_ips=self.worker_node_ips(),
-                extensions=updated_extensions,
-                local_files=updated_files,
-                remote_files=[],
-                remote=True
-            )
-
-            yaml = YAML()
-            with tempfile.NamedTemporaryFile() as config_file:
-                set_env_in_config(env, runnable, config_file)
-                config_target = f"$HOME/jobs/{name}/{os.path.basename(runnable)}"
-                rsync(fp.name, config_file.name, config_target, None, down=False)
-
-            # Run Flambe
-            cmd = f'flambe run {config_target}'
-            cmd += ' -d' * int(debug) + ' -f' * int(force)
-            exec_cluster(fp.name, tmux(cmd))
-            print(cl.GR(f'[{time()}] Job submitted successfully.\n'))
+        print(cl.GR(f'[{time()}] Job submitted successfully.\n'))
 
     def head_node_ip(self) -> str:
         """Get the head node ip address.
