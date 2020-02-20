@@ -63,19 +63,21 @@ class Environment(Registrable):
         self.extra = extra
 
         # TODO: remove this hack
-        self._saved_arguments = {
-            'output_path': self.output_path,
-            'extensions': self.extensions,
-            'local_files': self.local_files,
-            'remote_files': self.remote_files,
-            'head_node_ip': self.head_node_ip,
-            'worker_node_ips': self.worker_node_ips,
-            'remote': self.remote,
-            'debug': self.debug,
-            'extra': self.extra,
-        }
-        if not hasattr(self, '_yaml_tag'):
-            self._yaml_tag = '!Environment'
+        if not hasattr(self, '_saved_arguments'):
+            from ruamel.yaml.comments import CommentedMap
+            saved_arguments = CommentedMap({
+                'output_path': self.output_path,
+                'extensions': self.extensions,
+                'local_resources': self.local_resources,
+                'remote_resources': self.remote_resources,
+                'head_node_ip': self.head_node_ip,
+                'worker_node_ips': self.worker_node_ips,
+                'remote': self.remote,
+                'debug': self.debug,
+                'extra': self.extra,
+            })
+            saved_arguments.yaml_set_tag('!Environment')
+            self._saved_arguments = saved_arguments
 
     def clone(self, **kwargs) -> 'Environment':
         """Clone the envrionment, updated with the provided arguments.

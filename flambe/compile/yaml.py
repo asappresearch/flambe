@@ -209,16 +209,10 @@ class GeneralArgsLoader:
 
     @classmethod
     def to_yaml(cls: Type, instance: Any) -> Any:
-        out = instance
         if hasattr(instance, '_saved_arguments'):
-            out = instance._saved_arguments
-        else:
-            msg = f'{instance} doesnt have any attribute indicating args for YAML representation'
-            raise Exception(msg)
-        if hasattr(instance, '_yaml_tag'):
-            out = ruamel.yaml.comments.CommentedMap(out)
-            out.yaml_set_tag(instance._yaml_tag)
-        return out
+            return instance._saved_arguments
+        msg = f'{instance} doesnt have any attribute indicating args for YAML representation'
+        raise Exception(msg)
 
 
 class KwargsLoader(GeneralArgsLoader, CustomYAMLLoad):
