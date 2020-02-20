@@ -16,7 +16,7 @@ pipeline:
     model: !TextClassifier
       embedder: !Embedder
         embedding: !Embeddings
-          num_embeddings: !@ train[dataset].text.vocab_size
+          num_embeddings: !ref train[dataset].text.vocab_size
           embedding_dim: 300
           positional_encoding: True
           positional_learned: True
@@ -32,7 +32,7 @@ pipeline:
       output_layer: !SoftmaxLayer
         take_log: True
         input_size: 300
-        output_size: !@ train[dataset].label.vocab_size
+        output_size: !ref train[dataset].label.vocab_size
     train_sampler: !BaseSampler
       shuffle: True
     val_sampler: !BaseSampler
@@ -40,6 +40,6 @@ pipeline:
     loss_fn: !torch.nn.NLLLoss
     metric_fn: !Accuracy
     optimizer: !torch.optim.Adam
-      params: !@ train[model].trainable_params
+      params: !ref train[model].trainable_params
     max_steps: 1
     iter_per_step: 1

@@ -22,10 +22,10 @@ pipeline:
       downsample: 0.01
     val_sampler: !BaseSampler
       downsample: 0.01
-    model: !@ model
+    model: !copy model
     loss_fn: !torch.nn.NLLLoss
     metric_fn: !Accuracy
     optimizer: !torch.optim.Adam
-      params: !@ train[model].trainable_params
+      params: !ref train[model].trainable_params
     max_steps: 1
     iter_per_step: 1

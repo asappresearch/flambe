@@ -73,7 +73,7 @@ class Discrete(Numerical):
         return np.random.choice(self.options, p=self.probs)
 
 
-class QUniform(Discrete, tag_override="~q"):
+class QUniform(Discrete, tag_override="quniform"):
     """Quantized uniform variable class."""
 
     def __init__(self,

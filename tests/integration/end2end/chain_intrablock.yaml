@@ -19,52 +19,52 @@ pipeline:
   model: !TextClassifier
     embedder: !Embedder
       embedding: !Embeddings
-        num_embeddings: !@ dataset.text.vocab_size
+        num_embeddings: !copy dataset.text.vocab_size
         embedding_dim: 300
-      encoder: !@ encoder
+      encoder: !copy encoder
     output_layer: !SoftmaxLayer
-      input_size: !@ model[embedder].encoder.rnn.hidden_size
-      output_size: !@ dataset.label.vocab_size
+      input_size: !copy model[embedder].encoder.rnn.hidden_size
+      output_size: !copy dataset.label.vocab_size
   b1: !Trainer
-    dataset: !@ dataset
+    dataset: !copy dataset
     train_sampler: !BaseSampler
     val_sampler: !BaseSampler
-    model: !@ model
+    model: !copy model
     loss_fn: !torch.nn.NLLLoss
     metric_fn: !Accuracy
     optimizer: !torch.optim.Adam
-      params: !@ b1[model].trainable_params
+      params: !ref b1[model].trainable_params
     max_steps: 2
     iter_per_step: 2
   b2: !Trainer
-    dataset: !@ b1.dataset
+    dataset: !copy b1.dataset
     train_sampler: !BaseSampler
     val_sampler: !BaseSampler
     model: !TextClassifier
       embedder: !Embedder
         embedding: !Embeddings
-          num_embeddings: !@ b1.model.embedder.embedding.num_embeddings
+          num_embeddings: !copy b1.model.embedder.embedding.num_embeddings
           embedding_dim: 300
         encoder: !PooledRNNEncoder
-          input_size: !@ b2[model][embedder][embedding].embedding_dim
-          # input_size: !g
-            # - !@ b2[model][embedder][embedding].embedding_dim
-            # - !@ b1.model.embedder.embedding.embedding_dim
+          input_size: !ref b2[model][embedder][embedding].embedding_dim
+          # input_size: !choice
+            # - !ref b2[model][embedder][embedding].embedding_dim
+            # - !copy b1.model.embedder.embedding.embedding_dim
           rnn_type: lstm
-          n_layers: !~c [2, 3]
-          hidden_size: !@ b2[model][embedder][encoder][input_size]
+          n_layers: !choice [2, 3]
+          hidden_size: !ref b2[model][embedder][encoder][input_size]
       output_layer: !SoftmaxLayer
-        input_size: !@ b2[model][embedder][encoder].rnn.hidden_size
-        output_size: !@ dataset.label.vocab_size
+        input_size: !ref b2[model][embedder][encoder].rnn.hidden_size
+        output_size: !copy dataset.label.vocab_size
     loss_fn: !torch.nn.NLLLoss
     metric_fn: !Accuracy
     optimizer: !torch.optim.Adam
-      params: !@ b2[model].trainable_params
+      params: !ref b2[model].trainable_params
     max_steps: 2
     iter_per_step: 2
   b3: !Evaluator
-    dataset: !@ b2.dataset
-    model: !@ b2.model
+    dataset: !copy b2.dataset
+    model: !copy b2.model
     metric_fn: !Accuracy
     eval_sampler: !BaseSampler
       batch_size: 512

@@ -1,12 +1,12 @@
 import tempfile
 import os
 import boto3
-
 import subprocess
 from urllib.parse import urlparse
+from typing import Any
 
 import flambe
-from flambe.compile import Component, Schema, Registrable, YAMLLoadType
+from flambe.compile import Schema, Registrable, YAMLLoadType
 from flambe.const import DEFAULT_PROTOCOL
 from flambe.logging import coloredlogs as cl
 
@@ -26,7 +26,7 @@ class Builder(Registrable):
 
     """
     def __init__(self,
-                 component: Schema,
+                 obj: Schema,
                  override: bool = False,
                  storage: str = 'local',
                  compress: bool = False,
@@ -36,7 +36,7 @@ class Builder(Registrable):
 
         Parameters
         ----------
-        component : Schema
+        obj : Schema
             The object to build, and export
         destination : str
             The destination where the object should be saved.
@@ -62,9 +62,9 @@ class Builder(Registrable):
         super().__init__()
 
         self.override = override
-        self.component = component
+        self.obj = obj
 
-        self.compiled_component: Component
+        self.compiled_obj: Any
 
         self.storage = storage
         # self.serialization_args = {
@@ -82,9 +82,9 @@ class Builder(Registrable):
         """Run the Builder."""
         env = flambe.get_env()
         # Add information about the extensions. This ensures
-        # the compiled component has the extensions information
-        # self.component.add_extensions_metadata(self.extensions)
-        self.compiled_component = self.component()  # Compile Schema
+        # the compiled obj has the extensions information
+        # self.obj.add_extensions_metadata(self.extensions)
+        self.compiled_obj = self.obj()  # Compile Schema
 
         if self.storage == 'local':
             self.save_local(env.output_path)
@@ -117,7 +117,7 @@ class Builder(Registrable):
 
         # TODO: switch flambe.save
         out_path = os.path.join(path, 'checkpoint.pt')
-        flambe.save(self.compiled_component, out_path)
+        flambe.save(self.compiled_obj, out_path)
 
     def get_boto_session(self):
         """Get a boto Session
@@ -158,10 +158,10 @@ class Builder(Registrable):
                 )
 
         with tempfile.TemporaryDirectory() as tmpdirname:
-            flambe.save(self.compiled_component, tmpdirname)
+            flambe.save(self.compiled_obj, tmpdirname)
             # TODO fix don't use flambe save; also probably have one helper for the save operation
             # so that local and remote do the exact same thing
-            # flambe.save(self.compiled_component, tmpdirname, **self.serialization_args)
+            # flambe.save(self.compiled_obj, tmpdirname, **self.serialization_args)
             try:
                 subprocess.check_output(
                     f"aws s3 cp --recursive {tmpdirname} {path}".split(),

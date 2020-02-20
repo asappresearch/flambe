@@ -32,13 +32,6 @@ This allows ``Runnables`` to install extensions much faster in case they are hea
 
 .. _advanced-debugging_label:
 
-Debugging
----------
-
-Flambé will save all logs in ``~/.flambe/logs`` folder using a rotating mechanism.
-
-.. hint::
-    The latest logs will be available in ``~/.flambe/logs/log.log``.
 
 Custom YAML Tags
 -----------------

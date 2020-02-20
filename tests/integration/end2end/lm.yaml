@@ -19,7 +19,7 @@ pipeline:
     model: !LanguageModel
       embedder: !Embedder
         embedding: !Embeddings
-          num_embeddings: !@ 1_train[dataset].text.vocab_size
+          num_embeddings: !ref 1_train[dataset].text.vocab_size
           embedding_dim: 300
         encoder: !RNNEncoder
           input_size: 300
@@ -27,12 +27,12 @@ pipeline:
           n_layers: 2
           hidden_size: 256
       output_layer: !SoftmaxLayer
-        input_size: !@ 1_train[model][embedder].encoder.rnn.hidden_size
-        output_size: !@ 1_train[dataset].text.vocab_size
+        input_size: !ref 1_train[model][embedder].encoder.rnn.hidden_size
+        output_size: !ref 1_train[dataset].text.vocab_size
     loss_fn: !torch.nn.NLLLoss
     metric_fn: !Perplexity
     optimizer: !torch.optim.Adam
-      params: !@ 1_train[model].trainable_params
+      params: !ref 1_train[model].trainable_params
     lower_is_better: True
     max_steps: 1
     iter_per_step: 1

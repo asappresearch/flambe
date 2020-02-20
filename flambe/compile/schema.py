@@ -217,7 +217,7 @@ def parse_link_str(link_str: str) -> Tuple[Tuple[KeyType, ...], Tuple[str, ...]]
     return tuple(schematic_path), tuple(attr_path)
 
 
-class Link(Registrable, tag_override="@"):
+class Link(Registrable, tag_override="ref"):
 
     def __init__(self,
                  link_str: Optional[str] = None,
@@ -261,7 +261,7 @@ class Link(Registrable, tag_override="@"):
         return f'link({create_link_str(self.schematic_path, self.attr_path)})'
 
 
-class Resource(Registrable, tag_override="resource"):
+class Resource(Registrable, tag_override="file"):
 
     def __init__(self, resource_reference: str):
         self.resource_path = (resource_reference,)
@@ -274,7 +274,7 @@ class Resource(Registrable, tag_override="resource"):
         return obj
 
 
-class CopyLink(Link, tag_override='#'):
+class CopyLink(Link, tag_override='copy'):
 
     def resolve(self, cache: Dict[PathType, Any]) -> Any:
         obj = super().resolve(cache)

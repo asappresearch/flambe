@@ -14,36 +14,36 @@ pipeline:
   model: !TextClassifier
       embedder: !Embedder
         embedding: !torch.Embedding  # automatically use pytorch classes
-          num_embeddings: !@ dataset.text.vocab_size # link to other components, and attributes
+          num_embeddings: !copy dataset.text.vocab_size # link to other components, and attributes
           embedding_dim: 300
         embedding_dropout: 0.3
         encoder: !PooledRNNEncoder
           input_size: 300
-          n_layers: !~c [2, 3, 4] # grid search over any parameters
+          n_layers: !choice [2, 3, 4] # grid search over any parameters
           hidden_size: 128
           rnn_type: sru
           dropout: 0.3
       output_layer: !SoftmaxLayer
-          input_size: !@ model[embedder][encoder].rnn.hidden_size # also use inner-links
-          output_size: !@ dataset.label.vocab_size
+          input_size: !ref model[embedder][encoder].rnn.hidden_size # also use inner-links
+          output_size: !ref dataset.label.vocab_size
 
   # Stage 2 - Train the model on the dataset
   train: !Trainer
-    dataset: !@ dataset
-    model: !@ model
+    dataset: !copy dataset
+    model: !copy model
     train_sampler: !BaseSampler
     val_sampler: !BaseSampler
     loss_fn: !torch.NLLLoss
     metric_fn: !Accuracy
     optimizer: !torch.Adam
-      params: !@ train[model].trainable_params
+      params: !ref train[model].trainable_params
     max_steps: 2
     iter_per_step: 2
 
   # Stage 3 - Eval on the test set
   eval: !Evaluator
-    dataset: !@ dataset
-    model: !@ train[model]
+    dataset: !copy dataset
+    model: !copy train[model]
     metric_fn: !Accuracy
     eval_sampler: !BaseSampler
 

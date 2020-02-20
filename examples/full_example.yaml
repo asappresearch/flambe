@@ -17,13 +17,13 @@ pipeline: # Define the list of components to execute
     model: !TextClassifier
       embedder: !Embedder
         embedding: !Embeddings.from_pretrained
-          embeddings: !@ 1_train[dataset].text.embedding_matrix # Link over attributes of previously defined objects
+          embeddings: !ref 1_train[dataset].text.embedding_matrix # Link over attributes of previously defined objects
           freeze: True
         embedding_dropout: 0.3
         encoder: !PooledRNNEncoder
           input_size: !@ 1_train[model][embedder][embedding].embedding_dim
           rnn_type: lstm
-          n_layers: !~c [2, 3, 4]  # Grid search over the number of layers
+          n_layers: !choice [2, 3, 4]  # Grid search over the number of layers
           hidden_size: 256
           pooling: last
           dropout: 0.3
@@ -33,18 +33,18 @@ pipeline: # Define the list of components to execute
     loss_fn: !torch.NLLLoss
     metric_fn: !Accuracy
     optimizer: !torch.Adam
-      params: !@ 1_train[model].trainable_params
+      params: !ref 1_train[model].trainable_params
     max_steps: 1
     iter_per_step: 1
   2_evaluate: !Evaluator # We evaluate in a second stage, note the reduce argument at the bottom of the file
-    dataset: !@ 1_train[dataset]
-    model: !@ 1_train[model]
+    dataset: !copy 1_train[dataset]
+    model: !copy 1_train[model]
     metric_fn: !Accuracy
     eval_sampler: !BaseSampler
       batch_size: 512
   3_export: !Exporter  # This component doesn't do anything, but makes it easy to identify the objects needed for later use
-    model: !@ 2_evaluate[model] # Note that it is completely optional, as these objects can be fecthed from the saved evaluator step
-    text: !@ 2_evaluate[dataset].text
+    model: !copy 2_evaluate[model] # Note that it is completely optional, as these objects can be fecthed from the saved evaluator step
+    text: !copy 2_evaluate[dataset].text
 
 algorithm: # Define how to schedule variants
   1_train: !Hyperband

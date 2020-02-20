@@ -15,7 +15,7 @@ In order to construct hyperparameter search, we must build a representation
 of our Python object that accepts distributions as input argument. The core
 mechanism behind this functionality is the ``Schema``. 
 
-
+Coming soon!
 
 Examples
 --------

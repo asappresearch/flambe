@@ -5,5 +5,5 @@ pipeline:
     script: /Users/jeremy/Documents/asapp/flambe/tests/data/dummy_extensions/script/flambe_script/train.py
     pos_args: ['arg1', 'arg2']
     keyword_args:
-      kwarg1: !~c [1, 5]  # Run a grid search over any arguments to your script
+      kwarg1: !choice [1, 5]  # Run a grid search over any arguments to your script
       kwarg2: 'foo'

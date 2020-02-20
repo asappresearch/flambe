@@ -34,7 +34,7 @@ pipeline:
   model: !TextClassifier
     embedder: !Embedder
       embedding: !torch.nn.Embedding
-        num_embeddings: !@ dataset.text.vocab_size
+        num_embeddings: !copy dataset.text.vocab_size
         embedding_dim: 30
       encoder: !PooledRNNEncoder
         input_size: 30
@@ -42,12 +42,12 @@ pipeline:
         n_layers: 1
         hidden_size: 16
     output_layer: !SoftmaxLayer
-      input_size: !@ model[embedder].encoder.rnn.hidden_size
-      output_size: !@ dataset.label.vocab_size
+      input_size: !ref model[embedder].encoder.rnn.hidden_size
+      output_size: !copy dataset.label.vocab_size
 
   exporter: !Exporter
-    model: !@ model
-    text: !@ dataset.text
+    model: !copy model
+    text: !copy dataset.text
 """
 
         exp = exp.format(top_level=top_level)
@@ -66,7 +66,7 @@ extensions:
 
 !Builder
 
-component: !flambe_inference.DummyInferenceEngine
+obj: !flambe_inference.DummyInferenceEngine
   model: !torch.load
     f: {path}
 """

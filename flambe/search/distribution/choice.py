@@ -9,7 +9,7 @@ from flambe.search.distribution.distribution import Distribution
 PRIMITIVES = (int, float, bool, str, list, tuple, set, dict)
 
 
-class Choice(Distribution, tag_override="~c"):
+class Choice(Distribution, tag_override="choice"):
     """A discrete choice distribution."""
 
     def __init__(self,

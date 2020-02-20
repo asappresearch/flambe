@@ -10,7 +10,7 @@ class Continuous(Numerical):
     pass
 
 
-class Uniform(Continuous, tag_override="~u"):
+class Uniform(Continuous, tag_override="uniform"):
     """A uniform distribution."""
 
     def __init__(self,
@@ -53,7 +53,7 @@ class Uniform(Continuous, tag_override="~u"):
         return np.random.uniform(**self.dist_params)
 
 
-class Normal(Continuous, tag_override="~n"):
+class Normal(Continuous, tag_override="normal"):
     """A normal distribution."""
 
     def __init__(self,
@@ -91,7 +91,7 @@ class Normal(Continuous, tag_override="~n"):
         return np.random.normal(**self.dist_params)
 
 
-class Beta(Continuous, tag_override="~b"):
+class Beta(Continuous, tag_override="beta"):
 
     def __init__(self,
                  a: int,
