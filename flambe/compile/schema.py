@@ -264,17 +264,18 @@ class Link(Registrable, tag_override="ref"):
 class FileLink(Link, tag_override="file"):
 
     def __init__(self, file_reference: str):
-        self.file_path = (file_reference,)
+        self.schematic_path = (file_reference,)
+        self.attr_path = None
 
     def resolve(self, cache: Dict[PathType, Any]) -> Any:
         try:
-            obj = cache[self.file_path]
+            obj = cache[self.schematic_path]
         except KeyError:
-            raise NonexistentResourceError(f'{self.file_path[0]} is not available ')
+            raise NonexistentResourceError(f'{self.schematic_path[0]} is not available ')
         return obj
 
     def __repr__(self) -> str:
-            return f'file({self.file_path[0]})'
+            return f'file({self.schematic_path[0]})'
 
 
 class CopyLink(Link, tag_override='copy'):
