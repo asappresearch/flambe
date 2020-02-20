@@ -3,6 +3,7 @@ import copy
 import inspect
 from contextlib import contextmanager
 from typing import Any, Optional, Dict, List, Iterator
+from ruamel.yaml import comments
 
 from flambe.compile import Registrable, YAMLLoadType
 from flambe.compile.yaml import load_first_config, load_config_from_file
@@ -21,12 +22,15 @@ class Environment(Registrable):
 
     # TODO: clean this
     def __new__(cls, *args, **kwargs):
-        instance = super(Environment, cls).__new__(cls)
-        parameters = inspect.signature(cls).parameters
-        for arg, name in zip(args, parameters):
+        instance = super().__new__(cls)
+        params = inspect.signature(cls.__init__).parameters
+        params = {k: v.default for k, v in params.items() if k != 'self'}
+        for arg, name in zip(args, params):
             kwargs[name] = arg
-        instance._yaml_tag = f"!{cls.__name__}"
-        instance._saved_arguments = kwargs
+        params.update(kwargs)
+        params = comments.CommentedMap(params)
+        params.yaml_set_tag(f"!{cls.__name__}")
+        instance._saved_arguments = params
         return instance
 
     def __init__(self,

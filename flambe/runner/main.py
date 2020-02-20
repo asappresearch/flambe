@@ -87,7 +87,8 @@ def up(name, yes, create, config, min_workers, max_workers):
 
     cluster = cluster.clone(**kwargs)
     cluster.up(yes=yes)
-    dump_one_config(cluster, cluster_path)
+    with open(cluster_path, 'w') as f:
+        dump_one_config(cluster, f)
 
 
 # ----------------- flambe down ------------------ #
@@ -233,7 +234,7 @@ def clean(name, cluster):
               help='Verbose console output')
 @click.option('-a', '--attach', is_flag=True, default=False,
               help='Attach after submitting the job.')
-def submit(runnable, name, cluster, force, debug, verbose, attach):
+def submit(config, name, cluster, force, debug, verbose, attach):
     """Submit a job to the cluster, as a YAML config."""
     if debug:
         logging.disable(logging.INFO)
@@ -247,7 +248,7 @@ def submit(runnable, name, cluster, force, debug, verbose, attach):
         print(cl.BL(f"VERSION: {flambe.__version__}\n"))
 
     cluster = load_cluster_config_helper(cluster)
-    cluster.submit(runnable, name, force=force, debug=debug)
+    cluster.submit(config, name, force=force, debug=debug)
     if attach:
         cluster.attach(name)
 
@@ -282,10 +283,10 @@ def site(name, cluster, port):
               help='Enable debug mode. Each runnable specifies the debug behavior. \
                     For example for an Experiment, Ray will run in a single thread \
                     allowing user breakpoints')
-def run(runnable, output, force, debug):
+def run(config, output, force, debug):
     """Execute a runnable config."""
     # Load environment
-    env = load_env_from_config(runnable)
+    env = load_env_from_config(config)
     if not env:
         env = flambe.get_env()
 
@@ -345,8 +346,8 @@ def run(runnable, output, force, debug):
             local_files=updated_resources
         )
 
-        runnable_obj = load_runnable_from_config(runnable)
-        runnable_obj.run()
+        runnable = load_runnable_from_config(config)
+        runnable.run()
         print(cl.GR("------------------- Done -------------------"))
     except KeyboardInterrupt:
         print(cl.RE("---- Exiting early (Keyboard Interrupt) ----"))
