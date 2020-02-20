@@ -27,13 +27,15 @@ def load_cluster_config_helper(name=None, return_name=False):
     """Check if a single cluster exists or if a name is required."""
     if name is None:
         files = os.listdir(FLAMBE_CLUSTER_DEFAULT_FOLDER)
-        names = [f.strip('.yaml') for f in files if '.yaml' in f]
+        names = [f.replace('.yaml', '') for f in files if '.yaml' in f]
         if len(names) == 1:
             name = names[0]
         elif len(names) == 0:
-            raise ValueError(f"There are no clusters at {FLAMBE_CLUSTER_DEFAULT_FOLDER}.")
+            print(cl.RE(f"There are no clusters at {FLAMBE_CLUSTER_DEFAULT_FOLDER}."))
+            sys.exit()
         else:
-            raise ValueError(f"No name was provided, but multiple clusters exist: {names}")
+            print(cl.RE(f"No name was provided, but multiple clusters exist: {names}"))
+            sys.exit()
     cluster_path = os.path.join(FLAMBE_CLUSTER_DEFAULT_FOLDER, f"{name}.yaml")
     cluster = load_cluster_config(cluster_path)
     if return_name:
@@ -61,16 +63,20 @@ def cli():
               help="Optional max number of workers.")
 def up(name, yes, create, config, min_workers, max_workers):
     """Launch / update the cluster."""
-    os.makedirs(FLAMBE_CLUSTER_DEFAULT_FOLDER)
+    if not os.path.exists(FLAMBE_CLUSTER_DEFAULT_FOLDER):
+        os.makedirs(FLAMBE_CLUSTER_DEFAULT_FOLDER)
     cluster_path = os.path.join(FLAMBE_CLUSTER_DEFAULT_FOLDER, f"{name}.yaml")
 
     # Check update or install
     if create and os.path.exists(cluster_path):
-        raise ValueError(f"Cluster {name} already exists.")
-    elif not create and not os.path.exists(cluster_path):
-        raise ValueError(f"Cluster {name} does not exist.")
+        print(cl.RE(f"Cluster {name} already exists."))
+        return
     elif create and not os.path.exists(config):
-        raise ValueError(f"Config {config} does not exist.")
+        print(cl.RE(f"Config {config} does not exist."))
+        return
+    elif not create and not os.path.exists(cluster_path):
+        print(cl.RE(f"Cluster {name} does not exist. Did you mean to use --create?"))
+        return
 
     # Update kwargs
     kwargs = dict(name=name)
@@ -152,7 +158,7 @@ def list_cmd(cluster, all_clusters):
         cluster_obj.list()
     else:
         files = os.listdir(FLAMBE_CLUSTER_DEFAULT_FOLDER)
-        clusters = [f.strip('.yaml') for f in files if '.yaml' in f]
+        clusters = [f.replace('.yaml', '') for f in files if '.yaml' in f]
         if len(clusters) == 0:
             print("No clusters to inspect.")
         else:
@@ -296,7 +302,8 @@ def run(config, output, force, debug):
         if force:
             shutil.rmtree(output)
         else:
-            raise ValueError(f"{output} already exists. Use -f, --force to override.")
+            print(cl.RE(f"{output} already exists. Use -f, --force to override."))
+            return
 
     os.makedirs(output)
 

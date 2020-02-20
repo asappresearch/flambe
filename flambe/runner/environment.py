@@ -24,12 +24,16 @@ class Environment(Registrable):
     def __new__(cls, *args, **kwargs):
         instance = super().__new__(cls)
         params = inspect.signature(cls.__init__).parameters
-        params = {k: v.default for k, v in params.items() if k != 'self'}
-        for arg, name in zip(args, params):
+        for arg, name in zip(args, list(params.keys())[1:]):  # ignore self
             kwargs[name] = arg
+        params = {
+            k: v.default for k, v in params.items(
+            ) if k != 'self' and v.default != inspect._empty
+        }
         params.update(kwargs)
         params = comments.CommentedMap(params)
-        params.yaml_set_tag(f"!{cls.__name__}")
+        name = cls.__name__ if 'flambe.' in cls.__module__ else f"{cls.__module__}.{cls.__name__}"
+        params.yaml_set_tag(f"!{name}")
         instance._saved_arguments = params
         return instance
 
