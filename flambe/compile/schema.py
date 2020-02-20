@@ -571,12 +571,13 @@ class Schema(MutableMapping[str, Any]):
 
         return search_space
 
-    def extract_links(self) -> List[Link]:
+    def extract_links(self, include_files: bool = False) -> List[Link]:
         links = []
 
         for path, item in Schema.traverse(self, yield_schema='never'):
             if isinstance(item, Link):
-                links.append(item)
+                if not isinstance(item, FileLink) or include_files:
+                    links.append(item)
 
         return links
 
