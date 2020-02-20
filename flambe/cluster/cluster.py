@@ -1,8 +1,10 @@
 import os
+import copy
 from typing import Optional, Dict, List
 from ruamel.yaml import YAML
 import tempfile
 import subprocess
+import inspect
 from datetime import datetime
 from functools import partial
 
@@ -63,6 +65,16 @@ def time() -> str:
 class Cluster(Registrable):
     """Base cluster implementation."""
 
+    # TODO: clean this
+    def __new__(cls, *args, **kwargs):
+        instance = super(Cluster, cls).__new__(cls)
+        parameters = inspect.signature(cls).parameters
+        for arg, name in zip(args, parameters):
+            kwargs[name] = arg
+        instance._yaml_tag = f"!{cls.__name__}"
+        instance._saved_arguments = kwargs
+        return instance
+
     def __init__(self,
                  name: str,
                  initial_workers: int = 1,
@@ -76,7 +88,7 @@ class Cluster(Registrable):
                  setup_commands: Optional[List[str]] = None,
                  head_setup_commands: Optional[List[str]] = None,
                  worker_setup_commands: Optional[List[str]] = None,
-                 custom_config: Optional[Dict] = None) -> None:
+                 extra: Optional[Dict] = None) -> None:
         """Initialize a cluster.
 
         Parameters
@@ -111,12 +123,12 @@ class Cluster(Registrable):
             A list of commands to run on the head node only.
         worker_setup_commands : Optional[List[str]], optional
             A list of commands to run on the factory nodes only.
-        custom_config: str, optional
-            A custom cluster config. See all available arguments
-            on the Ray Autoscaler documentation.
+        extra: Dict, optional
+            Extra arguments to the cluster conifg. See all available
+            arguments on the Ray Autoscaler documentation.
 
         """
-        config = {
+        self.config = {
             'cluster_name': name,
             'initial_workers': initial_workers,
             'min_workers': min_workers,
@@ -133,26 +145,36 @@ class Cluster(Registrable):
             'worker_setup_commands': worker_setup_commands or [],
             'initialization_commands': []
         }
+        if extra:
+            self.config.update(extra)
 
-        self.config = custom_config if custom_config is not None else config
+    def clone(self, **kwargs) -> 'Cluster':
+        """Clone the cluster, updated with the provided arguments.
+
+        Parameters
+        ----------
+        **kwargs: Dict
+            Arguments to override.
+
+        Returns
+        -------
+        Cluster
+            The new updated cluster object.
+
+        """
+        arguments = copy.deepcopy(self._saved_arguments)  # type: ignore
+        arguments.update(kwargs)
+        return self.__class__(**arguments)  # type: ignore
 
     @classmethod
     def yaml_load_type(cls) -> YAMLLoadType:
-        """Provide the YAML loading rule."""
         return YAMLLoadType.KWARGS
 
-    def up(self,
-           min_workers: Optional[int] = None,
-           max_workers: Optional[int] = None,
-           yes: bool = False):
+    def up(self, yes: bool = False):
         """Update / Create the cluster.
 
         Parameters
         ----------
-        min_workers : Optional[int], optional
-            The minimum number of workers to keep on the cluster.
-        max_workers : Optional[int], optional
-            The maximum number of workers to keep on the cluster.
         yes : bool, optional
             Whether to force confirm a change in the cluster.
 
@@ -160,7 +182,7 @@ class Cluster(Registrable):
         yaml = YAML()
         with tempfile.NamedTemporaryFile() as fp:
             yaml.dump(self.config, fp)
-            create_or_update_cluster(fp.name, min_workers, max_workers, True, False, yes, None)
+            create_or_update_cluster(fp.name, None, None, True, False, yes, None)
 
     def down(self, yes: bool = False, workers_only: bool = False):
         """Teardown the cluster.

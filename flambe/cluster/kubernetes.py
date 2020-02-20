@@ -54,8 +54,6 @@ class KubernetesCluster(Cluster):
         See flambe.cluster.Cluster for extra arguments.
 
         """
-        super().__init__(name, **kwargs)
-
         config = {
             'provider': {
                 'type': 'kubernetes',
@@ -232,4 +230,4 @@ class KubernetesCluster(Cluster):
                 --address=$RAY_HEAD_IP:6379 --object-manager-port=8076'
         ]
 
-        self.config.update(config)
+        super().__init__(name, extra=config, **kwargs)

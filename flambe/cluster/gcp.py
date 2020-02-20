@@ -70,8 +70,6 @@ class GCPCluster(Cluster):
         See flambe.cluster.Cluster for extra arguments.
 
         """
-        super().__init__(name, **kwargs)
-
         head_node_ami = head_node_ami or GCP_AMI
         worker_node_ami = worker_node_ami or GCP_AMI
 
@@ -145,4 +143,4 @@ class GCPCluster(Cluster):
             'ulimit -n 65536; ray start --address=$RAY_HEAD_IP:6379 --object-manager-port=8076'
         ]
 
-        self.config.update(config)
+        super().__init__(name, extra=config, **kwargs)

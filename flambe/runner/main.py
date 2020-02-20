@@ -12,6 +12,7 @@ from flambe.const import FLAMBE_GLOBAL_FOLDER, ASCII_LOGO, ASCII_LOGO_DEV
 from flambe.const import FLAMBE_CLUSTER_DEFAULT_FOLDER, FLAMBE_CLUSTER_DEFAULT_CONFIG
 from flambe.logging import coloredlogs as cl
 from flambe.utils.path import is_dev_mode, get_flambe_repo_location
+from flambe.compile.yaml import dump_one_config
 from flambe.compile.downloader import download_manager
 from flambe.compile.extensions import is_package, is_installed_module
 from flambe.runner.environment import load_env_from_config
@@ -22,6 +23,24 @@ from flambe.cluster.cluster import load_cluster_config
 logging.getLogger('tensorflow').disabled = True
 
 
+def load_cluster_config_helper(name=None, return_name=False):
+    """Check if a single cluster exists or if a name is required."""
+    if name is None:
+        files = os.listdir(FLAMBE_CLUSTER_DEFAULT_FOLDER)
+        names = [f.strip('.yaml') for f in files if '.yaml' in f]
+        if len(names) == 1:
+            name = names[0]
+        elif len(names) == 0:
+            raise ValueError(f"There are no clusters at {FLAMBE_CLUSTER_DEFAULT_FOLDER}.")
+        else:
+            raise ValueError(f"No name was provided, but multiple clusters exist: {names}")
+    cluster_path = os.path.join(FLAMBE_CLUSTER_DEFAULT_FOLDER, f"{name}.yaml")
+    cluster = load_cluster_config(cluster_path)
+    if return_name:
+        return cluster, name
+    return cluster
+
+
 @click.group()
 def cli():
     pass
@@ -30,6 +49,8 @@ def cli():
 # ----------------- flambe up ------------------ #
 @click.command()
 @click.argument('name', type=str, required=True)
+@click.option('-y', '--yes', is_flag=True, default=False,
+              help='Run without confirmation.')
 @click.option('--create', is_flag=True, default=False,
               help='Create a new cluster.')
 @click.option('--config', type=str, default=FLAMBE_CLUSTER_DEFAULT_CONFIG,
@@ -38,7 +59,7 @@ def cli():
               help="Required name for a new cluster.")
 @click.option('--max-workers', type=int, default=None,
               help="Optional max number of workers.")
-def up(name, create, config, min_workers, max_workers):
+def up(name, yes, create, config, min_workers, max_workers):
     """Launch / update the cluster."""
     os.makedirs(FLAMBE_CLUSTER_DEFAULT_FOLDER)
     cluster_path = os.path.join(FLAMBE_CLUSTER_DEFAULT_FOLDER, f"{name}.yaml")
@@ -50,20 +71,23 @@ def up(name, create, config, min_workers, max_workers):
         raise ValueError(f"Cluster {name} does not exist.")
     elif create and not os.path.exists(config):
         raise ValueError(f"Config {config} does not exist.")
-    elif create:
-        yaml = YAML()
-        # Load cluster template config
-        with open(config, 'r') as f:
-            cluster = load_cluster_config(cluster_path)
-        # 
-        with open(cluster_path, 'w') as f:
-            yaml = YAML()
-            yaml.dump(f)
+
+    # Update kwargs
+    kwargs = dict(name=name)
+    if min_workers is not None:
+        kwargs['min_workers'] = min_workers
+    if max_workers is not None:
+        kwargs['max_workers'] = max_workers
+
+    # Run update
+    if create:
+        cluster = load_cluster_config(config)
     else:
         cluster = load_cluster_config(cluster_path)
 
-    # Run update
-    cluster.up(min_workers, max_workers)
+    cluster = cluster.clone(**kwargs)
+    cluster.up(yes=yes)
+    dump_one_config(cluster, cluster_path)
 
 
 # ----------------- flambe down ------------------ #
@@ -79,7 +103,7 @@ def up(name, create, config, min_workers, max_workers):
               help='Destroys this cluster permanently.')
 def down(name, yes, workers_only, terminate, destroy):
     """Take down the cluster, optionally destroy it permanently."""
-    cluster = load_cluster_config(cluster)
+    cluster = load_cluster_config_helper(name)
     cluster.down(yes, workers_only, terminate)
 
 
@@ -91,7 +115,7 @@ def down(name, yes, workers_only, terminate, destroy):
               help="Cluster name.")
 def rsync_up(source, target, cluster):
     """Upload files to the cluster."""
-    cluster = load_cluster_config(cluster)
+    cluster = load_cluster_config_helper(cluster)
     cluster.rsync_up(source, target)
 
 
@@ -103,7 +127,7 @@ def rsync_up(source, target, cluster):
               help="Cluster name.")
 def rsync_down(source, target, cluster):
     """Download files from the cluster."""
-    cluster = load_cluster_config(cluster)
+    cluster = load_cluster_config_helper(cluster)
     cluster.rsync_down(source, target)
 
 
@@ -111,13 +135,31 @@ def rsync_down(source, target, cluster):
 @click.command()
 @click.option('-c', '--cluster', type=str, default=None,
               help="Cluster name.")
-@click.option('-a', '--all', is_flag=True, default=False,
+@click.option('-a', '--all-clusters', is_flag=True, default=False,
               help="Cluster name.")
-def list_cmd(cluster, all):
+def list_cmd(cluster, all_clusters):
     """List the jobs (i.e tmux sessions) running on the cluster."""
     logging.disable(logging.INFO)
-    cluster = load_cluster_config(cluster)
-    cluster.list()
+
+    if cluster is not None:
+        cluster_obj = load_cluster_config_helper(cluster)
+        print(cl.BL(f"\nCluster: {cluster}\n"))
+        cluster_obj.list()
+    elif not all_clusters:
+        cluster_obj, cluster = load_cluster_config_helper(return_name=True)
+        print(cl.BL(f"\nCluster: {cluster}\n"))
+        cluster_obj.list()
+    else:
+        files = os.listdir(FLAMBE_CLUSTER_DEFAULT_FOLDER)
+        clusters = [f.strip('.yaml') for f in files if '.yaml' in files]
+        if len(clusters) == 0:
+            print("No clusters to inspect.")
+        else:
+            for cluster in clusters:
+                print(cl.BL(f"\nCluster: {cluster}\n"))
+                cluster_obj = load_cluster_config_helper(cluster)
+                cluster_obj.list()
+                print("")
 
 
 # ----------------- flambe exec ------------------ #
@@ -130,7 +172,7 @@ def list_cmd(cluster, all):
 def exec_cmd(command, port_forward, cluster):
     """Execute a command on the cluster head node."""
     logging.disable(logging.INFO)
-    cluster = load_cluster_config(cluster)
+    cluster = load_cluster_config_helper(cluster)
     cluster.exec(command=command, port_forward=port_forward)
 
 
@@ -142,7 +184,7 @@ def exec_cmd(command, port_forward, cluster):
 def attach(name, cluster):
     """Attach to a running job (i.e tmux session) on the cluster."""
     logging.disable(logging.INFO)
-    cluster = load_cluster_config(cluster)
+    cluster = load_cluster_config_helper(cluster)
     cluster.attach(name)
 
 
@@ -156,7 +198,7 @@ def attach(name, cluster):
 def kill(name, cluster, clean):
     """Kill a job (i.e tmux session) running on the cluster."""
     logging.disable(logging.INFO)
-    cluster = load_cluster_config(cluster)
+    cluster = load_cluster_config_helper(cluster)
     cluster.kill(name=name)
     if clean:
         cluster.clean(name=name)
@@ -170,7 +212,7 @@ def kill(name, cluster, clean):
 def clean(name, cluster):
     """Clean the artifacts of a job on the cluster."""
     logging.disable(logging.INFO)
-    cluster = load_cluster_config(cluster)
+    cluster = load_cluster_config_helper(cluster)
     cluster.clean(name=name)
 
 
@@ -204,7 +246,7 @@ def submit(runnable, name, cluster, force, debug, verbose, attach):
         print(cl.RA(ASCII_LOGO))
         print(cl.BL(f"VERSION: {flambe.__version__}\n"))
 
-    cluster = load_cluster_config(cluster)
+    cluster = load_cluster_config_helper(cluster)
     cluster.submit(runnable, name, force=force, debug=debug)
     if attach:
         cluster.attach(name)
@@ -220,7 +262,7 @@ def submit(runnable, name, cluster, force, debug, verbose, attach):
 def site(name, cluster, port):
     """Launch a Web UI to monitor the activity on the cluster."""
     logging.disable(logging.INFO)
-    cluster = load_cluster_config(cluster)
+    cluster = load_cluster_config_helper(cluster)
     try:
         cluster.launch_site(port=port, name=name)
     except KeyboardInterrupt:

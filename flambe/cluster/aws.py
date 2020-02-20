@@ -98,8 +98,6 @@ class AWSCluster(Cluster):
         See flambe.cluster.Cluster for extra arguments.
 
         """
-        super().__init__(name=name, ssh_user=ssh_user, **kwargs)
-
         head_node_ami = head_node_ami or AWS_AMI
         worker_node_ami = worker_node_ami or AWS_AMI
 
@@ -191,7 +189,7 @@ class AWSCluster(Cluster):
             'ulimit -n 65536; ray start --address=$RAY_HEAD_IP:6379 --object-manager-port=8076'
         ]
 
-        self.config.update(config)
+        super().__init__(name=name, ssh_user=ssh_user, extra=config, **kwargs)
 
     def down(self, yes: bool = False, workers_only: bool = False, terminate: bool = False):
         """Teardown the cluster.
@@ -206,7 +204,7 @@ class AWSCluster(Cluster):
             Whether to terminate the instances
 
         """
-        config = copy.deepcopy(self.config)
+        config: Dict[str, Any] = copy.deepcopy(self.config)
         config['provider']['cache_stopped_nodes'] = terminate
         yaml = YAML()
         with tempfile.NamedTemporaryFile() as fp:

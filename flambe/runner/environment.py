@@ -1,5 +1,6 @@
 import os
 import copy
+import inspect
 from contextlib import contextmanager
 from typing import Any, Optional, Dict, List, Iterator
 
@@ -17,6 +18,16 @@ class Environment(Registrable):
     the run method of the objects following the Runnable interface.
 
     """
+
+    # TODO: clean this
+    def __new__(cls, *args, **kwargs):
+        instance = super(Environment, cls).__new__(cls)
+        parameters = inspect.signature(cls).parameters
+        for arg, name in zip(args, parameters):
+            kwargs[name] = arg
+        instance._yaml_tag = f"!{cls.__name__}"
+        instance._saved_arguments = kwargs
+        return instance
 
     def __init__(self,
                  output_path: str = 'flambe_output',
@@ -62,23 +73,6 @@ class Environment(Registrable):
         self.debug = debug
         self.extra = extra
 
-        # TODO: remove this hack
-        if not hasattr(self, '_saved_arguments'):
-            from ruamel.yaml.comments import CommentedMap
-            saved_arguments = CommentedMap({
-                'output_path': self.output_path,
-                'extensions': self.extensions,
-                'local_resources': self.local_resources,
-                'remote_resources': self.remote_resources,
-                'head_node_ip': self.head_node_ip,
-                'worker_node_ips': self.worker_node_ips,
-                'remote': self.remote,
-                'debug': self.debug,
-                'extra': self.extra,
-            })
-            saved_arguments.yaml_set_tag('!Environment')
-            self._saved_arguments = saved_arguments
-
     def clone(self, **kwargs) -> 'Environment':
         """Clone the envrionment, updated with the provided arguments.
 
@@ -93,7 +87,7 @@ class Environment(Registrable):
             The new updated envrionement object.
 
         """
-        arguments = copy.deepcopy(self._saved_arguments)
+        arguments = copy.deepcopy(self._saved_arguments)  # type: ignore
         arguments.update(kwargs)
         return Environment(**arguments)  # type: ignore
 
