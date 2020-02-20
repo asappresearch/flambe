@@ -8,7 +8,6 @@ Flambé supports running remote ``Runnables`` where jobs can be distributed acro
 
 .. toctree::
    :titlesonly:
-   :maxdepth: 1
   
    remotes/aws
    remotes/gcp

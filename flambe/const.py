@@ -8,7 +8,9 @@ PYTHON_VERSION = '3.7'
 
 # A folder used to keep track of flambe runs
 FLAMBE_GLOBAL_FOLDER = os.path.join(str(Path.home()), ".flambe")
-FLAMBE_CLUSTER_DEFAULT = os.path.join(FLAMBE_GLOBAL_FOLDER, 'cluster.yaml')
+FLAMBE_GLOBAL_CONFIG = os.path.join(FLAMBE_GLOBAL_FOLDER, 'config.yaml')
+FLAMBE_CLUSTER_DEFAULT_FOLDER = os.path.join(FLAMBE_GLOBAL_FOLDER, 'clusters')
+FLAMBE_CLUSTER_DEFAULT_CONFIG = os.path.join(FLAMBE_CLUSTER_DEFAULT_FOLDER, 'cluster.yaml')
 
 # SERIALIZATION 
 STATE_DICT_DELIMETER = '.'

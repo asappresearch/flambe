@@ -3,24 +3,20 @@ Welcome to Flambé
 =================
 
 
-Flambé is a Python framework built to accelerate the development of machine learning research.  
-With Flambé you can:
+Flambé is a Python framework built to accelerate machine learning research. With Flambé you can:
 
-* **Run hyperparameter searches** over arbitrary Python objects or scripts.
-* **Constuct DAGs**, by searching over hyperparameters and reducing to the best variants at any of the nodes.
-* Distribute tasks **remotely** and **in parallel** over a cluster, with full AWS, GCP, and Kubernetefs integrations.
-* Easily **share** experiment configurations, results, and checkpoints with others.e
-* Automate the **boilerplate code** in training models with `PyTorch <https://pytorch.org>`_
+* Run hyperparameter searches over arbitrary Python objects or scripts.
+* Constuct DAGs to search over and reduce to the best hyperparameter variants at any node.
+* Distribute tasks remotely over a cluster, with full AWS, GCP, and Kubernetes integrations.
+* Easily share experiment configurations, results, and checkpoints with others.e
+* Automate the boilerplate code in training models with `PyTorch <https://pytorch.org>`_
 
-Visit our website: https://flambe.ai  
-Visit out github repo: https://github.com/asappresearch/flambe  
-
-Check out our :ref:`Installation Guide <starting-install_label>` and :ref:`_runnables` sections to get up and
-running with Flambé in just a few minutes!
+| Visit our website: https://flambe.ai  
+| Visit out github repo: https://github.com/asappresearch/flambe  
 
 .. toctree::
    :titlesonly: 
-   :caption: Getting Started
+   :caption: Flambé
 
    starting/motivation
    starting/install
@@ -28,12 +24,21 @@ running with Flambé in just a few minutes!
 
 .. toctree::
    :maxdepth: 1
-   :caption: Walkthrough
+   :caption: Basics
   
-   walkthrough/runnable
-   walkthrough/remote
-   walkthrough/advanced
+   basics/introduction
+   basics/script
+   basics/trainer
+   basics/search
+   basics/experiment
+   basics/export
+   basics/remote
 
+.. toctree::
+   :titlesonly:
+   :caption:  Advanced
+  
+   advanced/*
 
 .. toctree::
    :titlesonly:

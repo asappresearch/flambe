@@ -21,8 +21,8 @@ class Environment(Registrable):
     def __init__(self,
                  output_path: str = 'flambe_output',
                  extensions: Optional[Dict[str, str]] = None,
-                 local_resources: Optional[Dict[str, str]] = None,
-                 remote_resources: Optional[Dict[str, str]] = None,
+                 local_files: Optional[Dict[str, str]] = None,
+                 remote_files: Optional[Dict[str, str]] = None,
                  head_node_ip: Optional[str] = None,
                  worker_node_ips: Optional[List[str]] = None,
                  remote: bool = False,
@@ -37,9 +37,9 @@ class Environment(Registrable):
             Default ``flambe__output``
         extensions : Optional[Dict[str, str]], optional
             [description], by default None
-        local_resources : Optional[Dict[str, str]], optional
+        local_files : Optional[Dict[str, str]], optional
             [description], by default None
-        remote_resources : Optional[Dict[str, str]], optional
+        remote_files : Optional[Dict[str, str]], optional
             [description], by default None
         head_node_ip: str, optional
             The orchestrator visible IP for the factories (usually
@@ -54,8 +54,8 @@ class Environment(Registrable):
         """
         self.output_path = output_path
         self.extensions = extensions or dict()
-        self.local_resources = local_resources or dict()
-        self.remote_resources = remote_resources or dict()
+        self.local_files = local_files or dict()
+        self.remote_files = remote_files or dict()
         self.head_node_ip = head_node_ip
         self.worker_node_ips = worker_node_ips or []
         self.remote = remote
@@ -66,8 +66,8 @@ class Environment(Registrable):
         self._saved_arguments = {
             'output_path': self.output_path,
             'extensions': self.extensions,
-            'local_resources': self.local_resources,
-            'remote_resources': self.remote_resources,
+            'local_files': self.local_files,
+            'remote_files': self.remote_files,
             'head_node_ip': self.head_node_ip,
             'worker_node_ips': self.worker_node_ips,
             'remote': self.remote,

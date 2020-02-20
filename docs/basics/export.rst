@@ -2,31 +2,24 @@
 Builders
 ========
 
-A :class:`~flambe.export.Builder` is a simple :class:`~flambe.runnable.Runnable` that can be used to create
-any :class:`~flambe.compile.Component` post- :class:`~flambe.experiment.Experiment`, and export it to a local or remote location.
+A :class:`~flambe.export.Builder` is a simple runnablethat can be used to construct a python
+object by combining local or remote artifacts, and uploading the constructuted object
+locally or remotely (on Amazon S3 for example).
 
-``Builders`` decouple the inference logic with the experimentation logic, allowing users
-to iterate through inference contracts independently without needing to rerun an
-:class:`~flambe.experiment.Experiment`.
+``Builders`` decouple the inference logic with the training logic, allowing users
+to iterate through inference contracts without the need to rerun training.
 
-.. hint::
- A :class:`~flambe.export.Builder` should be used to build inference engines that rely
- on previous experiments' artifacts.
 
 Motivation
 ----------
 
-Let's assume that a user wants to train a binary classifier using an :class:`~flambe.experiment.Experiment`:
+Let's assume that a user wants to train a binary classifier using a :class:`~flambe.learn.Trainer`:
 
 .. code-block:: yaml
 
-    ext: /path/to/my/extensions
-    ---
-    !Experiment
+    !Trainer
     ..
-    pipeline:
-        ...
-        model: !ext.MyBinaryClassifier
+    model: !LogisticRegression
 
 
 Now, the user needs to implement an inference object ``ClassifierEngine`` that has a
@@ -86,10 +79,10 @@ The inference object will be saved in ``s3://my-bucket``. Then the user can:
     :class:`~flambe.compile.Component` has (YAML serialization, versioning,
     compatibility with other :class:`~flambe.runnable.Runnable` implementations, among others).
 
-How to use a builder
---------------------
+Usage
+-----
 
-Usage is really simple. The most important parameters for a :class:`~flambe.export.Builder` are
+Usage is simple. The most important parameters for a :class:`~flambe.export.Builder` are
 the :class:`~flambe.compile.Component` and the destination:
 
 
@@ -116,9 +109,3 @@ the :class:`~flambe.compile.Component` and the destination:
 .. hint::
     If storage is **"s3"**, then the destination can be an S3 bucket folder. Flambé will
     take care of uploading the built artifacts.
-
-Future Work
------------
-
-The goal is to develop builders for different technologies. For example, a ``DockerBuilder`` that is able
-to build a Docker container based on a :class:`~flambe.compile.Component`.

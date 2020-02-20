@@ -131,7 +131,7 @@ class Pipeline(Schema):
         for stage_name, checkpoint in self.checkpoints.items():
             val = checkpoint.get()
             cache[(stage_name,)] = val
-        resources: Dict[PathType, Any] = {(name,): path for name, path in get_env().local_resources}
+        resources: Dict[PathType, Any] = {(name,): path for name, path in get_env().local_files}
         cache.update(resources)
         return super().initialize(cache=cache)
 

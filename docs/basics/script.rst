@@ -1,0 +1,91 @@
+.. _Script: 
+
+======
+Script
+======
+
+In many situations, you may already have a script that performs your full training routine,
+and you would like to avoid doing any intergation work to leverage some of the tools in Flambé,
+namely launching variants of the script on a large cluster 
+
+For this particular use case, Flambé offers a ``Script`` component, which takes as input
+the path to your scripts, and the relevant arguments. The script should read arguments
+from ``sys.argv``, which means that traditional scripts, and scripts that use tools such
+as ``argparse`` are natively supported.
+
+
+Writing a config file
+---------------------
+
+You can define a configuration for your script using the ``Script`` runnable:
+
+.. code-block:: yaml
+
+    !Envrionment
+
+    resources:
+        script: '/path/to/your/script.py'
+
+    ---
+
+    !Script
+
+    script: !file script 
+    args: ['arg1', 'arg2']
+    kwargs:
+        kwarg1: 1
+        kwarg2: 'foo'
+
+That's it! You can now execute this configuration file, with the regular command:
+
+.. code-block:: bash
+    flambe run config.yaml
+
+And execute it on a cluster with:
+
+.. code-block:: bash
+    flambe submit config.yaml [-c cluster.yaml]
+
+Running a Hyperparameter Search
+--------------------------------
+
+Running a hyperparameter search over a script is very simple. All you need to do
+is to wrap the ``Script`` object inside a ``Search``, and specify a search algorithm:
+
+.. code-block:: yaml
+
+    !Envrionment
+
+    resources:
+        my_script: '/path/to/your/script.py'
+
+    ---
+
+    !Search
+
+    searchable: !Script
+        script: !file my_script 
+        args: ['arg1', 'arg2']
+        kwargs:
+            kwarg1: !uniform [0, 1]
+            kwarg2: !choice ['foo', 'bar']
+    
+    algorithm: !RandomSearch
+        trial_budget: 10
+
+You can now use search distributions over any argument to your script!
+For more information on hyperparameter search see: :ref:`Search`.
+
+Checkpoints and Logging
+------------------------
+
+Since your script may be executed remotely and over many variants, you will
+need to provide it with the correct output path to use. The Flambé envrionment provides you
+with the output path as well as other useful information. You can access it
+anywhere in your script with:
+
+.. code-block:: python
+    import flambe
+
+    env = flambe.get_env()
+    print(env.output_path)

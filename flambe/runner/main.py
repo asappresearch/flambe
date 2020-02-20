@@ -8,8 +8,8 @@ import traceback
 import torch
 
 import flambe
-from flambe.const import FLAMBE_CLUSTER_DEFAULT, FLAMBE_GLOBAL_FOLDER
-from flambe.const import ASCII_LOGO, ASCII_LOGO_DEV
+from flambe.const import FLAMBE_GLOBAL_FOLDER, ASCII_LOGO, ASCII_LOGO_DEV
+from flambe.const import FLAMBE_CLUSTER_DEFAULT_FOLDER, FLAMBE_CLUSTER_DEFAULT_CONFIG
 from flambe.logging import coloredlogs as cl
 from flambe.utils.path import is_dev_mode, get_flambe_repo_location
 from flambe.compile.downloader import download_manager
@@ -29,26 +29,56 @@ def cli():
 
 # ----------------- flambe up ------------------ #
 @click.command()
-@click.option('-c', '--cluster', type=str, default=FLAMBE_CLUSTER_DEFAULT,
-              help="Cluster config.")
-def up(cluster):
-    """Launch / update the cluster based on the given config"""
-    cluster = load_cluster_config(cluster)
-    cluster.up()
+@click.argument('name', type=str, required=True)
+@click.option('--create', is_flag=True, default=False,
+              help='Create a new cluster.')
+@click.option('--config', type=str, default=FLAMBE_CLUSTER_DEFAULT_CONFIG,
+              help="Cluster template config.")
+@click.option('--min-workers', type=int, default=None,
+              help="Required name for a new cluster.")
+@click.option('--max-workers', type=int, default=None,
+              help="Optional max number of workers.")
+def up(name, create, config, min_workers, max_workers):
+    """Launch / update the cluster."""
+    os.makedirs(FLAMBE_CLUSTER_DEFAULT_FOLDER)
+    cluster_path = os.path.join(FLAMBE_CLUSTER_DEFAULT_FOLDER, f"{name}.yaml")
+
+    # Check update or install
+    if create and os.path.exists(cluster_path):
+        raise ValueError(f"Cluster {name} already exists.")
+    elif not create and not os.path.exists(cluster_path):
+        raise ValueError(f"Cluster {name} does not exist.")
+    elif create and not os.path.exists(config):
+        raise ValueError(f"Config {config} does not exist.")
+    elif create:
+        yaml = YAML()
+        # Load cluster template config
+        with open(config, 'r') as f:
+            cluster = load_cluster_config(cluster_path)
+        # 
+        with open(cluster_path, 'w') as f:
+            yaml = YAML()
+            yaml.dump(f)
+    else:
+        cluster = load_cluster_config(cluster_path)
+
+    # Run update
+    cluster.up(min_workers, max_workers)
 
 
 # ----------------- flambe down ------------------ #
 @click.command()
-@click.option('-c', '--cluster', type=str, default=FLAMBE_CLUSTER_DEFAULT,
-              help="Cluster config.")
+@click.argument('name', type=str, required=True)
 @click.option('-y', '--yes', is_flag=True, default=False,
               help='Run without confirmation.')
 @click.option('--workers-only', is_flag=True, default=False,
               help='Only teardown the worker nodes.')
 @click.option('--terminate', is_flag=True, default=False,
-              help='Terminate the instances (AWS only).')
-def down(cluster, yes, workers_only, terminate):
-    """Teardown the cluster."""
+              help='Terminate the instances instead of stopping them (AWS only).')
+@click.option('--destroy', is_flag=True, default=False,
+              help='Destroys this cluster permanently.')
+def down(name, yes, workers_only, terminate, destroy):
+    """Take down the cluster, optionally destroy it permanently."""
     cluster = load_cluster_config(cluster)
     cluster.down(yes, workers_only, terminate)
 
@@ -57,8 +87,8 @@ def down(cluster, yes, workers_only, terminate):
 @click.command()
 @click.argument('source', type=str, required=True)
 @click.argument('target', type=str, required=True)
-@click.option('-c', '--cluster', type=str, default=FLAMBE_CLUSTER_DEFAULT,
-              help="Cluster config.")
+@click.option('-c', '--cluster', type=str, default=None,
+              help="Cluster name.")
 def rsync_up(source, target, cluster):
     """Upload files to the cluster."""
     cluster = load_cluster_config(cluster)
@@ -69,8 +99,8 @@ def rsync_up(source, target, cluster):
 @click.command()
 @click.argument('source', type=str, required=True)
 @click.argument('target', type=str, required=True)
-@click.option('-c', '--cluster', type=str, default=FLAMBE_CLUSTER_DEFAULT,
-              help="Cluster config.")
+@click.option('-c', '--cluster', type=str, default=None,
+              help="Cluster name.")
 def rsync_down(source, target, cluster):
     """Download files from the cluster."""
     cluster = load_cluster_config(cluster)
@@ -79,9 +109,11 @@ def rsync_down(source, target, cluster):
 
 # ----------------- flambe list ------------------ #
 @click.command()
-@click.option('-c', '--cluster', type=str, default=FLAMBE_CLUSTER_DEFAULT,
-              help="Cluster config.")
-def list_cmd(cluster):
+@click.option('-c', '--cluster', type=str, default=None,
+              help="Cluster name.")
+@click.option('-a', '--all', is_flag=True, default=False,
+              help="Cluster name.")
+def list_cmd(cluster, all):
     """List the jobs (i.e tmux sessions) running on the cluster."""
     logging.disable(logging.INFO)
     cluster = load_cluster_config(cluster)
@@ -93,8 +125,8 @@ def list_cmd(cluster):
 @click.argument('command', type=str)
 @click.option('-p', '--port-forward', type=int, default=None,
               help='Port in which the site will be running url')
-@click.option('-c', '--cluster', type=str, default=FLAMBE_CLUSTER_DEFAULT,
-              help="Cluster config.")
+@click.option('-c', '--cluster', type=str, default=None,
+              help="Cluster name.")
 def exec_cmd(command, port_forward, cluster):
     """Execute a command on the cluster head node."""
     logging.disable(logging.INFO)
@@ -105,8 +137,8 @@ def exec_cmd(command, port_forward, cluster):
 # ----------------- flambe attach ------------------ #
 @click.command()
 @click.argument('name', required=False, type=str, default=None)
-@click.option('-c', '--cluster', type=str, default=FLAMBE_CLUSTER_DEFAULT,
-              help="Cluster config.")
+@click.option('-c', '--cluster', type=str, default=None,
+              help="Cluster name.")
 def attach(name, cluster):
     """Attach to a running job (i.e tmux session) on the cluster."""
     logging.disable(logging.INFO)
@@ -117,8 +149,8 @@ def attach(name, cluster):
 # ----------------- flambe kill ------------------ #
 @click.command()
 @click.argument('name', type=str)
-@click.option('-c', '--cluster', type=str, default=FLAMBE_CLUSTER_DEFAULT,
-              help="Cluster config.")
+@click.option('-c', '--cluster', type=str, default=None,
+              help="Cluster name.")
 @click.option('--clean', is_flag=True, default=False,
               help='Clean the artifacts of the job.')
 def kill(name, cluster, clean):
@@ -133,8 +165,8 @@ def kill(name, cluster, clean):
 # ----------------- flambe clean ------------------ #
 @click.command()
 @click.argument('name', type=str)
-@click.option('-c', '--cluster', type=str, default=FLAMBE_CLUSTER_DEFAULT,
-              help="Cluster config.")
+@click.option('-c', '--cluster', type=str, default=None,
+              help="Cluster name.")
 def clean(name, cluster):
     """Clean the artifacts of a job on the cluster."""
     logging.disable(logging.INFO)
@@ -144,10 +176,10 @@ def clean(name, cluster):
 
 # ----------------- flambe submit ------------------ #
 @click.command()
-@click.argument('runnable', type=str, required=True)
+@click.argument('config', type=str, required=True)
 @click.argument('name', type=str, required=True)
-@click.option('-c', '--cluster', type=str, default=FLAMBE_CLUSTER_DEFAULT,
-              help="Cluster config.")
+@click.option('-c', '--cluster', type=str, default=None,
+              help="Cluster name.")
 @click.option('-f', '--force', is_flag=True, default=False,
               help='Override existing job with this name. Be careful \
                     when using this flag as it could have undesired effects.')
@@ -181,8 +213,8 @@ def submit(runnable, name, cluster, force, debug, verbose, attach):
 # ----------------- flambe site ------------------ #
 @click.command()
 @click.argument('name', type=str, required=False, default='')
-@click.option('-c', '--cluster', type=str, default=FLAMBE_CLUSTER_DEFAULT,
-              help="Cluster config.")
+@click.option('-c', '--cluster', type=str, default=None,
+              help="Cluster name.")
 @click.option('-p', '--port', type=int, default=49558,
               help='Port in which the site will be running url')
 def site(name, cluster, port):
@@ -197,7 +229,7 @@ def site(name, cluster, port):
 
 # ----------------- flambe run ------------------ #
 @click.command()
-@click.argument('runnable', type=str, required=True)
+@click.argument('config', type=str, required=True)
 @click.option('-o', '--output', default='./',
               help='Override existing job with this name. Be careful \
                     when using this flag as it could have undesired effects.')
@@ -259,7 +291,7 @@ def run(runnable, output, force, debug):
     # Download resources
     resources_dir = os.path.join(FLAMBE_GLOBAL_FOLDER, 'resources')
     updated_resources: Dict[str, str] = dict()
-    for name, resource in env.local_resources.items():
+    for name, resource in env.local_files.items():
         with download_manager(resource, os.path.join(resources_dir, name)) as path:
             updated_resources[name] = path
 
@@ -268,7 +300,7 @@ def run(runnable, output, force, debug):
         flambe.set_env(
             output_path=output,
             debug=debug,
-            local_resources=updated_resources
+            local_files=updated_resources
         )
 
         runnable_obj = load_runnable_from_config(runnable)

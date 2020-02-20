@@ -415,14 +415,14 @@ class Cluster(Registrable):
                 exec_cluster(fp.name, tmux(cmd))
 
             # Upload files
-            resources_dir = os.path.join(FLAMBE_GLOBAL_FOLDER, 'resources')
-            updated_resources: Dict[str, str] = dict()
-            updated_resources.update(env.remote_resources)
-            for name, resource in env.local_resources.items():
-                with download_manager(resource, os.path.join(resources_dir, name)) as path:
+            files_dir = os.path.join(FLAMBE_GLOBAL_FOLDER, 'resources')
+            updated_files: Dict[str, str] = dict()
+            updated_files.update(env.remote_files)
+            for name, resource in env.local_files.items():
+                with download_manager(resource, os.path.join(files_dir, name)) as path:
                     target = f'$HOME/jobs/{name}/resources/{name}'
                     rsync(fp.name, path, target, None, down=False)
-                    updated_resources[name] = target
+                    updated_files[name] = target
 
             # Run Flambe
             env = env.clone(
@@ -430,8 +430,8 @@ class Cluster(Registrable):
                 head_node_ip=self.head_node_ip(),
                 worker_node_ips=self.worker_node_ips(),
                 extensions=updated_extensions,
-                local_resources=updated_resources,
-                remote_resources=[],
+                local_files=updated_files,
+                remote_files=[],
                 remote=True
             )
 
