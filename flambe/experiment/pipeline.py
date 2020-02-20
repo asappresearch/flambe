@@ -132,9 +132,9 @@ class Pipeline(Schema):
             val = checkpoint.get()
             cache[(stage_name,)] = val
 
-        resources: Dict[PathType, Any]
-        resources = {(name,): path for name, path in get_env().local_files.items()}
-        cache.update(resources)
+        files: Dict[PathType, Any]
+        files = {(name,): path for name, path in get_env().local_files.items()}
+        cache.update(files)
         return super().initialize(cache=cache)
 
     def sub_pipeline(self, stage_name: str) -> 'Pipeline':

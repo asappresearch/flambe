@@ -338,19 +338,19 @@ def run(config, output, force, debug):
             else:
                 raise ValueError(message.format(module, package))
 
-    # Download resources
-    resources_dir = os.path.join(FLAMBE_GLOBAL_FOLDER, 'resources')
-    updated_resources: Dict[str, str] = dict()
-    for name, resource in env.local_files.items():
-        with download_manager(resource, os.path.join(resources_dir, name)) as path:
-            updated_resources[name] = path
+    # Download files
+    files_dir = os.path.join(FLAMBE_GLOBAL_FOLDER, 'files')
+    updated_files: Dict[str, str] = dict()
+    for name, file in env.local_files.items():
+        with download_manager(file, os.path.join(files_dir, name)) as path:
+            updated_files[name] = path
 
     try:
         # Execute runnable
         flambe.set_env(
             output_path=output,
             debug=debug,
-            local_files=updated_resources
+            local_files=updated_files
         )
 
         runnable = load_runnable_from_config(config)
