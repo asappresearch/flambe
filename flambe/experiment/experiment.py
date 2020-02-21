@@ -74,8 +74,10 @@ class Experiment(Registrable):
         self.pipeline = pipeline if pipeline is not None else dict()
         self.algorithm = algorithm if algorithm is not None else dict()
         self.reduce = reduce if reduce is not None else dict()
-        self.cpus_per_trial: Dict[str, int] = dict()
-        self.gpus_per_trial: Dict[str, int] = dict()
+        self.cpus_per_trial: Dict[str, int] = cpus_per_trial if cpus_per_trial is not None \
+            else dict()
+        self.gpus_per_trial: Dict[str, int] = gpus_per_trial if gpus_per_trial is not None \
+            else dict()
 
     @classmethod
     def yaml_load_type(cls) -> YAMLLoadType:
