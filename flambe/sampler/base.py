@@ -1,4 +1,5 @@
 import math
+import warnings
 from collections import defaultdict, OrderedDict as odict
 from itertools import chain
 from functools import partial
@@ -198,6 +199,7 @@ class BaseSampler(Sampler):
                  pin_memory: bool = False,
                  seed: Optional[int] = None,
                  downsample: Optional[float] = None,
+                 downsample_max_samples: Optional[int] = None,
                  downsample_seed: Optional[int] = None,
                  drop_last: bool = False) -> None:
         """Initialize the BaseSampler object.
@@ -223,7 +225,11 @@ class BaseSampler(Sampler):
         seed: int, optional
             Optional seed for the sampler
         downsample: float, optional
-            Percentage of the data to downsample to
+            Percentage of the data to downsample to. Seeded with
+            downsample_seed
+        downsample_max_samples: Optional[int]
+            Downsample to a specific number of samples. Uses
+            the same downsampling seed as downsample.
         downsample_seed: int, optional
             The seed to use in downsampling
         drop_last: bool, optional
@@ -238,7 +244,11 @@ class BaseSampler(Sampler):
         self.drop_last = drop_last
         self.n_workers = n_workers
         self.pin_memory = pin_memory
+        if downsample is not None and downsample_max_samples is not None:
+            raise ValueError('Please either specify `downsample` or `downsample_max_samples`, '
+                             'but not both.')
         self.downsample = downsample
+        self.downsample_max_samples = downsample_max_samples
         self.downsample_seed = downsample_seed
         self.random_generator = np.random if seed is None else np.random.RandomState(seed)
 
@@ -264,15 +274,24 @@ class BaseSampler(Sampler):
         if len(data) == 0:
             raise ValueError("No examples provided")
 
-        if self.downsample:
-            if not (0 < self.downsample <= 1):
+        if self.downsample or self.downsample_max_samples:
+            if self.downsample is not None and not (0 < self.downsample <= 1):
                 raise ValueError("Downsample value should be in the range (0, 1]")
+            if self.downsample_max_samples >= len(data):
+                warnings.warn('`downsample_max_samples` was specified, but '
+                              'the number of specified samples exceeds the '
+                              'number available in the dataset.')
             if self.downsample_seed:
                 downsample_generator = np.random.RandomState(self.downsample_seed)
             else:
                 downsample_generator = np.random
+            if self.downsample:
+                max_num_samples = int(self.downsample * len(data))
+            else:
+                max_num_samples = self.downsample_max_samples
+            # creating random indices and downsampling
             random_indices = downsample_generator.permutation(len(data))
-            data = [data[i] for i in random_indices[:int(self.downsample * len(data))]]
+            data = [data[i] for i in random_indices[:max_num_samples]]
 
         collate_fn_p = partial(collate_fn, pad=self.pad)
         # TODO investigate dataset typing in PyTorch; sequence should
