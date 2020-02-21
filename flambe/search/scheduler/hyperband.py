@@ -27,16 +27,16 @@ class HyperBandScheduler(Scheduler):
         max_steps: int
             The maximum number of steps that can be allocated to a
             single trial.
-        min_steps: int
+        min_steps: int, iptional
             The minimum number of steps that can be allocated to a
             single trial.
-        drop_rate: float
+        drop_rate: float, optional
             The rate at which trials are dropped between rounds of the
             HyperBand algorithm.  A higher drop rate means that the
             algorithm will be more exploitative than exploratory.
 
         """
-        super().__init__(searcher, max_steps)
+        super().__init__(searcher)
 
         if isinstance(searcher, ModelBasedSearcher):
             self.searchers: Dict[int, Searcher] = dict()
@@ -46,6 +46,7 @@ class HyperBandScheduler(Scheduler):
 
         self.max_steps_by_trial: Dict[str, int] = dict()
 
+        self.max_steps = max_steps
         self.min_steps = min_steps
         self.drop_rate = drop_rate
 

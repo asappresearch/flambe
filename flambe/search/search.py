@@ -155,6 +155,7 @@ class Search(Registrable):
                 finished, running = ray.wait(running, timeout=self.refresh_waitime)
 
             # Process finished trials
+            terminated = set()
             for object_id in finished:
                 trial_id = object_id_to_trial_id[str(object_id)]
                 trial = self.trials[trial_id]
@@ -165,11 +166,11 @@ class Search(Registrable):
                         return dict()
                     # Check searchable output
                     _continue, metric = returned
-                    if _continue:
-                        trial.set_metric(metric)
-                        trial.set_has_result()
-                    else:
-                        trial.set_terminated()
+                    trial.set_metric(metric)
+                    trial.set_has_result()
+                    if not _continue:
+                        terminated.add(trial_id)
+
                 except Exception as e:
                     trial.set_error()
                     if env.debug:
@@ -193,6 +194,9 @@ class Search(Registrable):
             # Update based on trial status
             for trial_id, trial in self.trials.items():
                 # Handle creation and termination
+                if trial_id in terminated:
+                    trial.set_terminated()
+
                 if trial.is_paused() or trial.is_running():
                     continue
                 elif (trial.is_error() or trial.is_terminated()) and trial_id in actors:

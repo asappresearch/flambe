@@ -15,8 +15,7 @@ class BlackBoxScheduler(Scheduler):
 
     def __init__(self,
                  searcher: Searcher,
-                 trial_budget: int,
-                 max_steps: int = 1) -> None:
+                 trial_budget: int) -> None:
         """Initialize the BlackBoxScheduler.
 
         Parameters
@@ -29,7 +28,7 @@ class BlackBoxScheduler(Scheduler):
             The maximum number of steps to give each trial.
 
         """
-        super().__init__(searcher, max_steps)
+        super().__init__(searcher)
         self.trial_budget = trial_budget
         self.num_terminated = 0
 
@@ -63,11 +62,13 @@ class BlackBoxScheduler(Scheduler):
             objects, including newly released trials.
 
         """
+        # Process running trials
         for trial_id, trial in trials.items():
             if trial.has_result():
                 trial.set_resume()
                 n -= 1
 
+        # Create new trials
         while n > 0 and len(trials) < self.trial_budget:
             new = self._create_trial()
             if new is None:
@@ -77,6 +78,7 @@ class BlackBoxScheduler(Scheduler):
                 trial_id, trial = new
                 trials[trial_id] = trial
                 n -= 1
+
         return trials
 
     def update_trials(self, trials: Dict[str, Trial]) -> Dict[str, Trial]:
@@ -95,17 +97,17 @@ class BlackBoxScheduler(Scheduler):
             A dictionary mapping trial id to corresponding Trial.
 
         """
-        trials_with_result = {trial_id: trial for trial_id,
-                              trial in trials.items() if trial.has_result()}
+        results: Dict[str, float] = dict()
+        num_terminated = 0
 
-        finished_trials: Dict[str, Trial] = dict()
-        for trial_id, trial in trials_with_result.items():
-            n_metrics = len(trial.metrics)
-            if n_metrics == self.max_steps:
-                finished_trials[trial_id] = trial
-                trial.set_terminated()
-                self.num_terminated += 1
+        # Process results and terminations
+        for trial_id, trial in trials.items():
+            if trial.has_result():
+                results[trial_id] = trial.best_metric
+                trial.set_resume()
+            elif trial.is_error() or trial.is_terminated():
+                num_terminated += 1
 
-        results_dict = {t_id: trial.best_metric for t_id, trial in finished_trials.items()}
-        self.searcher.register_results(results_dict)  # type: ignore
+        self.num_terminated = num_terminated
+        self.searcher.register_results(results)  # type: ignore
         return trials

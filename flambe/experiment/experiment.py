@@ -19,6 +19,7 @@ def get_stage(name,
               gpus_per_trial,
               environment,
               *dependencies):
+    """Helper method launch the stage and set the envrionment."""
     stage = Stage(
         name=name,
         pipeline=pipeline,

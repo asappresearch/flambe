@@ -15,19 +15,16 @@ class Scheduler(ABC):
 
     """
 
-    def __init__(self, searcher: Searcher, max_steps: int = 1):
+    def __init__(self, searcher: Searcher):
         """Initialize a scheduler.
 
         Parameters
         ----------
         searcher: Searcher
             The searcher object to use to explore the search space.
-        max_steps: int
-            Maximum number of steps that will be logged.
 
         """
         self.trials: Dict[str, Trial] = {}
-        self.max_steps = max_steps
         self.searcher = searcher
         self.done = False
 

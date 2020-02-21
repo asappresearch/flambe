@@ -8,6 +8,8 @@ import inspect
 from datetime import datetime
 from functools import partial
 from ruamel.yaml import comments
+from io import StringIO
+import sys
 
 from ray.autoscaler.commands import get_head_node_ip, get_worker_node_ips
 from ray.autoscaler.commands import exec_cluster, create_or_update_cluster, rsync, teardown_cluster
@@ -31,6 +33,18 @@ exec_cluster = partial(
     override_cluster_name=None,
     port_forward=[]
 )
+
+
+class Capturing(list):
+    def __enter__(self):
+        self._stdout = sys.stdout
+        sys.stdout = self._stringio = StringIO()
+        return self
+
+    def __exit__(self, *args):
+        self.extend(self._stringio.getvalue().splitlines())
+        del self._stringio    # free up some memory
+        sys.stdout = self._stdout
 
 
 # TODO: find a cleaner solution
@@ -240,22 +254,24 @@ class Cluster(Registrable):
             yaml.dump(self.config, fp)
             rsync(fp.name, source, target, None, down=True)
 
-    def attach(self, name: Optional[str] = None):
+    def attach(self, name: str, new: bool = False):
         """Attach onto a running job (i.e tmux session).
 
         Parameters
         ----------
-        name: str, optional
-           The name of the job to attach. If none given,
-           creates a new tmux session. Default ``None``.
+        name: str
+           The name of the job to attach.
+        new: bool
+            Whether to create a new tmux sessions. Note that
+            if there is already a session with this name, new
+            has no effect. Default ``False``.
 
         """
         supress()
 
-        if name is not None:
-            cmd = f"tmux attach -t {name}"
-        else:
-            cmd = f"tmux new"
+        cmd = f"tmux attach -t {name}"
+        if new:
+            cmd += f" || tmux new-session -s {name}"
 
         yaml = YAML()
         with tempfile.NamedTemporaryFile() as fp:
@@ -267,16 +283,6 @@ class Cluster(Registrable):
             raise KeyboardInterrupt
         except KeyboardInterrupt:
             pass
-
-    def list(self):
-        """List all currently running jobs (i.e tmux sessions)."""
-        supress()
-        cmd = f'tmux ls || echo "No tmux session running"'
-
-        yaml = YAML()
-        with tempfile.NamedTemporaryFile() as fp:
-            yaml.dump(self.config, fp)
-            exec_cluster(fp.name, cmd)
 
     def kill(self, name: str):
         """Kill a running jog (i.e tmux session).
@@ -315,6 +321,16 @@ class Cluster(Registrable):
             exec_cluster(fp.name, cmd)
 
         print(cl.GR(f"Job {name} cleaned."))
+
+    def list(self):
+        """List all currently running jobs (i.e tmux sessions)."""
+        supress()
+        cmd = f'tmux ls || echo "No tmux session running"'
+
+        yaml = YAML()
+        with tempfile.NamedTemporaryFile() as fp:
+            yaml.dump(self.config, fp)
+            exec_cluster(fp.name, cmd)
 
     def exec(self, command: str, port_forward: Optional[int] = None):
         """Run a command on the cluster.
@@ -393,25 +409,29 @@ class Cluster(Registrable):
             yaml.dump(self.config, fp)
             # Check if a job is currently running
             try:
-                cmd = f"tmux has-session -t {name}"
-                exec_cluster(fp.name, cmd)
+                with Capturing() as output:
+                    cmd = f"tmux has-session -t {name}"
+                    exec_cluster(fp.name, cmd)
                 running = True
             except:  # noqa: E722
                 running = False
             if running and not force:
-                raise ValueError(f"Job {name} currently running. Use -f, --force to override.")
+                print(cl.RE(f"Job {name} currently running. Use -f, --force to override."))
+                return
 
         # Create new directory, new tmux session, and virtual env
-        setup_commands = []
+        head_setup_commands = []
+        worker_setup_commands = []
         file_mounts = {}
 
         cmd = f"tmux kill-session -t {name}; tmux new -d -s {name}"
-        setup_commands.append(cmd)
+        head_setup_commands.append(cmd)
 
         tmux = lambda x: f'tmux send-keys -t {name}.0 "{x}" ENTER'  # noqa: E731
         cmd = f"mkdir -p $HOME/jobs/{name}/extensions && \
             conda create -y -q --name {name} python={PYTHON_VERSION}; echo ''"
-        setup_commands.append(tmux(cmd))
+        head_setup_commands.append(tmux(cmd))
+        worker_setup_commands.append(cmd)
 
         # Upload and install flambe
         activate = f'source activate {name}'
@@ -422,10 +442,11 @@ class Cluster(Registrable):
 
             target = f'~/jobs/{name}/flambe'
             cmd = f'{activate} && pip install -U -e {target}'
-            setup_commands.append(tmux(cmd))
         else:
             cmd = f'{activate} && pip install -U flambe'
-            setup_commands.append(tmux(cmd))
+
+        head_setup_commands.append(tmux(cmd))
+        worker_setup_commands.append(cmd)
 
         # Upload and install extensions
         extensions = env.extensions
@@ -445,7 +466,8 @@ class Cluster(Registrable):
 
             updated_extensions[module] = target
             cmd = f'pip install -U {target}'
-            setup_commands.append(tmux(cmd))
+            head_setup_commands.append(tmux(cmd))
+            worker_setup_commands.append(cmd)
 
         # Upload files
         files_dir = os.path.join(FLAMBE_GLOBAL_FOLDER, 'files')
@@ -476,11 +498,15 @@ class Cluster(Registrable):
 
             # Rsync files and run setup commands
             config: Dict = copy.deepcopy(self.config)
-            config['setup_commands'].extend(setup_commands)
+            config['head_setup_commands'].extend(head_setup_commands)
+            config['worker_setup_commands'].extend(worker_setup_commands)
             config['file_mounts'].update(file_mounts)
             with tempfile.NamedTemporaryFile() as fp:
                 yaml.dump(config, fp)
-                create_or_update_cluster(fp.name, None, None, True, False, True, None)
+                with Capturing() as output:  # noqa:
+                    create_or_update_cluster(fp.name, None, None, True, False, True, None)
+                if env.debug:
+                    print(output)
 
         # Run Flambe
         cmd = f'flambe run {config_target}'

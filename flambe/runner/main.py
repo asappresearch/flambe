@@ -188,11 +188,13 @@ def exec_cmd(command, port_forward, cluster):
 @click.argument('name', required=False, type=str, default=None)
 @click.option('-c', '--cluster', type=str, default=None,
               help="Cluster name.")
-def attach(name, cluster):
+@click.option('-n', '--new', is_flag=True, default=False,
+              help="Whether to create a new session.")
+def attach(name, cluster, new):
     """Attach to a running job (i.e tmux session) on the cluster."""
     logging.disable(logging.INFO)
     cluster = load_cluster_config_helper(cluster)
-    cluster.attach(name)
+    cluster.attach(name, new=new)
 
 
 # ----------------- flambe kill ------------------ #
