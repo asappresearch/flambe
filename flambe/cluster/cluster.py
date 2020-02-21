@@ -3,23 +3,21 @@ import copy
 from typing import Optional, Dict, List
 from ruamel.yaml import YAML
 import tempfile
-import subprocess
 import inspect
 from datetime import datetime
 from functools import partial
 from ruamel.yaml import comments
-from io import StringIO
-import sys
+
 
 from ray.autoscaler.commands import get_head_node_ip, get_worker_node_ips
 from ray.autoscaler.commands import exec_cluster, create_or_update_cluster, rsync, teardown_cluster
-from ray.autoscaler.updater import SSHCommandRunner
 
 from flambe.logging import coloredlogs as cl
 from flambe.const import FLAMBE_GLOBAL_FOLDER, PYTHON_VERSION
 from flambe.compile import Registrable, YAMLLoadType, load_config_from_file
 from flambe.compile import download_extensions, download_manager
 from flambe.utils.path import is_dev_mode, get_flambe_repo_location
+from flambe.utils.ray import capture_ray_output
 from flambe.runner.environment import Environment, load_env_from_config, set_env_in_config
 
 
@@ -33,43 +31,6 @@ exec_cluster = partial(
     override_cluster_name=None,
     port_forward=[]
 )
-
-
-class Capturing(list):
-    def __enter__(self):
-        self._stdout = sys.stdout
-        sys.stdout = self._stringio = StringIO()
-        return self
-
-    def __exit__(self, *args):
-        self.extend(self._stringio.getvalue().splitlines())
-        del self._stringio    # free up some memory
-        sys.stdout = self._stdout
-
-
-# TODO: find a cleaner solution
-def supress(supress_all=False):
-    """Supress the messages coming from the ssh command."""
-    def supress_ssh(func):
-        """Set SSH level for ray calls to QUIET"""
-        def wrapper(self, connect_timeout):
-            return func(self, connect_timeout) + ['-o', "LogLevel=QUIET"]
-        return wrapper
-
-    def supress_rsync(func):
-        """Surpess rsync messages from ray."""
-        def wrapper(args, *, stdin=None, stdout=None, stderr=None,
-                    shell=False, cwd=None, timeout=None):
-            if args[0] == 'rsync' or supress_all:
-                stdout = subprocess.DEVNULL
-            func(args, stdin=None, stdout=stdout, stderr=None,
-                 shell=False, cwd=None, timeout=None)
-        return wrapper
-
-    SSHCommandRunner.get_default_ssh_options = supress_ssh(
-        SSHCommandRunner.get_default_ssh_options
-    )
-    subprocess.check_call = supress_rsync(subprocess.check_call)
 
 
 def time() -> str:
@@ -267,8 +228,6 @@ class Cluster(Registrable):
             has no effect. Default ``False``.
 
         """
-        supress()
-
         cmd = f"tmux attach -t {name}"
         if new:
             cmd += f" || tmux new-session -s {name}"
@@ -293,13 +252,13 @@ class Cluster(Registrable):
             The name of the job to kill.
 
         """
-        supress()
         cmd = f"tmux kill-session -t {name}"
 
         yaml = YAML()
         with tempfile.NamedTemporaryFile() as fp:
             yaml.dump(self.config, fp)
-            exec_cluster(fp.name, cmd)
+            with capture_ray_output():
+                exec_cluster(fp.name, cmd)
 
         print(cl.GR(f"Job {name} killed."))
 
@@ -312,25 +271,25 @@ class Cluster(Registrable):
             The name of the job to clean.
 
         """
-        supress()
         cmd = f"rm -rf $HOME/jobs/{name}"
 
         yaml = YAML()
         with tempfile.NamedTemporaryFile() as fp:
             yaml.dump(self.config, fp)
-            exec_cluster(fp.name, cmd)
+            with capture_ray_output():
+                exec_cluster(fp.name, cmd)
 
         print(cl.GR(f"Job {name} cleaned."))
 
     def list(self):
         """List all currently running jobs (i.e tmux sessions)."""
-        supress()
         cmd = f'tmux ls || echo "No tmux session running"'
 
         yaml = YAML()
         with tempfile.NamedTemporaryFile() as fp:
             yaml.dump(self.config, fp)
-            exec_cluster(fp.name, cmd)
+            with capture_ray_output():
+                exec_cluster(fp.name, cmd)
 
     def exec(self, command: str, port_forward: Optional[int] = None):
         """Run a command on the cluster.
@@ -343,14 +302,13 @@ class Cluster(Registrable):
             An optional port to use for port fowarding.
 
         """
-        supress()
-
         port_forward = port_forward if port_forward is not None else []
 
         yaml = YAML()
         with tempfile.NamedTemporaryFile() as fp:
             yaml.dump(self.config, fp)
-            exec_cluster(fp.name, command, port_forward=port_forward)
+            with capture_ray_output():
+                exec_cluster(fp.name, command, port_forward=port_forward)
 
     def launch_site(self, name: str = '', port: int = 4444):
         """Launch the report website.
@@ -363,8 +321,6 @@ class Cluster(Registrable):
             The port to use in launching the site.
 
         """
-        supress()
-
         cmd = f'pip install tensorboard > /dev/null && \
             tensorboard --logdir=$HOME/jobs/{name} --port={port}'
 
@@ -372,7 +328,8 @@ class Cluster(Registrable):
         with tempfile.NamedTemporaryFile() as fp:
             yaml.dump(self.config, fp)
             print(cl.BL(f"Preparing site at: http://localhost:{port}"))
-            exec_cluster(fp.name, cmd, port_forward=port)
+            with capture_ray_output():
+                exec_cluster(fp.name, cmd, port_forward=port)
 
     def submit(self,
                runnable: str,
@@ -401,7 +358,6 @@ class Cluster(Registrable):
             env = Environment()
 
         # Turn off output from ray
-        supress()
         print(cl.BL(f'[{time()}] Submitting Job: {name}.'))
 
         yaml = YAML()
@@ -409,7 +365,7 @@ class Cluster(Registrable):
             yaml.dump(self.config, fp)
             # Check if a job is currently running
             try:
-                with Capturing() as output:
+                with capture_ray_output(supress_all=True):
                     cmd = f"tmux has-session -t {name}"
                     exec_cluster(fp.name, cmd)
                 running = True
@@ -503,7 +459,7 @@ class Cluster(Registrable):
             config['file_mounts'].update(file_mounts)
             with tempfile.NamedTemporaryFile() as fp:
                 yaml.dump(config, fp)
-                with Capturing() as output:  # noqa:
+                with capture_ray_output(supress_all=True) as output:  # noqa:
                     create_or_update_cluster(fp.name, None, None, True, False, True, None)
                 if env.debug:
                     print(output)
@@ -513,7 +469,8 @@ class Cluster(Registrable):
         cmd += ' -d' * int(debug) + ' -f' * int(force)
         with tempfile.NamedTemporaryFile() as fp:
             yaml.dump(self.config, fp)
-            exec_cluster(fp.name, tmux(cmd))
+            with capture_ray_output(supress_all=True):
+                exec_cluster(fp.name, tmux(cmd))
 
         print(cl.GR(f'[{time()}] Job submitted successfully.\n'))
 
@@ -526,7 +483,6 @@ class Cluster(Registrable):
             The head node IP address.
 
         """
-        supress()
         yaml = YAML()
         with tempfile.NamedTemporaryFile() as fp:
             yaml.dump(self.config, fp)
@@ -542,7 +498,6 @@ class Cluster(Registrable):
             The worker nodes IP addresses.
 
         """
-        supress()
         yaml = YAML()
         with tempfile.NamedTemporaryFile() as fp:
             yaml.dump(self.config, fp)
