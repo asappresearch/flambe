@@ -1,49 +1,49 @@
-.. _Introduction:
+.. _Overview:
 
-============
-Introduction
-============
+========
+Overview
+========
 
 Runnable
 --------
 
 Flambé executes ``Runnables``, which are simply Python objects that implement the method ``run``:
 
-    .. code-block:: python
+.. code-block:: python
 
-        class Runnable(object):
+    class Runnable(object):
 
-            def run(self):
-                ...
+        def run(self):
+            ...
 
 Flambé provides the following set of ``Runnables``, but you can easily create your own:
 
 +-------------------+---------------------------------------------------------------------------------------------------------+
 | Runnable          | Description                                                                                             |
 +===================+=========================================================================================================+
-| :ref:`Script`     | An entry-point for users who wish to keep their code unchanged, but leverage                            |
-|                   | Flambé's cluster management and distributed hyperparameter search tools.                                |
+| :ref:`Script`     | | An entry-point for users who wish to keep their code unchanged, but leverage                          |
+|                   | | Flambé's cluster management and distributed hyperparameter search tools.                              |
 +-------------------+---------------------------------------------------------------------------------------------------------+
-| :ref:`Trainer`    | Train / Evaluate a single model on a given task. Offers an interface to automate the boilerplate        |
-|                   | code usually found in PyTorch scripts, such as multi-gpu handling, fp16 training, and training loops.   | 
+| :ref:`Trainer`    | | Train / Evaluate a single model on a given task. Offers an interface to automate the boilerplate      |
+|                   | | code usually found in PyTorch scripts, such as multi-gpu handling, fp16 training, and training loops. | 
 +-------------------+---------------------------------------------------------------------------------------------------------+
 | :ref:`Search`     | Run a hyperparameter search over python objects and scriptsy                                            |
 +-------------------+---------------------------------------------------------------------------------------------------------+ 
-| :ref:`Experiment` | Build a computational DAG, with the possibility of running a hyperparameter search                      |
-|                   | at each node,and reduce to the best variants                                                            |
+| :ref:`Experiment` | | Build a computational DAG, with the possibility of running a hyperparameter search                    |
+|                   | | at each node,and reduce to the best variants                                                          |
 +-------------------+---------------------------------------------------------------------------------------------------------+
 
 ``Runnables`` can be used in regular python scripts, or executed through YAML configurations with the command:
 
 .. code-block:: bash 
 
-        flambe run [CONFIG]
+    flambe run [CONFIG]
 
 To submit to a cluster:
 
-    .. code-block:: bash
-        
-        flambe submit [CONFIG] --cluster ~/.flambe/cluster.yaml
+.. code-block:: bash
+    
+    flambe submit [CONFIG] --cluster ~/.flambe/cluster.yaml
 
 For more information on remote execution, see: :ref:`Remote`.
 
@@ -92,8 +92,8 @@ the global envrionment:
     flambe.set_env(env=env, ...)
 
 
-Loading Custom Code
--------------------
+Loading code
+------------
 
 The :class:`~flambe.runner.Environment` object recieves dictionary argument names ``extensions``.
 Each extension is declared using a ``key: value`` format where the key is the 
@@ -167,5 +167,7 @@ For example:
 
     ...
 
-> Note the ``!file`` tag here, which allows you to link to the name of a file resource and resolve
-the path that the file it was downloaded to (if it wasn't local already).
+.. Note::
+
+    The ``!file`` tag here, which allows you to link to the name of a file resource and resolve
+    the path that the file it was downloaded to (if it wasn't local already).

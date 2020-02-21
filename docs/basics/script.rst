@@ -19,31 +19,33 @@ Writing a config file
 
 You can define a configuration for your script using the ``Script`` runnable:
 
-.. code-block:: yaml
+.. code-block:: YAML
 
     !Envrionment
 
-    resources:
-        script: '/path/to/your/script.py'
+    local_files:
+        my_script: '/path/to/your/script.py'
 
     ---
 
     !Script
 
-    script: !file script 
+    script: !file my_script 
     args: ['arg1', 'arg2']
     kwargs:
-        kwarg1: 1
+        kwarg1: 0.5
         kwarg2: 'foo'
 
 That's it! You can now execute this configuration file, with the regular command:
 
 .. code-block:: bash
+
     flambe run config.yaml
 
 And execute it on a cluster with:
 
 .. code-block:: bash
+
     flambe submit config.yaml [-c cluster.yaml]
 
 Running a Hyperparameter Search
@@ -85,6 +87,7 @@ with the output path as well as other useful information. You can access it
 anywhere in your script with:
 
 .. code-block:: python
+
     import flambe
 
     env = flambe.get_env()
