@@ -429,11 +429,11 @@ class Cluster(Registrable):
         files_dir = os.path.join(FLAMBE_GLOBAL_FOLDER, 'files')
         updated_files: Dict[str, str] = dict()
         updated_files.update(env.remote_files)
-        for name, file in env.local_files.items():
-            with download_manager(file, os.path.join(files_dir, name)) as path:
-                target = f'~/jobs/{name}/files/{name}'
+        for file_name, file in env.local_files.items():
+            with download_manager(file, os.path.join(files_dir, file_name)) as path:
+                target = f'~/jobs/{name}/files/{file_name}'
                 file_mounts[target] = path
-                updated_files[name] = target
+                updated_files[file_name] = target
 
         # Run Flambe
         env = env.clone(
