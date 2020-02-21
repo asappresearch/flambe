@@ -1,4 +1,4 @@
-from typing import Dict, Iterable, List, Optional, Set, Tuple
+from typing import Dict, Iterable, List, Optional, Set, Tuple, Union, Any
 from collections import OrderedDict as odict
 from itertools import chain
 
@@ -203,6 +203,29 @@ class TextField(Field):
         unique_ids = set(v for k, v in self.vocab.items())
         return len(unique_ids)
 
+    def _flatten_to_str(self, data_sample: Union[List, Tuple, Dict]):
+        """Converts any nested data sample to a str
+
+        Used to build vocabs from complex file structures
+
+        Parameters
+        ----------
+        data_sample: Union[List, Tuple, Dict]
+
+        Returns
+        -------
+        str
+            the flattened version, for vocab building
+        """
+        if isinstance(data_sample, list) or isinstance(data_sample, tuple):
+            return ' '.join(self._flatten_to_str(s) for s in data_sample)
+        elif isinstance(data_sample, dict):
+            return ' '.join(self._flatten_to_str(s) for s in data_sample.values())
+        elif isinstance(data_sample, str):
+            return data_sample
+        else:
+            raise ValueError(f'Cannot process type {type(data_sample)} for vocab building.')
+
     def _build_vocab(self, *data: np.ndarray) -> None:
         """
         Build the vocabulary for this object based on the special
@@ -226,6 +249,7 @@ class TextField(Field):
                 self.vocab[token] = index = index + 1
 
         for example in examples:
+            example = self._flatten_to_str(example)
             # Lowercase if requested
             example = example.lower() if self.lower else example
             # Tokenize and add to vocabulary
@@ -295,7 +319,8 @@ class TextField(Field):
             self.vocab, self.embedding_matrix = self._build_embeddings(self.model)
 
     # TODO update when we add generics
-    def process(self, example: str) -> torch.Tensor:  # type: ignore
+    def process(self, example: Union[str, List[Any], Dict[Any, Any]]) \
+            -> Union[torch.Tensor, List[torch.Tensor], Dict[str, torch.Tensor]]:  # type: ignore
         """Process an example, and create a Tensor.
 
         Parameters
@@ -309,6 +334,12 @@ class TextField(Field):
             The processed example, tokenized and numericalized
 
         """
+        # special case of list of examples:
+        if isinstance(example, list) or isinstance(example, tuple):
+            return [self.process(e) for e in example]
+        elif isinstance(example, dict):
+            return dict([(key, self.process(val)) for key, val in example.items()])
+
         # Lowercase and tokenize
         example = example.lower() if self.lower else example
         tokens = self.tokenizer(example)
