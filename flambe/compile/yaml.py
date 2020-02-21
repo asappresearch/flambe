@@ -311,6 +311,12 @@ def fetch_callable(path: Sequence[str], obj: Any):
         obj = getattr(obj, a)
     if obj is None:
         raise TagError(f'Tag to {path} references None value')
+    if not callable(obj):
+        # TODO if it's a usecase, we could consider removing this restriction in the future
+        #  and just not doing anything with a non callable value so that e.g. constants from
+        #  code can be loaded in the config
+        raise TagError(f'Tag to {path} references {obj} which is not callable. Only callables '
+                       'e.g. Classes and functions can be used in YAML tags')
     return obj, container
 
 
@@ -322,12 +328,17 @@ def create(obj: Any, lookup: Dict[str, Any]) -> Any:
     if hasattr(obj, '_yaml_tag'):
         original_tag = obj._yaml_tag.value
         tag = _split_tag(original_tag)
-        if tag[0] in lookup:
-            some_obj = lookup[tag[0]]
-            callable_, container = fetch_callable(tag[1:], some_obj)
-        else:
-            mod = importlib.import_module(tag[0])
-            callable_, container = fetch_callable(tag[1:], mod)
+        try:
+            if tag[0] in lookup:
+                some_obj = lookup[tag[0]]
+                callable_, container = fetch_callable(tag[1:], some_obj)
+            else:
+                mod = importlib.import_module(tag[0])
+                callable_, container = fetch_callable(tag[1:], mod)
+        except AttributeError as ae:
+            raise TagError(f"Tag {original_tag} failed. See above error.") from ae
+        except ModuleNotFoundError as me:
+            raise TagError(f"Tag {original_tag} failed because the module was not found.") from me
         cls = None
         if not callable(callable_):
             raise TagError(f"{callable_} is not callable")
