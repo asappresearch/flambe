@@ -384,7 +384,7 @@ class Cluster(Registrable):
         head_setup_commands.append(cmd)
 
         tmux = lambda x: f'tmux send-keys -t {name}.0 "{x}" ENTER'  # noqa: E731
-        cmd = f"mkdir -p $HOME/jobs/{name}/extensions && \
+        cmd = f"mkdir -p jobs/{name}/extensions && \
             conda create -y -q --name {name} python={PYTHON_VERSION}; echo ''"
         head_setup_commands.append(tmux(cmd))
         worker_setup_commands.append(cmd)
@@ -393,10 +393,10 @@ class Cluster(Registrable):
         activate = f'source activate {name}'
         if is_dev_mode():
             flambe_repo = get_flambe_repo_location()
-            target = f'~/jobs/{name}/flambe'
+            target = f'jobs/{name}/flambe'
             file_mounts[target] = flambe_repo
 
-            target = f'~/jobs/{name}/flambe'
+            target = f'jobs/{name}/flambe'
             cmd = f'{activate} && pip install -U -e {target}'
         else:
             cmd = f'{activate} && pip install -U flambe'
@@ -416,9 +416,9 @@ class Cluster(Registrable):
             target = package
             if os.path.exists(package):
                 package = os.path.join(package, '')
-                target = f'~/jobs/{name}/extensions/{module}'
+                target = f'jobs/{name}/extensions/{module}'
                 file_mounts[target] = package
-                target = f'~/jobs/{name}/extensions/{module}'
+                target = f'jobs/{name}/extensions/{module}'
 
             updated_extensions[module] = target
             cmd = f'pip install -U {target}'
@@ -431,13 +431,13 @@ class Cluster(Registrable):
         updated_files.update(env.remote_files)
         for file_name, file in env.local_files.items():
             with download_manager(file, os.path.join(files_dir, file_name)) as path:
-                target = f'~/jobs/{name}/files/{file_name}'
+                target = f'jobs/{name}/files/{file_name}'
                 file_mounts[target] = path
                 updated_files[file_name] = target
 
         # Run Flambe
         env = env.clone(
-            output_path=f"~/jobs/{name}",
+            output_path=f"jobs/{name}",
             head_node_ip=self.head_node_ip(),
             worker_node_ips=self.worker_node_ips(),
             extensions=updated_extensions,
@@ -449,7 +449,7 @@ class Cluster(Registrable):
         yaml = YAML()
         with tempfile.NamedTemporaryFile() as config_file:
             set_env_in_config(env, runnable, config_file)
-            config_target = f"~/jobs/{name}/{os.path.basename(runnable)}"
+            config_target = f"jobs/{name}/{os.path.basename(runnable)}"
             file_mounts[config_target] = config_file.name
 
             # Rsync files and run setup commands
