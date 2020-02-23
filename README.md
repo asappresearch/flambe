@@ -63,11 +63,6 @@ Flambé provides the following set of tasks, but you can easily create your own:
 | -------|------------|
 | [Script](http://flambe.ai/) | An entry-point for users who wish to keep their code unchanged, but leverage Flambé's cluster management and distributed hyperparameter search.|
 | [PytorchTask](http://flambe.ai/) | Train / Evaluate a single model on a given task. Offers an interface to automate the boilerplate code usually found in PyTorch code, such as multi-gpu handling, fp16 training, and training loops. |
-
-Flambé also provides a set of **meta-tasks**, which are tasks that operate over other tasks:
-
-| Task | Description |
-| -------|------------|
 | [Search](http://flambe.ai/) | Run a hyperparameter search over another task by replacing any arguments by a distribution. |
 | [Pipeline](http://flambe.ai/) | Build a pipeline of tasks, run a hyperparameter search and reduce to the best variants and any step.
 
@@ -127,8 +122,8 @@ Search over arguments to your ``Task`` and execute with the algorithm of your ch
 
 <table>
 <tr style="font-weight:bold;">
-  <td>YAML Config <img width=800/></td>
-  </tr>
+  <td>YAML Config <img height=0 width=800/></td>
+</tr>
 <tr>
 <td valign="top">
 <pre lang="yaml">
@@ -142,7 +137,7 @@ Search over arguments to your ``Task`` and execute with the algorithm of your ch
         num_layers: !choice [1, 2, 3]
 
     algorithm: !RandomSearch
-      trial_budget=3
+      trial_budget=5
 </pre>
 </td>
 </table>
@@ -159,8 +154,8 @@ A Flambé pipeline may contain any of the following:
 
 <table>
 <tr style="font-weight:bold;">
-  <td>YAML Config <img width=800/></td>
-  </tr>
+  <td>YAML Config <img height=0 width=800/></td>
+</tr>
 <tr>
 <td valign="top">
 <pre lang="yaml">
@@ -181,10 +176,8 @@ A Flambé pipeline may contain any of the following:
 
     algorithm:
       pretrain: !RandomSearch
-        max_steps: 100
         trial_budget: 5
       finetune: !RandomSearch
-        max_steps: 10
         trial_budget: 2
 
     reduce:
