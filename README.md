@@ -128,25 +128,6 @@ Wrap a ``Task`` in a ``Search`` to run a hyperparameter search:
   </tr>
 <tr>
 <td valign="top">
-<pre lang="python">
-
-    import flambe
-    from flambe import Script, Search, RandomSearch
-
-    script = flambe.search(Script,
-      path='flambe/examples/script.py',
-      args={
-         'dropout' = flambe.uniform(0, 1)
-         'num_layers' = flambe.choice([1, 2, 3])
-      }
-    )
-    
-    algo = RandomSearch(trial_budget=3)
-    search = Search(script, algo)
-    search.run()
-</pre>
-</td>
-<td valign="top">
 <pre lang="yaml">
     
     !Search
@@ -182,44 +163,6 @@ A Flambé pipeline may contain any of the following:
   <td>YAML Config</td>
   </tr>
 <tr>
-<td valign="top">
-<pre lang="python">
-
-    import flambe
-    from flambe import Script, Pipeline, RandomSearch 
-
-    pretrain = flambe.search(Script,
-      path='flambe/examples/pretrain.py',
-      args={
-         'dropout' = flambe.uniform(0, 1)
-         'num_layers' = flambe.choice([1, 2, 3])
-      }
-    )
-    
-    finetune = flambe.search(Script,
-      path='flambe/examples/finetune.py',
-      args={
-         'checkpoint': pretrain['path'],
-         'learning_rate' = flambe.choice(.001, .0001)
-      }
-    )
-    
-    exp =  Pipeline(
-      pipeline={
-        'pretrain': pretrain,
-        'finetune': finetune
-      }
-      algorithm={
-        'pretrain': RandomSearch(trial_budget=5)
-        'finetune': RandomSearch(trial_budget=2)
-      reduce={
-        'pretrain': 2
-      }
-    )
-    exp.run()
- 
-</pre>
-</td>
 <td valign="top">
 <pre lang="yaml">
 
