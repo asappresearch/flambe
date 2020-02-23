@@ -77,58 +77,12 @@ Flambé executes tasks by representing them through a YAML configuration:
 <tr>
 <td valign="top">
 <pre lang="python">
-
-    task = MyTask(
-      arg1=...
-      arg2=...
-    )
-</pre>
-</td>
-<td valign="top">
-<pre lang="yaml">
-
-    !MyTasK
-
-     arg1: ...
-     arg2: ...
-</pre>
-</td>
-</tr>
-<tr>
-</table>
-
-To execute a task locally:
-
-```bash
-flambe run [CONFIG]
-```
-
-To submit to a cluster:
-
-```bash
-flambe submit [CONFIG] -c [CLUSTER]
-```
-
-For more information on remote execution, and how to create a cluster see: [here](http://flambe.ai/).
-
-#### Example
-
-<table>
-<tr style="font-weight:bold;">
-  <td>Python Code</td>
-  <td>YAML Config</td>
-  </tr>
-<tr>
-<td valign="top">
-<pre lang="python">
-    
-    import flambe as fl
-
-    script = fl.Script(
+ 
+    script = flambe.Script(
       path='path/to/script/',
-      output_arg='output-path'
       args={
-         'arg1' = 0.5
+         'arg1' = 0.5,
+         'arg2' = 2,
       }
     )
 </pre>
@@ -139,7 +93,6 @@ For more information on remote execution, and how to create a cluster see: [here
     !Script
 
     path: path/to/script
-    output_arg: output-path
     args:
       arg1: 0.5
       arg2: 2
@@ -147,33 +100,21 @@ For more information on remote execution, and how to create a cluster see: [here
 </td>
 </tr>
 <tr>
-<td valign="top">
-<pre lang="python">
+</table>
 
-    import flambe as fl
-    
-    dataset = fl.nlp.SSTDataset()
-    model = fl.nlp.TextClassifier(
-        n_layers=2
-    )
-    trainer = fl.learn.Trainer(
-        dataset=dataset,
-        model=model
-    )
-</pre>
-</td>
-<td valign="top">
-<pre lang="yaml">
+Execute a task locally with:
 
-    !Trainer
-    
-    dataset: !SSTDataset
-    model: !TextClassifier
-       n_layers: 2
-</pre>
-</td>
-</tr>
-</table>  
+```bash
+flambe run [CONFIG]
+```
+
+Submit a task to a cluster with:
+
+```bash
+flambe submit [CONFIG] -c [CLUSTER]
+```
+
+For more information on remote execution, and how to create a cluster see: [here](http://flambe.ai/).
 
 ### Run a hyperparameter search
 
