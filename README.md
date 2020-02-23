@@ -16,11 +16,12 @@ With Flambé you can:
 * **Run hyperparameter searches** over any Python code.
 * **Constuct pipelines**, searching over hyperparameters and reducing to the
 best variants at any step.
-* Automate the **boilerplate code** in training models with [PyTorch.](https://pytorch.org)
+* Automate the **boilerplate code** in training models with [PyTorch.]
 * Distribute jobs **remotely** and **in parallel** over a cluster, with full AWS,
 GCP, and Kubernetes integrations.
 * Easily **share** experiment configurations, results, and checkpoints with others.
 
+The full documentation can be found here: [flambe.ai](https://flambe.ai).
 
 ## Installation
 
@@ -137,7 +138,7 @@ Search over arguments to your ``Task`` and execute with the algorithm of your ch
         num_layers: !choice [1, 2, 3]
 
     algorithm: !RandomSearch
-      trial_budget=5
+      trial_budget: 5
 </pre>
 </td>
 </table>
