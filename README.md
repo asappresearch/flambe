@@ -61,29 +61,57 @@ Flambé provides the following set of tasks, but you can easily create your own:
 
 | Task | Description |
 | -------|------------|
-| [Script](#script) | An entry-point for users who wish to keep their code unchanged, but leverage Flambé's cluster management and distributed hyperparameter search tools.|
+| [Script](#script) | An entry-point for users who wish to keep their code unchanged, but leverage Flambé's cluster management and distributed hyperparameter search.|
 | [PytorchTask](#trainer) | Train / Evaluate a single model on a given task. Offers an interface to automate the boilerplate code usually found in PyTorch code, such as multi-gpu handling, fp16 training, and training loops. |
 
 
-### Executing a task
+### Execute a task
 
-A ``Task`` can be used in regular python scripts, or executed through YAML configurations with the command:
+Flambé executes tasks by representing them through a YAML configuration:
+
+<table>
+<tr style="font-weight:bold;">
+  <td>Python Code</td>
+  <td>YAML Config</td>
+  </tr>
+<tr>
+<td valign="top">
+<pre lang="python">
+
+    task = MyTask(
+      arg1=...
+      arg2=...
+    )
+</pre>
+</td>
+<td valign="top">
+<pre lang="yaml">
+
+    !MyTasK
+
+     arg1: ...
+     arg2: ...
+</pre>
+</td>
+</tr>
+<tr>
+</table>
+
+To execute a task locally:
 
 ```bash
 flambe run [CONFIG]
 ```
 
-or to submit to a cluster:
+To submit to a cluster:
 
 ```bash
-flambe submit [CONFIG] --cluster ~/.flambe/cluster.yaml
+flambe submit [CONFIG] -c [CLUSTER]
 ```
 
-In the following examples, each code snippet is shown alongside its corresponding YAML configuration.
+For more information on remote execution, and how to create a cluster see: [here](http://flambe.ai/).
 
-#### Example: Script
-
-For more information see: [here](http://flambe.ai/).
+#### Example
 
 <table>
 <tr style="font-weight:bold;">
@@ -103,8 +131,6 @@ For more information see: [here](http://flambe.ai/).
          'arg1' = 0.5
       }
     )
-
-    script.run()
 </pre>
 </td>
 <td valign="top">
@@ -120,19 +146,6 @@ For more information see: [here](http://flambe.ai/).
 </pre>
 </td>
 </tr>
-</table>
-
-To run a hyperparameter search over your script, see [here](#search). 
-
-#### Example: PytorchTask
-
-For more information see: [here](http://flambe.ai/).
-
-<table>
-<tr style="font-weight:bold;">
-  <td>Python Code</td>
-  <td>YAML Config</td>
-  </tr>
 <tr>
 <td valign="top">
 <pre lang="python">
@@ -147,8 +160,6 @@ For more information see: [here](http://flambe.ai/).
         dataset=dataset,
         model=model
     )
- 
-    trainer.run()
 </pre>
 </td>
 <td valign="top">
@@ -162,14 +173,9 @@ For more information see: [here](http://flambe.ai/).
 </pre>
 </td>
 </tr>
-</table>
+</table>  
 
-To run a hyperparameter search over a trainer, see [here](#search).    
-
-### Running a hyperparameter search
-
-For more information see: [here](http://flambe.ai/).
-
+### Run a hyperparameter search
 
 #### Example: Script
 
