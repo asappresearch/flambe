@@ -63,6 +63,11 @@ Flambé provides the following set of tasks, but you can easily create your own:
 | -------|------------|
 | [Script](http://flambe.ai/) | An entry-point for users who wish to keep their code unchanged, but leverage Flambé's cluster management and distributed hyperparameter search.|
 | [PytorchTask](http://flambe.ai/) | Train / Evaluate a single model on a given task. Offers an interface to automate the boilerplate code usually found in PyTorch code, such as multi-gpu handling, fp16 training, and training loops. |
+
+Flambé also provides a set of **meta-tasks**, which are tasks that operate over other tasks:
+
+| Task | Description |
+| -------|------------|
 | [Search](http://flambe.ai/) | Run a hyperparameter search over another task by replacing any arguments by a distribution. |
 | [Pipeline](http://flambe.ai/) | Build a pipeline of tasks, run a hyperparameter search and reduce to the best variants and any step.
 
@@ -72,8 +77,8 @@ Flambé executes tasks by representing them through a YAML configuration file:
 
 <table>
 <tr style="font-weight:bold;">
-  <td>Python Code</td>
-  <td>YAML Config</td>
+  <td>Python Code <img width=310/></td>
+  <td>YAML Config <img width=310/></td>
   </tr>
 <tr>
 <td valign="top">
@@ -100,7 +105,6 @@ Flambé executes tasks by representing them through a YAML configuration file:
 </pre>
 </td>
 </tr>
-<tr>
 </table>
 
 Execute a task locally with:
@@ -119,32 +123,29 @@ For more information on remote execution, and how to create a cluster see: [here
 
 ### Run a hyperparameter search
 
-Wrap a ``Task`` in a ``Search`` to run a hyperparameter search:
+Search over arguments to your ``Task`` and execute with the algorithm of your choice.
 
 <table>
 <tr style="font-weight:bold;">
-  <td>YAML Config</td>
+  <td>YAML Config <img width=800/></td>
   </tr>
 <tr>
 <td valign="top">
 <pre lang="yaml">
-    
+
     !Search
-    
+
     task: !Script
       path: flambe/examples/script.py
       args:
         dropout: !uniform [0, 1]
         num_layers: !choice [1, 2, 3]
-    
+
     algorithm: !RandomSearch
       trial_budget=3
 </pre>
 </td>
-</tr>
 </table>
-
-**Note**: the function ``search`` enables passing distributions as input arguments, which is automatic in YAML.  
 
 ### Build a pipeline.
 
@@ -158,14 +159,14 @@ A Flambé pipeline may contain any of the following:
 
 <table>
 <tr style="font-weight:bold;">
-  <td>YAML Config</td>
+  <td>YAML Config <img width=800/></td>
   </tr>
 <tr>
 <td valign="top">
 <pre lang="yaml">
 
     !Pipeline
-  
+
     pipeline:
       pretrain: !Script
         path: flambe/examples/pretrain.py
@@ -177,7 +178,7 @@ A Flambé pipeline may contain any of the following:
         args:
           checkpoint: !copy pretrain[path]
           learning_rate: !choice [.001, .0001]
-   
+
     algorithm:
       pretrain: !RandomSearch
         max_steps: 100
@@ -185,12 +186,11 @@ A Flambé pipeline may contain any of the following:
       finetune: !RandomSearch
         max_steps: 10
         trial_budget: 2
-     
+
     reduce:
       pretrain: 2
 </pre>
 </td>
-</tr>
 </table>
 
 ## Next Steps
