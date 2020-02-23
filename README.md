@@ -199,7 +199,7 @@ A Flambé pipeline may contain any of the following:
     finetune = flambe.search(Script,
       path='flambe/examples/finetune.py',
       args={
-         'pretrain_checkpoint': pretrain['path'],
+         'checkpoint': pretrain['path'],
          'learning_rate' = flambe.choice(.001, .0001)
       }
     )
@@ -210,8 +210,8 @@ A Flambé pipeline may contain any of the following:
         'finetune': finetune
       }
       algorithm={
-        'pretrain': RandomSearch(max_steps=100, trial_budget=5)
-        'finetune': RandomSearch(max_steps=10, trial_budget=2)
+        'pretrain': RandomSearch(trial_budget=5)
+        'finetune': RandomSearch(trial_budget=2)
       reduce={
         'pretrain': 2
       }
@@ -231,17 +231,17 @@ A Flambé pipeline may contain any of the following:
         args:
           dropout: !uniform [0, 1]
           num_layers: !choice [1, 2, 3]
-      finetune: !Trainer
+      finetune: !Script
         path: flambe/examples/finetune.py
         args:
-          pretrain_checkpoint: !copy pretrain[path]
+          checkpoint: !copy pretrain[path]
           learning_rate: !choice [.001, .0001]
    
     algorithm:
-      pretrain:!RandomSearch
+      pretrain: !RandomSearch
         max_steps: 100
         trial_budget: 5
-      finetune:!RandomSearch
+      finetune: !RandomSearch
         max_steps: 10
         trial_budget: 2
      
