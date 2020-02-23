@@ -63,12 +63,12 @@ Flambé provides the following set of tasks, but you can easily create your own:
 | -------|------------|
 | [Script](http://flambe.ai/) | An entry-point for users who wish to keep their code unchanged, but leverage Flambé's cluster management and distributed hyperparameter search.|
 | [PytorchTask](http://flambe.ai/) | Train / Evaluate a single model on a given task. Offers an interface to automate the boilerplate code usually found in PyTorch code, such as multi-gpu handling, fp16 training, and training loops. |
-| [Search](http://flambe.ai/) | Run a hyperparameter search over another Flambé task. |
-| [Pipeline](http://flambe.ai/) | Build a pipeline of Flambé tasks, run a hyperparameter search and reduce to the best variants and any step.
+| [Search](http://flambe.ai/) | Run a hyperparameter search over another task by replacing any arguments by a distribution. |
+| [Pipeline](http://flambe.ai/) | Build a pipeline of tasks, run a hyperparameter search and reduce to the best variants and any step.
 
 ### Execute a task
 
-Flambé executes tasks by representing them through a YAML configuration:
+Flambé executes tasks by representing them through a YAML configuration file:
 
 <table>
 <tr style="font-weight:bold;">
@@ -123,7 +123,6 @@ Wrap a ``Task`` in a ``Search`` to run a hyperparameter search:
 
 <table>
 <tr style="font-weight:bold;">
-  <td>Python Code</td>
   <td>YAML Config</td>
   </tr>
 <tr>
@@ -159,7 +158,6 @@ A Flambé pipeline may contain any of the following:
 
 <table>
 <tr style="font-weight:bold;">
-  <td>Python Code</td>
   <td>YAML Config</td>
   </tr>
 <tr>
