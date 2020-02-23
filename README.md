@@ -61,9 +61,10 @@ Flambé provides the following set of tasks, but you can easily create your own:
 
 | Task | Description |
 | -------|------------|
-| [Script](#script) | An entry-point for users who wish to keep their code unchanged, but leverage Flambé's cluster management and distributed hyperparameter search.|
-| [PytorchTask](#trainer) | Train / Evaluate a single model on a given task. Offers an interface to automate the boilerplate code usually found in PyTorch code, such as multi-gpu handling, fp16 training, and training loops. |
-
+| [Script](http://flambe.ai/) | An entry-point for users who wish to keep their code unchanged, but leverage Flambé's cluster management and distributed hyperparameter search.|
+| [PytorchTask](http://flambe.ai/) | Train / Evaluate a single model on a given task. Offers an interface to automate the boilerplate code usually found in PyTorch code, such as multi-gpu handling, fp16 training, and training loops. |
+| [Search](http://flambe.ai/) | Run a hyperparameter search over another Flambé task. |
+| [Pipeline](http://flambe.ai/) | Build a pipeline of Flambé tasks, run a hyperparameter search and reduce to the best variants and any step.
 
 ### Execute a task
 
@@ -78,11 +79,11 @@ Flambé executes tasks by representing them through a YAML configuration:
 <td valign="top">
 <pre lang="python">
  
-    script = flambe.Script(
-      path='path/to/script/',
+    script = Script(
+      path='flambe/examples/script.py',
       args={
-         'arg1' = 0.5,
-         'arg2' = 2,
+         'dropout' = 0.5,
+         'num_layers' = 2,
       }
     )
 </pre>
@@ -92,10 +93,10 @@ Flambé executes tasks by representing them through a YAML configuration:
 
     !Script
 
-    path: path/to/script
+    path: flambe/examples/script.py
     args:
-      arg1: 0.5
-      arg2: 2
+      dropout: 0.5
+      num_layers: 2
 </pre>
 </td>
 </tr>
@@ -118,9 +119,7 @@ For more information on remote execution, and how to create a cluster see: [here
 
 ### Run a hyperparameter search
 
-#### Example: Script
-
-Run a hyperparameter search over a Python script:
+Wrap a ``Task`` in a ``Search`` to run a hyperparameter search:
 
 <table>
 <tr style="font-weight:bold;">
@@ -131,19 +130,19 @@ Run a hyperparameter search over a Python script:
 <td valign="top">
 <pre lang="python">
 
-    import flambe as fl
+    import flambe
+    from flambe import Script, Search, RandomSearch
 
-    script = fl.learn.Script.schema(
-      path='path/to/script/',
-      output_arg='output-path'
+    script = flambe.search(Script,
+      path='flambe/examples/script.py',
       args={
-         'arg1' = fl.uniform(0, 1)
-         'arg2' = fl.choice([1, 2, 3])
+         'dropout' = flambe.uniform(0, 1)
+         'num_layers' = flambe.choice([1, 2, 3])
       }
     )
     
-    algorithm = fl.RandomSearch(trial_budget=3)
-    search = fl.Search(script, algorithm)
+    algo = RandomSearch(trial_budget=3)
+    search = Search(script, algo)
     search.run()
 </pre>
 </td>
@@ -152,12 +151,12 @@ Run a hyperparameter search over a Python script:
     
     !Search
     
-    searchable: !Script
-      path: path/to/script
-      output_arg: output-path
+    task: !Script
+      path: flambe/examples/script.py
       args:
-        arg1: !~u [0, 1]
-        arg2: !~c [1, 2, 3]
+        dropout: !uniform [0, 1]
+        num_layers: !choice [1, 2, 3]
+    
     algorithm: !RandomSearch
       trial_budget=3
 </pre>
@@ -165,60 +164,17 @@ Run a hyperparameter search over a Python script:
 </tr>
 </table>
 
-#### Example: PyTorchTask
-
-Run a hyperpameter search over a ``PyTorchTask``: 
-
-<table>
-<tr style="font-weight:bold;">
-  <td>Python Code</td>
-  <td>YAML Config</td>
-  </tr>
-<tr>
-<td valign="top">
-<pre lang="python">
-
-    import flambe as fl
- 
-    with flambe.as_schemas():
-      dataset = fl.nlp.SSTDataset()
-      model = fl.nlp.TextClassifier(
-          n_layers=fl.choice([1, 2, 3])  
-      )
-      trainer = fl.learn.Trainer(
-          dataset=dataset,
-          model=model
-      )
- 
-    algorithm = fl.RandomSearch(max_steps=10, trial_budget=2)
-    search = Search(searchable=trainer, algorithm=algorithm)
-    search.run()
-</pre>
-</td>
-<td valign="top">
-<pre lang="yaml">
-
-    !Search
-  
-    searchable: !Trainer
-       dataset: !SSTDataset
-       model: !TextClassifier
-          n_layers: !~c [1, 2, 3]
-    algorithm: !RandomSearch
-      max_steps: 10
-      trial_budget: 2
-</pre>
-</td>
-</tr>
-</table>
-
-**Note**: the method ``schema`` enables passing distributions as input arguments, which is automatic in YAML.  
+**Note**: the function ``search`` enables passing distributions as input arguments, which is automatic in YAML.  
 
 ### Build a pipeline.
 
-For more information see: [here](http://flambe.ai/).
+A Flambé pipeline may contain any of the following:
 
-Construct a computational graph with different training stages:
+1. Other Flambé tasks to execute
+2. Other Flambé tasks containing search options to search over
+3. Other Python objects that will not be executed but help define the pipeline
+
+``Pipelines`` are useful when you have dependencies between tasks, for example in a pretrain then finetune setting:
 
 <table>
 <tr style="font-weight:bold;">
@@ -229,32 +185,37 @@ Construct a computational graph with different training stages:
 <td valign="top">
 <pre lang="python">
 
-    import flambe as fl
- 
-    with flambe.as_schemas():
-      dataset = fl.nlp.SSTDataset()
-      model = fl.nlp.TextClassifier(
-          n_layers=fl.choice([1, 2, 3])  
-      )
-      pretrain = fl.learn.Trainer(
-          dataset=dataset,
-          model=model
-      )
-      
-      dataset = fl.nlp.SSTDataset()
-      finetune = fl.learn.Trainer(
-          dataset=dataset,
-          model=trainer.model,
-          dropout: fl.uniform(0, 1)
-      )
- 
-    algorithm1 = fl.RandomSearch(max_steps=10, trial_budget=2)
-    algorithm2 = fl.RandomSearch(max_steps=10, trial_budget=2)
+    import flambe
+    from flambe import Script, Pipeline, RandomSearch 
+
+    pretrain = flambe.search(Script,
+      path='flambe/examples/pretrain.py',
+      args={
+         'dropout' = flambe.uniform(0, 1)
+         'num_layers' = flambe.choice([1, 2, 3])
+      }
+    )
     
-    pipeline = dict(pretrain=pretrain, finetune=finetune)
-    algorithm = dict(pretrain=algorithm1, finetune=algorithm2)
+    finetune = flambe.search(Script,
+      path='flambe/examples/finetune.py',
+      args={
+         'pretrain_checkpoint': pretrain['path'],
+         'learning_rate' = flambe.choice(.001, .0001)
+      }
+    )
     
-    exp = Experiment(pipeline, algorithm)
+    exp =  Pipeline(
+      pipeline={
+        'pretrain': pretrain,
+        'finetune': finetune
+      }
+      algorithm={
+        'pretrain': RandomSearch(max_steps=100, trial_budget=5)
+        'finetune': RandomSearch(max_steps=10, trial_budget=2)
+      reduce={
+        'pretrain': 2
+      }
+    )
     exp.run()
  
 </pre>
@@ -265,22 +226,27 @@ Construct a computational graph with different training stages:
     !Pipeline
   
     pipeline:
-     pretraining: !Trainer
-       dataset: !SSTDataset
-       model: !TextClassifier
-          n_layers: !~c [1, 2, 3]
-     finetuning: !Trainer
-       dataset: !SSTDataset
-       dropout: !~u [0, 1]
-       model: !@ pretraining[model]
+      pretrain: !Script
+        path: flambe/examples/pretrain.py
+        args:
+          dropout: !uniform [0, 1]
+          num_layers: !choice [1, 2, 3]
+      finetune: !Trainer
+        path: flambe/examples/finetune.py
+        args:
+          pretrain_checkpoint: !copy pretrain[path]
+          learning_rate: !choice [.001, .0001]
    
     algorithm:
-      pretraining:!RandomSearch
+      pretrain:!RandomSearch
+        max_steps: 100
+        trial_budget: 5
+      finetune:!RandomSearch
         max_steps: 10
         trial_budget: 2
-      finetuning:!RandomSearch
-        max_steps: 10
-        trial_budget: 2
+     
+    reduce:
+      pretrain: 2
 </pre>
 </td>
 </tr>
