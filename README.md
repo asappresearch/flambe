@@ -16,7 +16,7 @@ With Flambé you can:
 * **Run hyperparameter searches** over any Python code.
 * **Constuct pipelines**, searching over hyperparameters and reducing to the
 best variants at any step.
-* Automate the **boilerplate code** in training models with [PyTorch.]
+* Automate the **boilerplate code** in training models with [PyTorch](https://pytorch.org).
 * Distribute jobs **remotely** and **in parallel** over a cluster, with full AWS,
 GCP, and Kubernetes integrations.
 * Easily **share** experiment configurations, results, and checkpoints with others.
@@ -40,7 +40,7 @@ pip install ./flambe
 
 ## Getting started
 
-Create a Flambé ``Task``, by writting two simple methods:
+1. Create a Flambé ``Task``, by writting two simple methods:
 
 ```python
 
@@ -48,7 +48,7 @@ class Task:
   
   # REQUIRED
   def run(self) -> bool:
-    """Execute a computational step, returns True until done."""
+    """Execute a computational step, keeps returning True until complete."""
     ...
   
   # OPTIONAL
@@ -58,18 +58,7 @@ class Task:
   
 ```
 
-Flambé provides the following set of tasks, but you can easily create your own:
-
-| Task | Description |
-| -------|------------|
-| [Script](http://flambe.ai/) | An entry-point for users who wish to keep their code unchanged, but leverage Flambé's cluster management and distributed hyperparameter search.|
-| [PytorchTask](http://flambe.ai/) | Train / Evaluate a single model on a given task. Offers an interface to automate the boilerplate code usually found in PyTorch code, such as multi-gpu handling, fp16 training, and training loops. |
-| [Search](http://flambe.ai/) | Run a hyperparameter search over another task by replacing any arguments by a distribution. |
-| [Pipeline](http://flambe.ai/) | Build a pipeline of tasks, run a hyperparameter search and reduce to the best variants and any step.
-
-### Execute a task
-
-Flambé executes tasks by representing them through a YAML configuration file:
+2. Define your ``Task`` as a YAML configuration:
 
 <table>
 <tr style="font-weight:bold;">
@@ -103,19 +92,32 @@ Flambé executes tasks by representing them through a YAML configuration file:
 </tr>
 </table>
 
-Execute a task locally with:
+3. Execute a task locally with:
 
 ```bash
 flambe run [CONFIG]
 ```
 
-Submit a task to a cluster with:
+or submit it to a cluster with:
 
 ```bash
 flambe submit [CONFIG] -c [CLUSTER]
 ```
 
 For more information on remote execution, and how to create a cluster see: [here](http://flambe.ai/).
+
+
+### Built-in tasks
+
+Flambé provides the following set of tasks, but you can easily create your own:
+
+| Task | Description |
+| -------|------------|
+| [Script](http://flambe.ai/) | An entry-point for users who wish to keep their code unchanged, but leverage Flambé's cluster management and distributed hyperparameter search.|
+| [PytorchTask](http://flambe.ai/) | Train / Evaluate a single model on a given task. Offers an interface to automate the boilerplate code usually found in PyTorch code, such as multi-gpu handling, fp16 training, and training loops. |
+| [Search](http://flambe.ai/) | Run a hyperparameter search over another task by replacing any arguments by a distribution. |
+| [Pipeline](http://flambe.ai/) | Build a pipeline of tasks, run a hyperparameter search and reduce to the best variants and any step.
+
 
 ### Run a hyperparameter search
 
