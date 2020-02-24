@@ -1,4 +1,5 @@
-from flambe.utils.config import generate_config_from_template
+from flambe.utils import config
 from flambe.utils import ray
+from flambe.utils import path
 
-__all__ = ['generate_config_from_template', 'ray']
+__all__ = ['config', 'ray', 'path']

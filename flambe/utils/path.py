@@ -129,6 +129,7 @@ def is_dev_mode() -> bool:
     Returns
     -------
     bool
+        True if flambe is running in dev mode.
 
     """
     x = freeze.freeze()
@@ -160,3 +161,25 @@ def get_flambe_repo_location() -> str:
     # Go form the top level __init__.py to the flambe repo
     repo_location = os.path.join(flambe.__file__, os.pardir, os.pardir)
     return os.path.abspath(repo_location)
+
+
+def is_pip_installable(folder) -> bool:
+    """Check that a folder is a pip installable.
+
+    A folder is pip installable if it contains a setup.py file
+    or a pyproject.toml.
+
+    Returns
+    -------
+    bool
+        True if the folder is pip installable
+
+    """
+    if not os.path.exists(folder):
+        return False
+
+    files = os.listdir(folder)
+    if 'setup.py' in files or 'pyproject.toml' in files:
+        return True
+    else:
+        return False

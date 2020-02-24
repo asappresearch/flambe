@@ -16,7 +16,7 @@ from flambe.logging import coloredlogs as cl
 from flambe.const import FLAMBE_GLOBAL_FOLDER, PYTHON_VERSION
 from flambe.compile import Registrable, YAMLLoadType, load_config_from_file
 from flambe.compile import download_extensions, download_manager
-from flambe.utils.path import is_dev_mode, get_flambe_repo_location
+from flambe.utils.path import is_dev_mode, get_flambe_repo_location, is_pip_installable
 from flambe.utils.ray import capture_ray_output
 from flambe.runner.environment import Environment, load_env_from_config, set_env_in_config
 
@@ -385,57 +385,56 @@ class Cluster(Registrable):
             # Check if a job is currently running on the cluster
             try:
                 with capture_ray_output(supress_all=True):
-                    cmd = """
-                    import os
-                    from filelock import FileLock
-
-                    names = [os.path.join(jobs, name, lock.txt) for name in os.path.listdir(jobs)]
-                    if any((os.path.exists(name) for name in names)):
-                        exit 1
-                    """
-                    cmd = f"python -c {cmd}"
+                    cmd = f"ps -C flambe"
                     exec_cluster(fp.name, cmd)
                 running = True
+                restart = False
             except:  # noqa: E722
                 running = False
-                no_restart = True
-            if running and force:
-                no_restart = False
-            elif running and not force:
-                print(cl.RE(f"Another job is currently running. The cluster only \
-                supports running a single virtual envrionment at a time. If \
-                you would like to run this job in the currently used virtual \
-                envrionment, use -f, --force at your own risks."))
+                restart = not exists
+            if running and not force:
+                msg = "Another job is currently running.\n"
+                msg += "The cluster only supports running a single virtual env at a time. "
+                msg += "If you would like to run this job in the current virtual env, "
+                msg += "use -f, --force at your own risks."
+                print(cl.RE(msg))
                 return
 
-        # Create new directory, new tmux session, and virtual env
-        head_setup_commands = []
-        worker_setup_commands = []
+        # Prepare list of commands and file mounts
         file_mounts = {}
+        setup_cmds = []
+        head_cmds = []
+        worker_cmds = []
+        head_start_cmds = []
+        worker_start_cmds = []
 
+        # Create new directory, new tmux session, and virtual env
         cmd = f"tmux kill-session -t {name}; tmux new -d -s {name}"
-        head_setup_commands.append(cmd)
+        head_cmds.append(cmd)
 
-        tmux = lambda x: f'tmux send-keys -t {name}.0 "{x}" ENTER'  # noqa: E731
-        cmd = f"mkdir -p jobs/{name}/extensions && \
-            conda create -y -q --name {name} python={PYTHON_VERSION}; echo ''"
-        head_setup_commands.append(tmux(cmd))
-        worker_setup_commands.append(cmd)
+        cmd = f"mkdir -p jobs/{name}/extensions && "
+        if restart:
+            cmd += f"conda remove -y -q --name flambe --all; "
+        cmd += f"conda create -y -q --name flambe python={PYTHON_VERSION}; echo ''"
+        setup_cmds.append(cmd)
 
         # Upload and install flambe
-        activate = f'source activate {name}'
+        activate = f'source activate flambe &&'
         if is_dev_mode():
             flambe_repo = get_flambe_repo_location()
             target = f'jobs/{name}/flambe'
             file_mounts[target] = flambe_repo
 
             target = f'jobs/{name}/flambe'
-            cmd = f'{activate} && pip install -U -e {target}'
+            cmd = f'{activate} pip install -U -e {target}'
         else:
-            cmd = f'{activate} && pip install -U flambe'
+            cmd = f'{activate} pip install -U flambe'
 
-        head_setup_commands.append(tmux(cmd))
-        worker_setup_commands.append(cmd)
+        setup_cmds.append(cmd)
+        setup_cmds.append(f"{activate} pip install aiohttp psutil setproctitle grpcio")
+
+        # Run the next head node commands through tmux
+        tmux = lambda x: f'tmux send-keys -t {name}.0 "{x}" ENTER'  # noqa: E731
 
         # Upload and install extensions
         extensions = env.extensions
@@ -447,18 +446,20 @@ class Cluster(Registrable):
         updated_extensions: Dict[str, str] = dict()
         for module, package in extensions.items():
             target = package
+            cmd = ''
             if os.path.exists(package):
                 package = os.path.join(package, '')
                 target = f'jobs/{name}/extensions/{module}'
+                if not is_pip_installable(package):
+                    target = os.path.join(target, '')
+                    python_setup = f"from setuptools import setup, find_packages\
+                    \n\nsetup(name=flambe__{module}, version='0.0.0')"
+                    cmd += f'echo "{python_setup}" > {target}setup.py && '
                 file_mounts[target] = package
-                # Adds the extension to the python path of this env
-                cmd = f'conda-develop -n {env_name} {target}'
-            else:
-                cmd = f'pip install -U {target}'
-
+            cmd += f"{activate} pip install -U {target}"
             updated_extensions[module] = target
-            head_setup_commands.append(tmux(cmd))
-            worker_setup_commands.append(cmd)
+            head_cmds.append(tmux(cmd))
+            worker_cmds.append(cmd)
 
         # Upload files
         files_dir = os.path.join(FLAMBE_GLOBAL_FOLDER, 'files')
@@ -487,25 +488,31 @@ class Cluster(Registrable):
             set_env_in_config(env, runnable, config_file)
             config_target = f"jobs/{name}/{os.path.basename(runnable)}"
             file_mounts[config_target] = config_file.name
+
             config: Dict = copy.deepcopy(self.config)
-            config['head_setup_commands'].extend(head_setup_commands)
-            config['worker_setup_commands'].extend(worker_setup_commands)
             config['file_mounts'].update(file_mounts)
-            if not no_restart:
-                config['head_start_ray_commands'].insert(0, activate)
-                config['worker_start_ray_commands'].insert(0, activate)
+
+            # Must add source activate to every other command
+            commands: List[Tuple[List, str]] = [
+                (setup_cmds, 'setup_commands'),
+                (head_cmds, 'head_setup_commands'),
+                (worker_cmds, 'worker_setup_commands'),
+                (head_start_cmds, 'head_start_ray_commands'),
+                (worker_start_cmds, 'worker_start_ray_commands')
+            ]
+            for cmd_list, key in commands:
+                config[key] = cmd_list + [f"{activate} {cmd}" for cmd in config[key]]
+
             with tempfile.NamedTemporaryFile() as fp:
                 yaml.dump(config, fp)
                 with capture_ray_output(supress_all=True) as output:  # noqa:
-                    create_or_update_cluster(fp.name, None, None, no_restart, False, True, None)
+                    create_or_update_cluster(fp.name, None, None, not restart, False, True, None)
                 if env.debug:
                     print(output)
 
         # Run Flambe
         options = ' -d' * int(debug) + ' -f' * int(force)
-        cmd = f"touch jobs/{name}/lock.txt; "
-        cmd += f"flambe run {config_target}{options}; "
-        cmd += f"rm jobs/{name}/lock.txt"
+        cmd = f"{activate} flambe run {config_target}{options}; "
         with tempfile.NamedTemporaryFile() as fp:
             yaml.dump(self.config, fp)
             with capture_ray_output(supress_all=True):

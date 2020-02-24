@@ -222,7 +222,7 @@ class KubernetesCluster(Cluster):
             'ray stop',
             'ulimit -n 65536; ray start --head --num-cpus=$MY_CPU_REQUEST --redis-port=6379 \
                 --object-manager-port=8076 --autoscaling-config=~/ray_bootstrap_config.yaml \
-                --include-webui'
+                --include-webui 1'
         ]
         config['worker_start_ray_commands'] = [
             'ray stop',

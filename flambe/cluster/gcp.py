@@ -135,7 +135,7 @@ class GCPCluster(Cluster):
         # Command to start ray on the head and worker nodes
         config['head_start_ray_commands'] = [
             'ray stop',
-            'ulimit -n 65536; ray start --head --redis-port=6379 --include-webui \
+            'ulimit -n 65536; ray start --head --redis-port=6379 --include-webui 1 \
                 --object-manager-port=8076 --autoscaling-config=~/ray_bootstrap_config.yaml'
         ]
         config['worker_start_ray_commands'] = [
