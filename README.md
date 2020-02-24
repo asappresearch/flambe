@@ -108,7 +108,7 @@ flambe submit [CONFIG] -c [CLUSTER]
 For more information on remote execution, and how to create a cluster see: [here](http://flambe.ai/).
 
 
-### Run a hyperparameter search
+### Create a hyperparameter search
 
 Use the built-in ``Search`` to run distributed hyperparameter searches over other Flambé tasks.
 
@@ -138,7 +138,7 @@ For instance, you can run a hyperparameter search over any python script with a 
 
 > The ``Script`` task can be used over any python script that accepts command line arguments.
 
-### Run a task pipeline.
+### Create a pipeline.
 
 A Flambé pipeline may contain any of the following:
 
@@ -190,6 +190,7 @@ For more information on the built-in Flambé tasks:
 | -------|------------|
 | [Script](http://flambe.ai/) | An entry-point for users who wish to keep their code unchanged, but leverage Flambé's cluster management and distributed hyperparameter search.|
 | [PytorchTask](http://flambe.ai/) | Train / Evaluate a single model on a given task. Offers an interface to automate the boilerplate code usually found in PyTorch code, such as multi-gpu handling, fp16 training, and training loops. |
+| [Export](http://flambe.ai/) | Construct python objects and export them either locally or to a remote storage |
 | [Search](http://flambe.ai/) | Run a hyperparameter search over another task by replacing any arguments by a distribution. |
 | [Pipeline](http://flambe.ai/) | Build a pipeline of tasks, run a hyperparameter search and reduce to the best variants and any step.
 
