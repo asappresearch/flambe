@@ -60,6 +60,10 @@ class D:
         return "kwargs_or_posargs"
 
 
+nothing = None
+const = 3
+
+
 def adder(x=None, y=None):
     return x+y if x is not None and y is not None else None
 
@@ -67,8 +71,48 @@ def adder(x=None, y=None):
 def load_one_config(config):
     return list(load_config(config))[0]
 
+
 def dump_one_config(obj):
     return dump_config([obj])
+
+
+class TestErrors:
+
+    def test_missing_module(self):
+        config = '!tes.units.compile.test_yaml.A\n'
+        with pytest.raises(TagError):
+            load_one_config(config)
+
+    def test_bad_import_path(self):
+        config = '!tests.units.compile.test_yaml.A\n'
+        with pytest.raises(TagError):
+            load_one_config(config)
+
+    def test_none_ref(self):
+        config = '!tests.unit.compile.test_yaml.nothing\n'
+        with pytest.raises(TagError):
+            load_one_config(config)
+
+    def test_const_ref(self):
+        config = '!tests.unit.compile.test_yaml.nothing\n'
+        with pytest.raises(TagError):
+            load_one_config(config)
+
+    def test_bad_kwargs(self):
+        configA = '!tests.unit.compile.test_yaml.A\nz: 4\n'
+        configB = '!tests.unit.compile.test_yaml.B\nz: 4\n'
+        configD = '!tests.unit.compile.test_yaml.D\nz: 4\n'
+        for c in (configA, configB, configD):
+            with pytest.raises(TypeError):
+                load_one_config(c)
+
+    def test_bad_posargs(self):
+        configA = '!tests.unit.compile.test_yaml.A\n- 1\n- 2\n- 3\n'
+        configB = '!tests.unit.compile.test_yaml.A\n- 1\n- 2\n- 3\n'
+        configD = '!tests.unit.compile.test_yaml.A\n- 1\n- 2\n- 3\n'
+        for c in (configA, configB, configD):
+            with pytest.raises(TypeError):
+                load_one_config(c)
 
 
 class TestSchematic:
