@@ -40,65 +40,75 @@ pip install ./flambe
 
 ## Getting started
 
-1. Create a Flambé ``Task``, by writting two simple methods:
+Create a Flambé ``Task``, by writting two simple methods:
 
-  ```python
+```python
 
-  class Task:
+class Task:
 
-    # REQUIRED
-    def run(self) -> bool:
-      """Execute a computational step, keeps returning True until complete."""
-      ...
+  # REQUIRED
+  def run(self) -> bool:
+    """Execute a computational step, keeps returning True until complete."""
+    ...
 
-    # OPTIONAL
-    def metric(self) -> float:
-      """Get the current performance on the task to compare with other runs."""
-      ...
+  # OPTIONAL
+  def metric(self) -> float:
+    """Get the current performance on the task to compare with other runs."""
+    ...
 
-  ```
+```
 
-2. Define your ``Task`` as a YAML configuration:
+Define your ``Task`` as a YAML configuration:
 
-  <table>
-  <tr style="font-weight:bold;">
-    <td>Python Code <img width=310/></td>
-    <td>YAML Config <img width=310/></td>
-    </tr>
-  <tr>
-  <td valign="top">
-  <pre lang="python">
-
-      import my_module
-
-      task = my_module.MyTask(
-         dropout=0.5,
-         num_layers=2
-      )
-      task.run()
-  </pre>
-  </td>
-  <td valign="top">
-  <pre lang="yaml">
-
-      !my_module.MyTask
-
-       dropout: 0.5
-       num_layers: 2
-  </pre>
-  </td>
+<table>
+<tr style="font-weight:bold;">
+  <td>Python Code <img width=310/></td>
+  <td>YAML Config <img width=310/></td>
   </tr>
-  </table>
+<tr>
+<td valign="top">
+<pre lang="python">
 
-3. Execute a task locally with `flambe run [CONFIG]` or remotely with `flambe submit [CONFIG] -c [CLUSTER]`
+    import my_module
+
+    task = my_module.MyTask(
+       dropout=0.5,
+       num_layers=2
+    )
+
+    task.run()
+</pre>
+</td>
+<td valign="top">
+<pre lang="yaml">
+
+    !my_module.MyTask
+
+     dropout: 0.5
+     num_layers: 2
+</pre>
+</td>
+</tr>
+</table>
+
+Execute a task locally with:
+
+```bash
+flambe run [CONFIG]
+```
+
+or remotely with:
+
+```
+flambe submit [CONFIG] -c [CLUSTER]
+```
 
 For more information on remote execution, and how to create a cluster see: [here](http://flambe.ai/).
 
 
 ### Run a hyperparameter search
 
-Flambé tasks can be consumed by other tasks.  
-For instance, Flambé provides a ``Search`` task to run distributed hyperparameter searches over tasks.
+Flambé provides a ``Search`` task to run distributed hyperparameter searches over tasks.
 
 In the example below we combine the built-ins ``Script`` and ``Search`` tasks to run a search on a python script:
 
@@ -170,7 +180,7 @@ A Flambé pipeline may contain any of the following:
 
 ## Next Steps
 
-Flambé provides the following set of built-in tasks:
+For more information on the built-in Flambé tasks:
 
 | Task | Description |
 | -------|------------|
