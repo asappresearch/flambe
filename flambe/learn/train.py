@@ -469,7 +469,7 @@ class Trainer(Component):
             self.model.load_state_dict(self._best_model, strict=False)
 
     @classmethod
-    def precompile(cls, **kwargs):
+    def preinitialize(cls, kwargs):
         """Override initialization.
 
         Ensure that the model is compiled and pushed to the right

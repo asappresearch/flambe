@@ -13,7 +13,7 @@ pipeline:
   # Stage 1 - Define a model
   model: !TextClassifier
       embedder: !Embedder
-        embedding: !torch.Embedding  # automatically use pytorch classes
+        embedding: !torch.nn.Embedding  # automatically use pytorch classes
           num_embeddings: !copy dataset.text.vocab_size # link to other components, and attributes
           embedding_dim: 300
         embedding_dropout: 0.3
@@ -33,9 +33,9 @@ pipeline:
     model: !copy model
     train_sampler: !BaseSampler
     val_sampler: !BaseSampler
-    loss_fn: !torch.NLLLoss
+    loss_fn: !torch.nn.NLLLoss
     metric_fn: !Accuracy
-    optimizer: !torch.Adam
+    optimizer: !torch.optim.Adam
       params: !ref train[model].trainable_params
     max_steps: 2
     iter_per_step: 2
@@ -46,9 +46,3 @@ pipeline:
     model: !copy train[model]
     metric_fn: !Accuracy
     eval_sampler: !BaseSampler
-
-# Define how to schedule variants
-schedulers:
-  train: !Hyperband
-    max_steps: 2
-    step_budget: 2

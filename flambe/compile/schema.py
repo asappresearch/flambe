@@ -231,6 +231,7 @@ class Link(Registrable, tag_override="ref"):
             raise ValueError('If link string is not given, schematic path is required')
         self.schematic_path = tuple(schematic_path)
         self.attr_path = tuple(attr_path) if attr_path is not None else None
+        self.post_init_hooks: List[Callable] = []  # TODO remove pending refactor
 
     def resolve(self, cache: Dict[PathType, Any]) -> Any:
         try:
@@ -266,6 +267,7 @@ class FileLink(Link, tag_override="file"):
     def __init__(self, file_reference: str):
         self.schematic_path = (file_reference,)
         self.attr_path = None
+        self.post_init_hooks: List[Callable] = []  # TODO remove pending refactor
 
     def resolve(self, cache: Dict[PathType, Any]) -> Any:
         try:
@@ -323,6 +325,7 @@ class Schema(MutableMapping[str, Any]):
                 tag = self.callable_.__name__
         self.created_with_tag = tag
         self.allow_new_args = allow_new_args
+        self.post_init_hooks: List[Callable] = []  # TODO remove pending refactor
 
     @classmethod
     def yaml_load_type(cls) -> YAMLLoadType:
@@ -534,6 +537,12 @@ class Schema(MutableMapping[str, Any]):
         # If object has already been initialized, return that value
         if path in cache:
             return cache[path]
+
+        # TODO remove when possible
+        #  legacy / hack for trainer to move things to GPU before
+        if hasattr(initialized.factory_method, 'preinitialize'):
+            initialized.factory_method.preinitialize(initialized.arguments)
+
         # Else, recursively initialize all children (bound arguments)
         for current_path, obj in self.traverse(
             initialized.bound_arguments,
@@ -542,6 +551,8 @@ class Schema(MutableMapping[str, Any]):
         ):
             if isinstance(obj, Link):
                 new_value = obj(cache=cache)
+                for hook in obj.post_init_hooks:
+                    hook(new_value)
                 cache[current_path] = new_value
                 root.set_param(current_path, new_value)
             elif isinstance(obj, Schema):
@@ -554,6 +565,8 @@ class Schema(MutableMapping[str, Any]):
         try:
             cache[path] = initialized.factory_method(*initialized_arguments.args,
                                                      **initialized_arguments.kwargs)
+            for hook in initialized.post_init_hooks:
+                hook(cache[path])
         except TypeError as te:
             print(f"Constructor {self.factory_method} failed with "
                   f"arguments:\n{initialized_arguments.arguments.items()}")
