@@ -42,86 +42,65 @@ pip install ./flambe
 
 1. Create a Flambé ``Task``, by writting two simple methods:
 
-```python
+  ```python
 
-class Task:
-  
-  # REQUIRED
-  def run(self) -> bool:
-    """Execute a computational step, keeps returning True until complete."""
-    ...
-  
-  # OPTIONAL
-  def metric(self) -> float:
-    """Get the current performance on the task to compare with other runs."""
-    ...
-  
-```
+  class Task:
+
+    # REQUIRED
+    def run(self) -> bool:
+      """Execute a computational step, keeps returning True until complete."""
+      ...
+
+    # OPTIONAL
+    def metric(self) -> float:
+      """Get the current performance on the task to compare with other runs."""
+      ...
+
+  ```
 
 2. Define your ``Task`` as a YAML configuration:
 
-<table>
-<tr style="font-weight:bold;">
-  <td>Python Code <img width=310/></td>
-  <td>YAML Config <img width=310/></td>
+  <table>
+  <tr style="font-weight:bold;">
+    <td>Python Code <img width=310/></td>
+    <td>YAML Config <img width=310/></td>
+    </tr>
+  <tr>
+  <td valign="top">
+  <pre lang="python">
+
+      import my_module
+
+      task = my_module.MyTask(
+         dropout=0.5,
+         num_layers=2
+      )
+      task.run()
+  </pre>
+  </td>
+  <td valign="top">
+  <pre lang="yaml">
+
+      !my_module.MyTask
+
+       dropout: 0.5
+       num_layers: 2
+  </pre>
+  </td>
   </tr>
-<tr>
-<td valign="top">
-<pre lang="python">
- 
-    script = Script(
-      path='flambe/examples/script.py',
-      args={
-         'dropout' = 0.5,
-         'num_layers' = 2,
-      }
-    )
-</pre>
-</td>
-<td valign="top">
-<pre lang="yaml">
+  </table>
 
-    !Script
-
-    path: flambe/examples/script.py
-    args:
-      dropout: 0.5
-      num_layers: 2
-</pre>
-</td>
-</tr>
-</table>
-
-3. Execute a task locally with:
-
-```bash
-flambe run [CONFIG]
-```
-
-or submit it to a cluster with:
-
-```bash
-flambe submit [CONFIG] -c [CLUSTER]
-```
+3. Execute a task locally with `flambe run [CONFIG]` or remotely with `flambe submit [CONFIG] -c [CLUSTER]`
 
 For more information on remote execution, and how to create a cluster see: [here](http://flambe.ai/).
 
 
-### Built-in tasks
-
-Flambé provides the following set of tasks, but you can easily create your own:
-
-| Task | Description |
-| -------|------------|
-| [Script](http://flambe.ai/) | An entry-point for users who wish to keep their code unchanged, but leverage Flambé's cluster management and distributed hyperparameter search.|
-| [PytorchTask](http://flambe.ai/) | Train / Evaluate a single model on a given task. Offers an interface to automate the boilerplate code usually found in PyTorch code, such as multi-gpu handling, fp16 training, and training loops. |
-| [Search](http://flambe.ai/) | Run a hyperparameter search over another task by replacing any arguments by a distribution. |
-| [Pipeline](http://flambe.ai/) | Build a pipeline of tasks, run a hyperparameter search and reduce to the best variants and any step.
-
-
 ### Run a hyperparameter search
 
-Search over arguments to your ``Task`` and execute with the algorithm of your choice.
+Flambé tasks can be consumed by other tasks.  
+For instance, Flambé provides a ``Search`` task to run distributed hyperparameter searches over tasks.
+
+In the example below we combine the built-ins ``Script`` and ``Search`` tasks to run a search on a python script:
 
 <table>
 <tr style="font-weight:bold;">
@@ -190,6 +169,15 @@ A Flambé pipeline may contain any of the following:
 </table>
 
 ## Next Steps
+
+Flambé provides the following set of built-in tasks:
+
+| Task | Description |
+| -------|------------|
+| [Script](http://flambe.ai/) | An entry-point for users who wish to keep their code unchanged, but leverage Flambé's cluster management and distributed hyperparameter search.|
+| [PytorchTask](http://flambe.ai/) | Train / Evaluate a single model on a given task. Offers an interface to automate the boilerplate code usually found in PyTorch code, such as multi-gpu handling, fp16 training, and training loops. |
+| [Search](http://flambe.ai/) | Run a hyperparameter search over another task by replacing any arguments by a distribution. |
+| [Pipeline](http://flambe.ai/) | Build a pipeline of tasks, run a hyperparameter search and reduce to the best variants and any step.
 
 Full documentation, tutorials and much more at [flambe.ai](http://flambe.ai/).
 
