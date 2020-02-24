@@ -1,6 +1,6 @@
 import pytest
 from flambe.compile import Schema
-from flambe.experiment import Experiment
+from flambe.pipeline import Pipeline
 from tempfile import TemporaryDirectory as tmpdir
 from tempfile import NamedTemporaryFile as tmpfile
 import subprocess
@@ -20,8 +20,8 @@ def _reduce_iterations(d):
             _reduce_iterations(v)
 
 
-def run_experiments(base, **kwargs):
-    """Run all experiments found in base param.
+def run_tasks(base, **kwargs):
+    """Run all tasks found in base param.
     and check that flambe executes without errors.
 
     Before running the configs, it updates the save_path to
@@ -41,22 +41,22 @@ def run_experiments(base, **kwargs):
 
 
 @pytest.mark.end2end
-def test_end2end_experiments(top_level):
-    """Runs all experiments found in the integration's
+def test_end2end_tasks(top_level):
+    """Runs all tasks found in the integration's
     folder
 
     """
     tests_base = os.path.dirname(os.path.dirname(__file__))
     base = os.path.join(tests_base, "integration", "end2end")
-    run_experiments(base, top_level=top_level)
+    run_tasks(base, top_level=top_level)
 
 
 @pytest.mark.examples
-def test_examples_experiments():
-    """Runs all experiments found in top level examples
+def test_examples_tasks():
+    """Runs all tasks found in top level examples
     folder
 
     """
     tests_base = os.path.dirname(os.path.dirname(__file__))
     base = os.path.join(os.path.dirname(tests_base), "examples")
-    run_experiments(base)
+    run_tasks(base)

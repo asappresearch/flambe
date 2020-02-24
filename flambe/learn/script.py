@@ -4,7 +4,6 @@ import tempfile
 from copy import deepcopy
 
 import flambe
-from flambe.logging import TrialLogging
 from flambe.compile import Component
 from flambe.compile import dump_one_config
 
@@ -65,7 +64,7 @@ class Script(Component):
             return self.metric_fn(env.output_path)
         return 0.0
 
-    def step(self) -> bool:
+    def run(self) -> bool:
         """Run the evaluation.
 
         Returns
@@ -94,11 +93,3 @@ class Script(Component):
         if self.max_steps is None or self._step >= self.max_steps:
             continue_ = False
         return continue_
-
-    def run(self) -> None:
-        """Execute the script."""
-        env = flambe.get_env()
-        with TrialLogging(env.output_path, verbose=env.debug):
-            continue_ = True
-            while continue_:
-                continue_ = self.step()

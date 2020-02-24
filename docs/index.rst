@@ -30,7 +30,7 @@ Flambé is a Python framework built to accelerate machine learning research. Wit
    basics/script
    basics/trainer
    basics/search
-   basics/experiment
+   basics/pipeline
    basics/export
    basics/cluster
 
@@ -47,7 +47,7 @@ Flambé is a Python framework built to accelerate machine learning research. Wit
    autoapi/flambe/dataset/index
    autoapi/flambe/cluster/index
    autoapi/flambe/compile/index
-   autoapi/flambe/experiment/index
+   autoapi/flambe/pipeline/index
    autoapi/flambe/export/index
    autoapi/flambe/field/index
    autoapi/flambe/learn/index

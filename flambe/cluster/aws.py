@@ -191,7 +191,7 @@ class AWSCluster(Cluster):
 
         super().__init__(name=name, ssh_user=ssh_user, extra=config, **kwargs)
 
-    def down(self, yes: bool = False, workers_only: bool = False, terminate: bool = False):
+    def down(self, yes: bool = False, workers_only: bool = False, destroy: bool = False):
         """Teardown the cluster.
 
         Parameters
@@ -200,12 +200,12 @@ class AWSCluster(Cluster):
             Tear the cluster down.
         workers_only : bool, optional
             Kill only worker nodes, by default False.
-        terminate: bool, optional
+        destroy: boo, optional
             Whether to terminate the instances
 
         """
         config: Dict[str, Any] = copy.deepcopy(self.config)
-        config['provider']['cache_stopped_nodes'] = terminate
+        config['provider']['cache_stopped_nodes'] = not destroy
         yaml = YAML()
         with tempfile.NamedTemporaryFile() as fp:
             yaml.dump(config, fp)

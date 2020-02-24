@@ -12,7 +12,7 @@ in `editable mode <https://pip.pypa.io/en/stable/reference/pip_install/#editable
 
 By installing in developer mode (see :ref:`starting-install-dev_label`) Flambé will
 automatically use the current code in your local copy of the repo that you installed,
-including remote experiments.
+including remote tasks.
 
 
 Cache Git-based Extensions
@@ -113,7 +113,7 @@ Finally you can now use your new Registrable object in YAML.
 
 .. code-block:: yaml
 
-    !Experiment
+    !Pipeline
     ...
     pipeline:
       stage_0: !Trainer

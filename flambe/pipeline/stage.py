@@ -1,15 +1,16 @@
 from typing import Dict, List, Optional
 import logging
 
-from flambe.search import Algorithm, Search, Searchable, Choice, Trial, Checkpoint
-from flambe.experiment.pipeline import Pipeline
+from flambe.runner.protocol import Runnable
+from flambe.search import Algorithm, Search, Choice, Trial, Checkpoint
+from flambe.pipeline.schema import MultiSchema
 
 
 logger = logging.getLogger(__name__)
 
 
 class Stage(object):
-    """A stage in the Experiment pipeline.
+    """A stage in the Pipeline pipeline.
 
     This object is a wrapper around the Search object, which adds
     logic to support hyperparameter searches as nodes in a directed
@@ -20,8 +21,8 @@ class Stage(object):
 
     def __init__(self,
                  name: str,
-                 pipeline: Pipeline,
-                 dependencies: List[Dict[str, Pipeline]],
+                 pipeline: MultiSchema,
+                 dependencies: List[Dict[str, MultiSchema]],
                  cpus_per_trial: int,
                  gpus_per_trial: int,
                  algorithm: Optional[Algorithm] = None,
@@ -31,7 +32,7 @@ class Stage(object):
         Parameters
         ----------
         name : str
-            A name for this stage in the experiment pipeline.
+            A name for this stage in the pipeline.
         pipeline : Pipeline
             The sub-pipeline to execute in this stage.
         dependencies : List[Dict[str, Any]]
@@ -60,19 +61,19 @@ class Stage(object):
         # Flatten out the dependencies
         self.dependencies = {name: p for dep in dependencies for name, p in dep.items()}
 
-        # Get the non-searchable stages in the pipeline
-        searchables, non_searchables = [], []
+        # Get the non-tasks stages in the pipeline
+        tasks, non_tasks = [], []
         for name, schema in list(pipeline.schemas.items())[:-1]:
             if isinstance(schema.callable_, type) and \
-               issubclass(schema.callable_, Searchable):  # type: ignore
-                searchables.append(name)
+               issubclass(schema.callable_, Runnable):  # type: ignore
+                tasks.append(name)
             else:
-                non_searchables.append(name)
+                non_tasks.append(name)
 
-        searchable_deps = {dep for n in searchables for dep in pipeline.deps[n]}
-        self.task_dependencies = [n for n in non_searchables if n not in searchable_deps]
+        searchable_deps = {dep for n in tasks for dep in pipeline.deps[n]}
+        self.task_dependencies = [n for n in non_tasks if n not in searchable_deps]
 
-    def filter_dependencies(self, pipelines: Dict[str, 'Pipeline']) -> Dict[str, 'Pipeline']:
+    def filter_dependencies(self, pipelines: Dict[str, 'MultiSchema']) -> Dict[str, 'MultiSchema']:
         """Filter out erros, and apply reductions on dependencies.
 
         Parameters
@@ -101,21 +102,21 @@ class Stage(object):
 
         return pipelines
 
-    def merge_variants(self, pipelines: Dict[str, 'Pipeline']) -> Dict[str, 'Pipeline']:
+    def merge_variants(self, pipelines: Dict[str, 'MultiSchema']) -> Dict[str, 'MultiSchema']:
         """Merge based on conditional dependencies.
 
         Parameters
         ----------
-        pipelines: Dict[str, Pipeline]
+        pipelines: Dict[str, MultiSchema]
             The dependencies, as previously executed sub-pipelines.
 
         Returns
         -------
-        Dict[str, Pipeline]
+        Dict[str, MultiSchema]
             An updated list of pipelines.
 
         """
-        variants: Dict[str, Pipeline] = dict()
+        variants: Dict[str, MultiSchema] = dict()
 
         for name, pipe in pipelines.items():
             match_found = False
@@ -131,7 +132,7 @@ class Stage(object):
 
         return variants
 
-    def construct_pipeline(self, pipelines: Dict[str, 'Pipeline']) -> Optional['Pipeline']:
+    def construct_pipeline(self, pipelines: Dict[str, 'MultiSchema']) -> Optional['MultiSchema']:
         """Construct the final pipeline.
 
         May return ``None`` in cases where there were no complete
@@ -139,12 +140,12 @@ class Stage(object):
 
         Parameters
         ----------
-        pipelines: List[Pipeline]
+        pipelines: List[MultiSchema]
             The dependencies, as previously executed sub-pipelines.
 
         Returns
         -------
-        Pipeline, optional
+        MultiSchema, optional
             The pipeline to exectute, or None.
 
         """
@@ -160,7 +161,7 @@ class Stage(object):
         # cross-stage parameter configurations
         if len(pipelines) == 0:
             try:
-                pipeline = Pipeline(schemas)
+                pipeline = MultiSchema(schemas)
                 out = pipeline if pipeline.is_subpipeline else None
             except Exception:
                 logger.info(f"Found incomplete pipeline at stage {self.name}")
@@ -169,7 +170,7 @@ class Stage(object):
             pipeline = pipelines[list(pipelines.keys())[0]]
             schemas.update(pipeline.schemas)
             try:
-                pipeline = Pipeline(schemas, pipeline.var_ids, pipeline.checkpoints)
+                pipeline = MultiSchema(schemas, pipeline.var_ids, pipeline.checkpoints)
                 out = pipeline if pipeline.is_subpipeline else None
             except Exception:
                 logger.info(f"Found incomplete pipeline at stage {self.name}")
@@ -177,11 +178,11 @@ class Stage(object):
         else:
             # Search over previous variants
             schemas = dict(__dependencies=Choice(pipelines), **schemas)
-            out = Pipeline(schemas)
+            out = MultiSchema(schemas)
 
         return out
 
-    def run(self) -> Dict[str, Pipeline]:
+    def run(self) -> Dict[str, MultiSchema]:
         """Execute the stage.
 
         Proceeds as follows:
@@ -220,14 +221,15 @@ class Stage(object):
             self.cpus_per_trial,
             self.gpus_per_trial
         )
-        trials: Dict[str, Trial] = search.run()
+        search.run()
+        trials: Dict[str, Trial] = search.trials
 
         # Each variants object is a dictionary from variant name
         # to a dictionary with schema, params, and checkpoint
-        pipelines: Dict[str, Pipeline] = dict()
+        pipelines: Dict[str, MultiSchema] = dict()
         for name, trial in trials.items():
             # Flatten out the pipeline schema
-            variant: Optional[Pipeline] = trial.get_schema()  # type: ignore
+            variant: Optional[MultiSchema] = trial.get_schema()  # type: ignore
             if variant is None:
                 raise ValueError(f"No schema set on output pipeline {name}")
 

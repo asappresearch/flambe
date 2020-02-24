@@ -12,8 +12,22 @@ class Runnable(Protocol):
 
     """
 
-    def run(self):
-        """Implement this method to execute this object."""
+    def run(self) -> bool:
+        """Run a computational step, returns True until done.
+
+        When used in a search, this computational step should
+        be on the order of tens of seconds to about 10 minutes of work
+        on your intended hardware; checkpoints will be performed in
+        between calls to run, and resources or search algorithms will
+        be updated. If you want to run everything all at once, make
+        sure a single call to run does all the work and return False.
+
+        Returns
+        -------
+        bool
+            True until execution is over.
+
+        """
         raise NotImplementedError
 
 

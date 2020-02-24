@@ -11,7 +11,7 @@ def pipeline_builder(**kwargs):
     return list(kwargs.values())[-1]
 
 
-class Pipeline(Schema):
+class MultiSchema(Schema):
     """Schema specialized to represent a series of stateful stages
 
     NOTE: All arguments of this schema must also be schemas, which is
@@ -137,7 +137,7 @@ class Pipeline(Schema):
         cache.update(files)
         return super().initialize(cache=cache)
 
-    def sub_pipeline(self, stage_name: str) -> 'Pipeline':
+    def sub_pipeline(self, stage_name: str) -> 'MultiSchema':
         """Return subset of the pipeline stages ending in stage_name.
 
         The subset of pipeline stages will include all dependencies
@@ -160,11 +160,11 @@ class Pipeline(Schema):
         var_ids = {k: v for k, v in self.var_ids.items() if k in deps}
         checkpoints = {k: v for k, v in self.checkpoints.items() if k in deps}
         sub_stages[stage_name] = self.arguments[stage_name]
-        subpipeline = Pipeline(sub_stages, var_ids, checkpoints)
+        subpipeline = MultiSchema(sub_stages, var_ids, checkpoints)
         assert subpipeline.is_subpipeline
         return subpipeline
 
-    def merge(self, other: 'Pipeline') -> 'Pipeline':
+    def merge(self, other: 'MultiSchema') -> 'MultiSchema':
         """Updates internals with the provided pipeline.
 
         Parameters
@@ -181,9 +181,9 @@ class Pipeline(Schema):
         stages = copy.deepcopy(self.arguments).update(copy.deepcopy(other.arguments))
         var_ids = copy.copy(self.var_ids).update(other.var_ids)
         checkpoints = copy.deepcopy(self.checkpoints).update(copy.deepcopy(other.checkpoints))
-        return Pipeline(schemas=stages, variant_ids=var_ids, checkpoints=checkpoints)
+        return MultiSchema(schemas=stages, variant_ids=var_ids, checkpoints=checkpoints)
 
-    def matches(self, other: 'Pipeline') -> bool:
+    def matches(self, other: 'MultiSchema') -> bool:
         """Check for matches.
 
         A match occurs when all matching stage names have the same
@@ -233,13 +233,13 @@ class Pipeline(Schema):
             # Trick to get rid of reset attributes
             schemas = dict(value.schemas)
             schemas[self.task] = self.schemas[self.task]  # type: ignore
-            Pipeline.__init__(self, value.schemas, value.var_ids, value.checkpoints)
+            MultiSchema.__init__(self, value.schemas, value.var_ids, value.checkpoints)
         else:
             super().set_param(path, value)  # type: ignore
 
-    def __deepcopy__(self, memo=None) -> 'Pipeline':
+    def __deepcopy__(self, memo=None) -> 'MultiSchema':
         """Override deepcopy."""
-        pipeline = Pipeline(
+        pipeline = MultiSchema(
             schemas=copy.deepcopy(self.schemas),
             variant_ids=copy.deepcopy(self.var_ids),
             checkpoints=copy.deepcopy(self.checkpoints)

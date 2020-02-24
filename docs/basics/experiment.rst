@@ -1,21 +1,21 @@
-.. _Experiment:
+.. _Pipeline:
 
 ===========
-Experiment
+Pipeline
 ===========
 
 The top level object in every configuration file must be a :class:`~flambe.runnable.Runnable`, the most
-common and useful being the :class:`~flambe.experiment.Experiment` class which facilitates
+common and useful being the :class:`~flambe.pipeline.Pipeline` class which facilitates
 executing a ML pipeline.
 
-The ``Experiment``'s most important parameter is the :attr:`~flambe.experiment.Experiment.pipeline`, where users can define
+The ``Pipeline``'s most important parameter is the :attr:`~flambe.pipeline.Pipeline.pipeline`, where users can define
 a `DAG <https://en.wikipedia.org/wiki/Directed_acyclic_graph>`_ of ``Components`` describing how dataset, models, training procedures, etc interact
 between them.
 
 .. attention::
-    For a full specification of ``Experiment``, see :class:`~flambe.experiment.Experiment`
+    For a full specification of ``Pipeline``, see :class:`~flambe.pipeline.Pipeline`
 
-The implementation of :class:`~flambe.experiment.Experiment` and its `pipeline`` uses
+The implementation of :class:`~flambe.pipeline.Pipeline` and its `pipeline`` uses
 `Ray's Tune <https://ray.readthedocs.io/en/latest/tune.html>`_ under the hood.
 
 Pipeline
@@ -84,12 +84,12 @@ so that we can dump back to YAML with the original links later.
 Search Options
 --------------
 
-``Experiment`` supports declaring multiple variants in the ``pipeline`` by making use of
+``Pipeline`` supports declaring multiple variants in the ``pipeline`` by making use of
 the search tags:
 
 .. code-block:: yaml
 
-    !Experiment
+    !Pipeline
     ...
     pipeline:
         ...
@@ -112,7 +112,7 @@ without changing your code to accept a new type of input! (in this case**
 
     .. code-block:: yaml
 
-        !Experiment
+        !Pipeline
         ...
 
         pipeline:
@@ -151,7 +151,7 @@ For example:
 
 .. code-block:: yaml
 
-    !Experiment
+    !Pipeline
     ...
     pipeline:
         ...
@@ -170,7 +170,7 @@ This will produce 6 variants (3 ``n_layers`` values times 2 ``hidden_size`` valu
 
     .. code-block:: yaml
 
-        !Experiment
+        !Pipeline
         ...
         pipeline:
             ...
@@ -193,13 +193,13 @@ This will produce 6 variants (3 ``n_layers`` values times 2 ``hidden_size`` valu
 Reducing
 --------
 
-``Experiment`` provides a :attr:`~flambe.experiment.Experiment.reduce` mechanism so that variants don't flow down the ``pipeline``.
-**reduce** is declared at the ``Experiment`` level and it can specify the number of variants to reduce
+``Pipeline`` provides a :attr:`~flambe.pipeline.Pipeline.reduce` mechanism so that variants don't flow down the ``pipeline``.
+**reduce** is declared at the ``Pipeline`` level and it can specify the number of variants to reduce
 to for each ``Component``.
 
 .. code-block:: yaml
 
-    !Experiment
+    !Pipeline
     ...
     pipeline:
         ...
@@ -223,14 +223,14 @@ Flambé will then pick **the best 2 variants before finishing executing ``traine
 Resources (Additional Files and Folders)
 ----------------------------------------
 
-The :attr:`~flambe.experiment.Experiment.resources` argument lets users specify files that can be used in the
-:class:`~flambe.experiment.Experiment` (usually local datasets, embeddings or other files).
+The :attr:`~flambe.pipeline.Pipeline.resources` argument lets users specify files that can be used in the
+:class:`~flambe.pipeline.Pipeline` (usually local datasets, embeddings or other files).
 
 For example:
 
 .. code-block:: yaml
 
-    !Experiment
+    !Pipeline
     ...
 
     resources:
@@ -246,7 +246,7 @@ In case a resource is a remote URL, then flambé will download the file fow you 
 
 .. code-block:: yaml
 
-    !Experiment
+    !Pipeline
     ...
 
     resources:
@@ -270,7 +270,7 @@ For example:
 
 .. code-block:: yaml
 
-    !Experiment
+    !Pipeline
     ...
 
     resources:
@@ -285,7 +285,7 @@ path ``path/to/train.csv`` exists in all instances of the cluster.
 
     .. code-block:: yaml
 
-        !Experiment
+        !Pipeline
         ...
 
         resources:
@@ -396,14 +396,14 @@ See more on Scripts in :ref:`tutorials-script_label`.
 Checkpointint and Saving
 ------------------------
 
-As :ref:`starting-quickstart_label` explains, flambé saves an :class:`~flambe.experiment.Experiment` in
+As :ref:`starting-quickstart_label` explains, flambé saves an :class:`~flambe.pipeline.Pipeline` in
 a hierarchical way so that ``Components`` can be accessed independant to each other.
 Specifically, our save files are a directory by default, and
 include information about the class name, version, source code, and YAML config,
 in addition to the state that PyTorch normally saves, and any custom state
 that the implementer of the class may have included.
 
-For example, if you initialize and use the following object as a part of your ``Experiment``:
+For example, if you initialize and use the following object as a part of your ``Pipeline``:
 
 .. code-block:: yaml
 
@@ -466,11 +466,11 @@ on its own, you can load from just that subdirectory.
 Resuming
 --------
 
-:class:`~/flambe.experiment.Experiment` has a way of resuming perviously run experiments:
+:class:`~/flambe.pipeline.Pipeline` has a way of resuming perviously run experiments:
 
 .. code-block:: yaml
 
-    !Experiment
+    !Pipeline
     resume: trainer
     ...
     pipeline:
@@ -495,7 +495,7 @@ By providing a ``Component`` keyname (or a list of them) that belong to the ``pi
 Debugging
 ---------
 
-``Experiment`` has a debugging option that is only available in local executions (not remotely).
+``Pipeline`` has a debugging option that is only available in local executions (not remotely).
 This is activated by adding ``debug: True`` at the top level of the YAML.
 
 When debugging is on, a debugger will appear before executing ``run`` on each ``Component``.

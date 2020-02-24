@@ -167,7 +167,7 @@ class Cluster(Registrable):
             yaml.dump(self.config, fp)
             create_or_update_cluster(fp.name, None, None, True, False, yes, None)
 
-    def down(self, yes: bool = False, workers_only: bool = False):
+    def down(self, yes: bool = False, workers_only: bool = False, destroy: bool = False):
         """Teardown the cluster.
 
         Parameters
@@ -176,6 +176,8 @@ class Cluster(Registrable):
             Tear the cluster down.
         workers_only : bool, optional
             Kill only worker nodes, by default False.
+        destroy: bool, optional
+            Destroy this cluster permanently.
 
         """
         yaml = YAML()
@@ -283,6 +285,11 @@ class Cluster(Registrable):
 
     def list(self):
         """List all currently running jobs (i.e tmux sessions)."""
+        print("\n", "-" * 50)
+        print(cl.BL(f"\nCluster: {self.config['cluster_name']}"))
+        print(f"Head IP: {self.head_node_ip()}")
+        print(f"Worker IP's: {self.worker_node_ips()}\n")
+
         cmd = f'tmux ls || echo "No tmux session running"'
 
         yaml = YAML()
@@ -363,16 +370,42 @@ class Cluster(Registrable):
         yaml = YAML()
         with tempfile.NamedTemporaryFile() as fp:
             yaml.dump(self.config, fp)
-            # Check if a job is currently running
+            # Check if a job of the same name exists.
             try:
                 with capture_ray_output(supress_all=True):
-                    cmd = f"tmux has-session -t {name}"
+                    cmd = f"tmux has-session -t {name} &> /dev/null"
+                    exec_cluster(fp.name, cmd)
+                exists = True
+            except:  # noqa: E722
+                exists = False
+            if exists and not force:
+                print(cl.RE(f"Job {name} already exists. Use -f, --force to override."))
+                return
+
+            # Check if a job is currently running on the cluster
+            try:
+                with capture_ray_output(supress_all=True):
+                    cmd = """
+                    import os
+                    from filelock import FileLock
+
+                    names = [os.path.join(jobs, name, lock.txt) for name in os.path.listdir(jobs)]
+                    if any((os.path.exists(name) for name in names)):
+                        exit 1
+                    """
+                    cmd = f"python -c {cmd}"
                     exec_cluster(fp.name, cmd)
                 running = True
             except:  # noqa: E722
                 running = False
-            if running and not force:
-                print(cl.RE(f"Job {name} currently running. Use -f, --force to override."))
+                no_restart = True
+            if running and force:
+                no_restart = False
+            elif running and not force:
+                print(cl.RE(f"Another job is currently running. The cluster only \
+                supports running a single virtual envrionment at a time. If \
+                you would like to run this job in the currently used virtual \
+                envrionment, use -f, --force at your own risks."))
                 return
 
         # Create new directory, new tmux session, and virtual env
@@ -419,9 +452,11 @@ class Cluster(Registrable):
                 target = f'~/jobs/{name}/extensions/{module}'
                 file_mounts[target] = package
                 target = f'~/jobs/{name}/extensions/{module}'
-
+                # Adds the extension to the python path of this env
+                cmd = f'conda-develop -n {env_name} {target}'
+            else:
+                cmd = f'pip install -U {target}'
             updated_extensions[module] = target
-            cmd = f'pip install -U {target}'
             head_setup_commands.append(tmux(cmd))
             worker_setup_commands.append(cmd)
 
@@ -446,27 +481,31 @@ class Cluster(Registrable):
             remote=True
         )
 
+        # Rsync files and run setup commands
         yaml = YAML()
         with tempfile.NamedTemporaryFile() as config_file:
             set_env_in_config(env, runnable, config_file)
             config_target = f"~/jobs/{name}/{os.path.basename(runnable)}"
             file_mounts[config_target] = config_file.name
-
-            # Rsync files and run setup commands
             config: Dict = copy.deepcopy(self.config)
             config['head_setup_commands'].extend(head_setup_commands)
             config['worker_setup_commands'].extend(worker_setup_commands)
             config['file_mounts'].update(file_mounts)
+            if not no_restart:
+                config['head_start_ray_commands'].insert(0, activate)
+                config['worker_start_ray_commands'].insert(0, activate)
             with tempfile.NamedTemporaryFile() as fp:
                 yaml.dump(config, fp)
                 with capture_ray_output(supress_all=True) as output:  # noqa:
-                    create_or_update_cluster(fp.name, None, None, True, False, True, None)
+                    create_or_update_cluster(fp.name, None, None, no_restart, False, True, None)
                 if env.debug:
                     print(output)
 
         # Run Flambe
-        cmd = f'flambe run {config_target}'
-        cmd += ' -d' * int(debug) + ' -f' * int(force)
+        options = ' -d' * int(debug) + ' -f' * int(force)
+        cmd = f"touch jobs/{name}/lock.txt; "
+        cmd += f"flambe run {config_target}{options}; "
+        cmd += f"rm jobs/{name}/lock.txt"
         with tempfile.NamedTemporaryFile() as fp:
             yaml.dump(self.config, fp)
             with capture_ray_output(supress_all=True):

@@ -1,7 +1,7 @@
-flambe.experiment.experiment module
+flambe.pipeline.pileine module
 ===================================
 
-.. automodule:: flambe.experiment.experiment
+.. automodule:: flambe.pipeline.pipeline
    :members:
    :undoc-members:
    :show-inheritance:

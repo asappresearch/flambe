@@ -1,12 +1,12 @@
 ========
-Builders
+Exporters
 ========
 
-A :class:`~flambe.export.Builder` is a simple runnable that can be used to construct a python
+A :class:`~flambe.export.Exporter` is a simple runnable that can be used to construct a python
 object by combining local or remote artifacts, and uploading the constructuted object
 locally or remotely (on Amazon S3 for example).
 
-``Builders`` decouple the inference logic with the training logic, allowing users
+``Exporters`` decouple the inference logic with the training logic, allowing users
 to iterate through inference contracts without the need to rerun training.
 
 
@@ -40,7 +40,7 @@ method ``predict`` that performs the forward pass on the trained ``model``:
           p = self.model(feature)
           return {"POSITIVE": p, "NEGATIVE": 1-p}
 
-The user can use a :class:`~flambe.export.Builder` to build this object:
+The user can use a :class:`~flambe.export.Exporter` to build this object:
 
 .. code-block:: yaml
 
@@ -48,7 +48,7 @@ The user can use a :class:`~flambe.export.Builder` to build this object:
     extensions:
         ext: /path/to/my/extensions
     ---
-    !Builder
+    !Exporter
     
     storage: s3
     destination: my-bucket
@@ -81,7 +81,7 @@ Example
 
 .. code-block:: yaml
 
-    !Builder
+    !Exporter
     
     storage: [ local | s3 ]
     destination: path/to/location
@@ -95,7 +95,7 @@ Example
 
 
 .. important::
-    For a full list of parameters, go to :class:`~flambe.export.Builder`.
+    For a full list of parameters, go to :class:`~flambe.export.Exporter`.
 
 
 .. hint::

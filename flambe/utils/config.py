@@ -26,7 +26,7 @@ def generate_config_from_template(template_path: str,
     Example config:
 
     ```yaml
-    !Experiment
+    !Pipeline
 
     foo: {{ bar }}
         baz: {{ skittles }}
@@ -42,7 +42,7 @@ def generate_config_from_template(template_path: str,
     the following config will be written to 'config.yaml':
 
     ```yaml
-    !Experiment
+    !Pipeline
 
     foo: pickles
         baz: yum

@@ -1,7 +1,7 @@
-flambe.experiment.stage module
+flambe.pipeline.stage module
 ==============================
 
-.. automodule:: flambe.experiment.stage
+.. automodule:: flambe.pipeline.stage
    :members:
    :undoc-members:
    :show-inheritance:

@@ -8,11 +8,11 @@ import json
 import ray
 
 import flambe
-from flambe.runner import Environment
+from flambe.runner import Environment, Runnable
 from flambe.logging import TrialLogging
 from flambe.compile import Registrable, YAMLLoadType, Schema
 from flambe.search.trial import Trial
-from flambe.search.protocol import Searchable
+from flambe.search.protocol import Comparable
 from flambe.search.checkpoint import Checkpoint
 from flambe.search.algorithm import Algorithm, GridSearch
 
@@ -37,7 +37,7 @@ class RayAdapter:
                  environment: Environment) -> None:
         """Initialize the Trial."""
         self.schema = schema
-        self.searchable: Optional[Searchable] = None
+        self.task: Optional[Runnable] = None
         self.checkpoint = checkpoint
         self.trial_logging = TrialLogging(checkpoint.path)
         self.trial_logging.setup()
@@ -47,15 +47,21 @@ class RayAdapter:
 
     def step(self) -> Any:
         """Run a step of the Trial"""
-        if self.searchable is None:
-            self.searchable = self.schema()
-            if not isinstance(self.searchable, Searchable):
-                # Not searchable, we only find that out
+        if self.task is None:
+            self.task = self.schema()
+            if not isinstance(self.task, Runnable):
+                # Not runnable, we only find that out
                 # once the object is built and we check the protocol
                 return -1
-        continue_ = self.searchable.step()
-        metric = self.searchable.metric()
-        self.checkpoint.set(self.searchable)
+
+        continue_ = self.task.run()
+        if isinstance(self.task, Comparable):
+            metric = self.task.metric()
+        else:
+            # Non searchable, we set the metric to 0
+            metric = 0
+
+        self.checkpoint.set(self.task)
         return continue_, metric
 
     def __del__(self):
@@ -79,7 +85,7 @@ class Search(Registrable):
     """
 
     def __init__(self,
-                 schema: Schema,
+                 task: Schema,
                  algorithm: Optional[Algorithm] = None,
                  cpus_per_trial: int = 1,
                  gpus_per_trial: int = 0,
@@ -88,7 +94,7 @@ class Search(Registrable):
 
         Parameters
         ----------
-        schema : Schema[Task]
+        task : Schema[Task]
             A schema of the callable or Task to search
         algorithm : Algorithm
             The hyperparameter search algorithm
@@ -107,7 +113,7 @@ class Search(Registrable):
         self.n_gpus = gpus_per_trial
         self.refresh_waitime = refresh_waitime
 
-        self.schema = schema
+        self.task = task
         self.algorithm = GridSearch() if algorithm is None else algorithm
         self.trials: Dict[str, Trial] = dict()
 
@@ -115,15 +121,13 @@ class Search(Registrable):
     def yaml_load_type(cls) -> YAMLLoadType:
         return YAMLLoadType.KWARGS
 
-    def run(self) -> Dict[str, Trial]:
+    def run(self) -> bool:
         """Execute the search.
 
         Returns
         -------
-        Dict[str, Dict[str, Any]]
-            A dictionary pointing from trial name to sub-dicionary
-            containing the keys 'trial' and 'checkpoint' pointing to
-            a Trial and a Checkpoint object respecitvely.
+        bool
+            True until execution is over. Always ``False``.
 
         """
         # Set up envrionment
@@ -137,7 +141,7 @@ class Search(Registrable):
             elif self.n_gpus > 0 and self.n_gpus > total_resources['GPU']:
                 raise ValueError("# of CPUs required per trial is larger than the total available.")
 
-        _space = self.schema.extract_search_space().items()
+        _space = self.task.extract_search_space().items()
         self.algorithm.initialize(dict((path_to_string(k), v) for k, v in _space))  # type: ignore
         running: List[int] = []
         finished: List[int] = []
@@ -163,7 +167,8 @@ class Search(Registrable):
                     # Handle non searchables
                     returned = ray.get(object_id)
                     if returned == -1:
-                        return dict()
+                        self.trials = dict()
+                        return False
                     # Check searchable output
                     _continue, metric = returned
                     trial.set_metric(metric)
@@ -204,7 +209,7 @@ class Search(Registrable):
                     continue
                 elif trial.is_created():
                     space = dict((string_to_path(k), v) for k, v in trial.parameters.items())
-                    schema_copy = copy.deepcopy(self.schema)
+                    schema_copy = copy.deepcopy(self.task)
                     schema_copy.set_from_search_space(space)
 
                     # Update state
@@ -236,4 +241,6 @@ class Search(Registrable):
                     running.append(object_id)
                     trial.set_running()
 
-        return self.trials
+        # This is a single step Task
+        _continue = False
+        return _continue

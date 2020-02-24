@@ -4,7 +4,7 @@ import subprocess
 import socket
 
 import flambe
-from flambe.search.protocol import Searchable
+from flambe.runner.protocol import Runnable
 
 
 # TODO: switch to flambe.save
@@ -33,13 +33,13 @@ class Checkpoint(object):
         self.checkpoint_path = os.path.join(self.path, 'checkpoint.pt')
         self.remote = f"{user}@{host}:{self.checkpoint_path}" if host else None
 
-    def get(self) -> Searchable:
+    def get(self) -> Runnable:
         """Retrieve the object from a checkpoint.
 
         Returns
         -------
-        Searchable
-            The restored Searchable object.
+        Runnable
+            The restored task object.
 
         """
         if os.path.exists(self.checkpoint_path):
@@ -55,18 +55,18 @@ class Checkpoint(object):
                 raise ValueError(f"Checkpoint {self.checkpoint_path} couldn't be found.")
         return searchable
 
-    def set(self, searchable: Searchable):
+    def set(self, task: Runnable):
         """Retrieve the object from a checkpoint.
 
         Parameters
         ----------
-        Searchable
-            The Searchable object to save.
+        task: Runnable
+            The task object to save.
 
         """
         if not os.path.exists(self.path):
             os.makedirs(self.path)
-        flambe.save(searchable, self.checkpoint_path)
+        flambe.save(task, self.checkpoint_path)
         if self.remote:
             current_ip = socket.gethostbyname(socket.gethostname())
             if str(current_ip) != self.host:

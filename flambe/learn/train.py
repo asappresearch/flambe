@@ -8,14 +8,13 @@ from torch.optim.optimizer import Optimizer
 from torch.optim.lr_scheduler import _LRScheduler, ReduceLROnPlateau
 from torch.nn.utils.clip_grad import clip_grad_norm_, clip_grad_value_
 
-import flambe
 from flambe.dataset import Dataset
 from flambe.compile import Schema, State, Component, Link
 from flambe.learn.utils import select_device
 from flambe.nn import Module  # type: ignore[attr-defined]
 from flambe.sampler import Sampler
 from flambe.metric import Metric
-from flambe.logging import log, TrialLogging
+from flambe.logging import log
 
 
 class Trainer(Component):
@@ -410,8 +409,8 @@ class Trainer(Component):
             log(f'{tb_prefix}Validation/{metric}',
                 metric.finalize(state), self._step)  # type: ignore
 
-    def step(self) -> bool:
-        """Evaluate and then train until the next checkpoint
+    def run(self) -> bool:
+        """Evaluate and then train until the next checkpoint.
 
         Returns
         ------
@@ -433,7 +432,7 @@ class Trainer(Component):
 
         return continue_
 
-    def metric(self) -> Optional[float]:
+    def metric(self) -> float:
         """Override this method to enable scheduling.
 
         Returns
@@ -443,14 +442,6 @@ class Trainer(Component):
 
         """
         return self._best_metric
-
-    def run(self) -> None:
-        """Execute the trainer as a Runnable"""
-        env = flambe.get_env()
-        with TrialLogging(env.output_path, verbose=env.debug):
-            continue_ = True
-            while continue_:
-                continue_ = self.step()
 
     def _state(self,
                state_dict: State,

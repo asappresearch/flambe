@@ -4,10 +4,11 @@ import os
 import ray
 
 import flambe
+from flambe.runner.protocol import Runnable
 from flambe.compile import Schema, Registrable, YAMLLoadType
-from flambe.search import Algorithm, Searchable
-from flambe.experiment.pipeline import Pipeline
-from flambe.experiment.stage import Stage
+from flambe.search import Algorithm
+from flambe.pipeline.schema import MultiSchema
+from flambe.pipeline.stage import Stage
 
 
 @ray.remote
@@ -35,7 +36,7 @@ def get_stage(name,
     return stage.run()
 
 
-class Experiment(Registrable):
+class Pipeline(Registrable):
 
     def __init__(self,
                  name: Optional[str] = None,
@@ -44,16 +45,14 @@ class Experiment(Registrable):
                  reduce: Optional[Dict[str, int]] = None,
                  cpus_per_trial: Dict[str, int] = None,
                  gpus_per_trial: Dict[str, int] = None) -> None:
-        """Iniatilize an experiment.
+        """Iniatilize a Pipeline.
 
         Parameters
         ----------
         name : str
-            The name of the experiment to run.
-        save_path : Optional[str], optional
-            A save path for the experiment.
+            The name of the pipeline to run.
         pipeline : Optional[Dict[str, Schema]], optional
-            A set of Searchable schemas, possibly including links.
+            A set of Comparable schemas, possibly including links.
         algorithm : Optional[Dict[str, Algorithm]], optional
             A set of hyperparameter search algorithms, one for each
             defined stage. Defaults to grid searching for all.
@@ -82,19 +81,26 @@ class Experiment(Registrable):
         """Provide the YAML loading rule."""
         return YAMLLoadType.KWARGS
 
-    def run(self):
-        """Execute the Experiment."""
+    def run(self) -> bool:
+        """Execute the Pipeline.
+
+        Returns
+        -------
+        bool
+            True until execution is over. Always ``False``.
+
+        """
         # Set up envrionment
         env = flambe.get_env()
         flambe.utils.ray.initialize(env)
 
         stages: Dict[str, int] = {}
-        pipeline = Pipeline(self.pipeline)
+        pipeline = MultiSchema(self.pipeline)
         # Construct and execute stages as a DAG
         for name, schema in pipeline.arguments.items():
-            if isinstance(schema.callable_, type) and not issubclass(schema.callable_, Searchable):
+            if isinstance(schema.callable_, type) and not issubclass(schema.callable_, Runnable):
                 # If we know that the schema will
-                # produce a non searchable, don't run it
+                # produce a task, don't run it
                 continue
             # Get dependencies
             sub_pipeline = pipeline.sub_pipeline(name)
@@ -118,3 +124,7 @@ class Experiment(Registrable):
         # Wait until the experiment is done
         # TODO progress tracking
         ray.get(list(stages.values()))
+
+        # This is a single step Task
+        _continue = False
+        return _continue

@@ -19,9 +19,9 @@ def module_equals(model1, model2):
 
 def test_exporter_builder(top_level):
     with tmpdir() as d, tmpdir() as d2, tmpfile(mode="w", suffix=".yaml") as f, tmpfile(mode="w", suffix=".yaml") as f2:
-        # First run an experiment
+        # First run a pipeline
         exp = """
-!Experiment
+!Pipeline
 
 pipeline:
   dataset: !TabularDataset.from_path
@@ -64,7 +64,7 @@ extensions:
   flambe_inference: {top_level}/tests/data/dummy_extensions/inference/
 ---
 
-!Builder
+!Exporter
 
 obj: !flambe_inference.DummyInferenceEngine
   model: !torch.load

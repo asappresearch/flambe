@@ -29,7 +29,7 @@ Flambé provides the following set of ``Runnables``, but you can easily create y
 +-------------------+---------------------------------------------------------------------------------------------------------+
 | :ref:`Search`     | Run a hyperparameter search over python objects and scriptsy                                            |
 +-------------------+---------------------------------------------------------------------------------------------------------+ 
-| :ref:`Experiment` | | Build a computational DAG, with the possibility of running a hyperparameter search                    |
+| :ref:`Pipeline` | | Build a computational DAG, with the possibility of running a hyperparameter search                    |
 |                   | | at each node,and reduce to the best variants                                                          |
 +-------------------+---------------------------------------------------------------------------------------------------------+
 

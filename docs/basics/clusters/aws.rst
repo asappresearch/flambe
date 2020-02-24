@@ -259,7 +259,7 @@ In order to create a SG, go to **Services -> EC2**. Click **Security Groups** on
     public IP or VPN, you can make more secure rules.
 
 .. important::
-    If this cluster will be running remote :class:`~flambe.experiment.Experiment`, you may also want to open HTTP ports
+    If this cluster will be running remote :class:`~flambe.pipeline.Pipeline`, you may also want to open HTTP ports
     ``49556`` and ``49558`` for the Report Site and Tensorboard.
 
 Creating a ``AWSCluster``
@@ -352,7 +352,7 @@ Then flambé will automatically detect an existing cluster and it will reuse it:
     :align: center
 
 .. tip::
-    This is particularly useful when running :class:`~flambe.experiment.Experiment` objects in the cluster.
+    This is particularly useful when running :class:`~flambe.pipeline.Pipeline` objects in the cluster.
     While you cannot run multiple experiments in the same cluster simultaneously, you can run them sequentially
     without having to set up the cluster again like the following:
 

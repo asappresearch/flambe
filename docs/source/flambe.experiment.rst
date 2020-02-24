@@ -1,7 +1,7 @@
-flambe.experiment package
+flambe.pipeline package
 =========================
 
-.. automodule:: flambe.experiment
+.. automodule:: flambe.pipeline
    :members:
    :undoc-members:
    :show-inheritance:
@@ -11,6 +11,6 @@ Submodules
 
 .. toctree::
 
-   flambe.experiment.experiment
-   flambe.experiment.pipeline
-   flambe.experiment.stage
+   flambe.pipeline.experiment
+   flambe.pipeline.pipeline
+   flambe.pipeline.stage

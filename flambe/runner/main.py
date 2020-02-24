@@ -104,14 +104,16 @@ def up(name, yes, create, config, min_workers, max_workers):
               help='Run without confirmation.')
 @click.option('--workers-only', is_flag=True, default=False,
               help='Only teardown the worker nodes.')
-@click.option('--terminate', is_flag=True, default=False,
-              help='Terminate the instances instead of stopping them (AWS only).')
 @click.option('--destroy', is_flag=True, default=False,
               help='Destroy this cluster permanently.')
 def down(name, yes, workers_only, terminate, destroy):
     """Take down the cluster, optionally destroy it permanently."""
     cluster = load_cluster_config_helper(name)
     cluster.down(yes, workers_only, terminate)
+
+    if destroy:
+        cluster_path = os.path.join(FLAMBE_CLUSTER_DEFAULT_FOLDER, f"{name}.yaml")
+        os.remove(cluster_path)
 
 
 # ----------------- flambe rsync up ------------------ #
@@ -150,11 +152,9 @@ def list_cmd(cluster, all_clusters):
 
     if cluster is not None:
         cluster_obj = load_cluster_config_helper(cluster)
-        print(cl.BL(f"\nCluster: {cluster}\n"))
         cluster_obj.list()
     elif not all_clusters:
         cluster_obj, cluster = load_cluster_config_helper(return_name=True)
-        print(cl.BL(f"\nCluster: {cluster}\n"))
         cluster_obj.list()
     else:
         files = os.listdir(FLAMBE_CLUSTER_DEFAULT_FOLDER)
@@ -163,10 +163,9 @@ def list_cmd(cluster, all_clusters):
             print("No clusters to inspect.")
         else:
             for cluster in clusters:
-                print(cl.BL(f"\nCluster: {cluster}\n"))
                 cluster_obj = load_cluster_config_helper(cluster)
                 cluster_obj.list()
-                print("")
+            print("\n", "-" * 50, "\n")
 
 
 # ----------------- flambe exec ------------------ #
@@ -236,7 +235,7 @@ def clean(name, cluster):
                     when using this flag as it could have undesired effects.')
 @click.option('-d', '--debug', is_flag=True, default=False,
               help='Enable debug mode. Each runnable specifies the debug behavior. \
-                    For example for an Experiment, Ray will run in a single thread \
+                    For example for an Pipeline, Ray will run in a single thread \
                     allowing user breakpoints')
 @click.option('-v', '--verbose', is_flag=True, default=False,
               help='Verbose console output')
@@ -289,7 +288,7 @@ def site(name, cluster, port):
                     when using this flag as it could have undesired effects.')
 @click.option('-d', '--debug', is_flag=True,
               help='Enable debug mode. Each runnable specifies the debug behavior. \
-                    For example for an Experiment, Ray will run in a single thread \
+                    For example for an Pipeline, Ray will run in a single thread \
                     allowing user breakpoints')
 def run(config, output, force, debug):
     """Execute a runnable config."""
@@ -356,7 +355,9 @@ def run(config, output, force, debug):
         )
 
         runnable = load_runnable_from_config(config)
-        runnable.run()
+        _continue = True
+        while _continue:
+            _continue = runnable.run()
         print(cl.GR("------------------- Done -------------------"))
     except KeyboardInterrupt:
         print(cl.RE("---- Exiting early (Keyboard Interrupt) ----"))

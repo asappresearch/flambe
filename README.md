@@ -14,7 +14,7 @@ Flambé is a Python framework built to accelerate the development of machine lea
 With Flambé you can:
 
 * **Run hyperparameter searches** over arbitrary Python objects or scripts.
-* **Constuct DAGs**, searching over hyperparameters and reducing to the
+* **Constuct DAGs**, by searching over hyperparameters and reducing to the
 best variants at any of the nodes.
 * Distribute tasks **remotely** and **in parallel** over a cluster, with full AWS,
 GCP, and Kubernetes integrations.
@@ -22,6 +22,8 @@ GCP, and Kubernetes integrations.
 * Automate the **boilerplate code** in training models with [PyTorch.](https://pytorch.org)
 
 ## Installation
+
+> Note: Flambé currently only supports Python 3.7.x
 
 **From** ``PIP``:
 
@@ -46,7 +48,7 @@ Flambé provides the following set of ``Runnables``, but you can easily create y
 | [Script](#script) | An entry-point for users who wish to keep their code unchanged, but leverage Flambé's cluster management and distributed hyperparameter search tools.|
 | [Trainer](#trainer) | Train / Evaluate a single model on a given task. Offers an interface to automate the boilerplate code usually found in PyTorch scripts, such as multi-gpu handling, fp16 training, and training loops. |
 | [Search](#search) | Run a hyperparameter search over python objects and scripts. |
-| [Experiment](#experiment) | Build a computational DAG, with the possibility of running a hyperparameter search at each node, and reduce to the best variants |
+| [Pipeline](#experiment) | Build a computational DAG, with the possibility of running a hyperparameter search at each node, and reduce to the best variants |
 
 ``Runnables`` can be used in regular python scripts, or executed through YAML configurations with the command:
 
@@ -63,8 +65,6 @@ flambe submit [CONFIG] --cluster ~/.flambe/cluster.yaml
 In the following examples, each code snippet is shown alongside its corresponding YAML configuration.
 
 ### Script
-
-For more information see: [here](http://flambe.ai/).
 
 <table>
 <tr style="font-weight:bold;">
@@ -150,7 +150,6 @@ To run a hyperparameter search over a trainer, see [here](#search).
 ### Search
 
 For more information see: [here](http://flambe.ai/).
-
 Run a hyperparameter search over a Python script:
 
 <table>
@@ -243,10 +242,9 @@ Run a hyperpameter search over a ``Trainer``:
 
 **Note**: the method ``schema`` enables passing distributions as input arguments, which is automatic in YAML.  
 
-### Experiment
+### Pipeline
 
 For more information see: [here](http://flambe.ai/).
-
 Construct a computational graph with different training stages:
 
 <table>
@@ -283,7 +281,7 @@ Construct a computational graph with different training stages:
     pipeline = dict(pretrain=pretrain, finetune=finetune)
     algorithm = dict(pretrain=algorithm1, finetune=algorithm2)
     
-    exp = Experiment(pipeline, algorithm)
+    exp = Pipeline(pipeline, algorithm)
     exp.run()
  
 </pre>
@@ -291,7 +289,7 @@ Construct a computational graph with different training stages:
 <td valign="top">
 <pre lang="yaml">
 
-    !Experiment
+    !Pipeline
   
     pipeline:
      pretraining: !Trainer
@@ -329,7 +327,7 @@ You can cite us with:
 
 ```bash
 @inproceedings{wohlwend-etal-2019-flambe,
-    title = "{F}lamb{\'e}: A Customizable Framework for Machine Learning Experiments",
+    title = "{F}lamb{\'e}: A Customizable Framework for Machine Learning Pipelines",
     author = "Wohlwend, Jeremy  and
       Matthews, Nicholas  and
       Itzcovich, Ivan",
