@@ -40,6 +40,8 @@ pip install ./flambe
 
 ## Getting started
 
+### Create a task
+
 Create a Flambé ``Task``, by writting two simple methods:
 
 ```python
@@ -108,9 +110,9 @@ For more information on remote execution, and how to create a cluster see: [here
 
 ### Run a hyperparameter search
 
-Flambé provides a ``Search`` task to run distributed hyperparameter searches over tasks.
+Use the built-in ``Search`` to run distributed hyperparameter searches over other Flambé tasks.
 
-In the example below we combine the built-ins ``Script`` and ``Search`` tasks to run a search on a python script:
+For instance, you can run a hyperparameter search over any python script with a few lines:
 
 <table>
 <tr style="font-weight:bold;">
@@ -134,7 +136,9 @@ In the example below we combine the built-ins ``Script`` and ``Search`` tasks to
 </td>
 </table>
 
-### Build a pipeline.
+> The ``Script`` task can be used over any python script that accepts command line arguments.
+
+### Run a task pipeline.
 
 A Flambé pipeline may contain any of the following:
 
