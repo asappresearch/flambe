@@ -274,7 +274,7 @@ class BaseSampler(Sampler):
         if len(data) == 0:
             raise ValueError("No examples provided")
 
-        if self.downsample or self.downsample_max_samples:
+        if self.downsample is not None or self.downsample_max_samples is not None:
             if self.downsample is not None and not (0 < self.downsample <= 1):
                 raise ValueError("Downsample value should be in the range (0, 1]")
             if self.downsample_max_samples >= len(data):
