@@ -188,7 +188,21 @@ class SchematicLoader(CustomYAMLLoad):
         from flambe.compile.schema import Schema
         tag = raw_obj.tag.value
         if isinstance(raw_obj, dict):
-            return Schema(target_callable, kwargs=raw_obj, tag=tag)
+            args = []
+            kwargs = {}
+            kwargs_started = False
+            for k, v in raw_obj.items():
+                if isinstance(k, int):
+                    if k != len(args) or kwargs_started:
+                        raise TypeError('Schematic positional args should start with 0 and '
+                                        'be continuous')
+                    args.append(v)
+                elif isinstance(k, str):
+                    kwargs_started = True
+                    kwargs[k] = v
+            args = args if len(args) > 0 else None
+            kwargs = kwargs if len(kwargs) > 0 else None
+            return Schema(target_callable, args=args, kwargs=kwargs, tag=tag)
         if isinstance(raw_obj, list):
             return Schema(target_callable, args=raw_obj, tag=tag)
         if _is_tagged_null(raw_obj):
@@ -200,7 +214,11 @@ class SchematicLoader(CustomYAMLLoad):
     @classmethod
     def to_yaml(cls: Type, instance: Any) -> Any:
         kwargs = instance.arguments
-        y = ruamel.yaml.comments.CommentedMap(kwargs)
+        if all(isinstance(k, int) for k, v in kwargs.items()):
+            args = list(kwargs.values())
+            y = ruamel.yaml.comments.CommentedSeq(args)
+        else:
+            y = ruamel.yaml.comments.CommentedMap(kwargs)
         y.yaml_set_tag(instance.created_with_tag)
         return y
 
@@ -401,7 +419,9 @@ def convert_objects_to_tagged(obj: Any) -> Any:
         y_out = list(y)
         for i, e in enumerate(y):
             y_out[i] = convert_objects_to_tagged(e)
-        y = type(y)(y_out)
+        new_y = type(y)(y_out)
+        y.copy_attributes(new_y)
+        y = new_y
     return y
 
 
