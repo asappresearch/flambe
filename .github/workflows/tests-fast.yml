@@ -1,6 +1,6 @@
 name: Run fast tests
 
-on: [push]
+on: [push, pull_request]
 
 jobs:
   unit:
@@ -37,7 +37,7 @@ jobs:
       with:
         name: artifacts
         path: test_results
-    
+
   end2end:
     runs-on: ubuntu-latest
     strategy:

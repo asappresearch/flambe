@@ -1,12 +1,12 @@
-name: Run slow tests 
+name: Run slow tests
 
 on:
   schedule:
     - cron: "0 0 * * *"
   push:
-    branches:    
+    branches:
       - master
- 
+
 jobs:
   examples:
     timeout-minutes: 60
