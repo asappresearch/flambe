@@ -48,7 +48,7 @@ class Perplexity(Metric):
         pred, target = args
         if not state:
             state['historic_score'] = []
-        state['historic_score'].append(self.entropy(pred, target))
+        state['historic_score'].append(self.entropy(pred, target).cpu().detach())
         return state
 
     def finalize(self, state: Dict) -> float:
