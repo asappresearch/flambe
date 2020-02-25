@@ -125,11 +125,11 @@ class AUC(Metric):
         return torch.tensor(area / self.max_fpr).float()
 
 
-class NAryAUC(AUC):
-    """N-Ary AUC for k-way (and not only binary) classification"""
+class MultiClassAUC(AUC):
+    """N-Ary (Multiclass) AUC for k-way classification"""
 
     def compute(self, pred: torch.Tensor, target: torch.Tensor) -> torch.Tensor:
-        """Compute AUC at the given max false positive rate.
+        """Compute multiclass AUC at the given max false positive rate.
 
         Parameters
         ----------
@@ -139,7 +139,7 @@ class NAryAUC(AUC):
             The binary targets of shape:
              - numsamples. In this case the elements index into the
                different classes
-             - numsamplex x numclasses. This implementation only
+             - numsamples x numclasses. This implementation only
                considers the indices of the max values as positive
                labels
 
