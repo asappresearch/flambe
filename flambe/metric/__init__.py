@@ -13,4 +13,4 @@ __all__ = ['Metric',
            'Accuracy', 'AUC', 'Perplexity', 'BPC',
            'MultiLabelCrossEntropy', 'MultiLabelNLLLoss',
            'BinaryPrecision', 'BinaryRecall', 'BinaryAccuracy', 'F1',
-           'Recall',]
+           'Recall']

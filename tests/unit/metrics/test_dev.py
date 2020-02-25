@@ -3,7 +3,6 @@ import torch
 import sklearn.metrics
 import numpy as np
 
-import flambe
 from flambe.metric import Accuracy, AUC, Perplexity, BPC, F1
 from flambe.metric import BinaryRecall, BinaryPrecision, BinaryAccuracy
 from flambe.metric import Recall
@@ -322,6 +321,7 @@ def test_global_aggregate():
         BinaryPrecision: (torch.rand(size=(100, )), torch.randint(0, 2, size=(100, ))),
         BinaryRecall: (torch.rand(size=(100, )), torch.randint(0, 2, size=(100, ))),
         F1: (torch.rand(size=(100, )), torch.randint(0, 2, size=(100, ))),
+        Recall: (torch.randn((100, 30)), torch.randint(0, 30, (100, ))),
         Perplexity: (torch.randn((100, 30)), torch.randint(0, 30, (100, ))),
     }
 
