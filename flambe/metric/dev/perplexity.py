@@ -44,11 +44,15 @@ class Perplexity(Metric):
         -------
         dict
             the state dict
+
         """
         pred, target = args
         if not state:
-            state['historic_score'] = []
-        state['historic_score'].append(self.entropy(pred, target).cpu().detach())
+            state['accumulated_score'] = 0.
+            state['sample_count'] = 0
+        logits = self.entropy(pred, target).cpu().detach()
+        state['accumulated_score'] += logits.sum()
+        state['sample_count'] += logits.size(0)
         return state
 
     def finalize(self, state: Dict) -> float:
@@ -63,9 +67,9 @@ class Perplexity(Metric):
         -------
         float
             The final score.
+
         """
-        if not state:
+        if not state or state['sample_count'] == 0:
             # call on empty state
             return np.NaN
-        entropy = torch.cat(state['historic_score'], dim=0)
-        return torch.exp(entropy.mean()).item()
+        return torch.exp(state['accumulated_score'] / state['sample_count']).item()
