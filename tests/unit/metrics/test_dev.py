@@ -3,6 +3,7 @@ import torch
 import sklearn.metrics
 import numpy as np
 
+import flambe
 from flambe.metric import Accuracy, AUC, Perplexity, BPC, F1
 from flambe.metric import BinaryRecall, BinaryPrecision, BinaryAccuracy
 from flambe.metric import Recall
@@ -152,7 +153,19 @@ def test_aggregation_auc():
     y_true = torch.randint(0, 2, [100])
     for yp, yt in zip(torch.split(y_pred, 10), torch.split(y_true, 10)):
         metric.aggregate(metric_state, yp, yt)
-    assert metric.finalize(metric_state) == sklearn.metrics.roc_auc_score(y_true, y_pred)
+    assert metric.finalize(metric_state) == approx(sklearn.metrics.roc_auc_score(y_true, y_pred), NUMERIC_PRECISION)
+
+
+def test_aggregation_perplexity():
+    # for AUC (different aggregation functionality)
+    metric_state = {}
+    metric = Perplexity()
+    y_pred = torch.randn(size=(100, 50))
+    y_true = torch.randint(0, 50, (100, ))
+    for yp, yt in zip(torch.split(y_pred, 10), torch.split(y_true, 10)):
+        metric.aggregate(metric_state, yp, yt)
+    gt_value = torch.exp(torch.nn.CrossEntropyLoss()(y_pred, y_true).mean()).item()
+    assert metric.finalize(metric_state) == approx(gt_value, NUMERIC_PRECISION)
 
 
 def test_perplexity():
@@ -298,3 +311,24 @@ def test_multiple_dims():
 def test_f1(true_classes, metric, result):
     y_pred = torch.tensor([0.8, 0.1, 0.7, 0.1])
     metric_test_case(y_pred, true_classes, metric, result)
+
+
+def test_global_aggregate():
+    metric_data = {
+        AUC: (torch.randint(0, 10000, (100, )), torch.randint(0, 2, (100, ))),
+        Accuracy: (torch.randn((100, 30)), torch.randn((100, 30))),
+        BPC: (torch.randn((100, 30)), torch.randint(0, 30, (100, ))),
+        BinaryAccuracy: (torch.rand(size=(100, )), torch.randint(0, 2, size=(100, ))),
+        BinaryPrecision: (torch.rand(size=(100, )), torch.randint(0, 2, size=(100, ))),
+        BinaryRecall: (torch.rand(size=(100, )), torch.randint(0, 2, size=(100, ))),
+        F1: (torch.rand(size=(100, )), torch.randint(0, 2, size=(100, ))),
+        Perplexity: (torch.randn((100, 30)), torch.randint(0, 30, (100, ))),
+    }
+
+    for metric_class, (y_pred, y_true) in metric_data.items():
+        metric = metric_class()
+        metric_state = {}
+        for yp, yt in zip(torch.split(y_pred, 10), torch.split(y_true, 10)):
+            metric.aggregate(metric_state, yp, yt)
+        assert metric.finalize(metric_state) == approx(metric(y_pred, y_true).item()), \
+            f'Metric {metric} failed aggregation.'
