@@ -150,6 +150,12 @@ class StructuredSelfAttentivePooling(Module):
             the number of attn heads
         attention_units: Iterable[int]
             the list of hidden dimensions of the MLP computing the attn
+        output_activation: Optional[torch.nn.Module]
+            The output activation to the attention weights.
+            Defaults to nn.Softmax, in accordance with the paper.
+        hidden_activation: Optional[torch.nn.Module]
+            The hidden activation to the attention weight computation.
+            Defaults to nn.Tanh, in accordance with the paper.
         input_dropout: float
             dropout applied to the data argument of the forward method.
         attention_dropout: float
