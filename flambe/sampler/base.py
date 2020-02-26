@@ -244,6 +244,8 @@ class BaseSampler(Sampler):
         self.drop_last = drop_last
         self.n_workers = n_workers
         self.pin_memory = pin_memory
+        if self.downsample is not None and not (0 < self.downsample <= 1):
+            raise ValueError("Downsample value should be in the range (0, 1]")
         if downsample is not None and downsample_max_samples is not None:
             raise ValueError('Please either specify `downsample` or `downsample_max_samples`, '
                              'but not both.')
@@ -275,8 +277,6 @@ class BaseSampler(Sampler):
             raise ValueError("No examples provided")
 
         if self.downsample is not None or self.downsample_max_samples is not None:
-            if self.downsample is not None and not (0 < self.downsample <= 1):
-                raise ValueError("Downsample value should be in the range (0, 1]")
             if self.downsample_max_samples is not None and self.downsample_max_samples >= len(data):
                 warnings.warn('`downsample_max_samples` was specified, but '
                               'the number of specified samples exceeds the '
@@ -288,7 +288,7 @@ class BaseSampler(Sampler):
             if self.downsample:
                 max_num_samples = int(self.downsample * len(data))
             else:
-                max_num_samples = self.downsample_max_samples
+                max_num_samples = self.downsample_max_samples  # mypy: ignore
             # creating random indices and downsampling
             random_indices = downsample_generator.permutation(len(data))
             data = [data[i] for i in random_indices[:max_num_samples]]
