@@ -244,7 +244,7 @@ class BaseSampler(Sampler):
         self.drop_last = drop_last
         self.n_workers = n_workers
         self.pin_memory = pin_memory
-        if self.downsample is not None and not (0 < self.downsample <= 1):
+        if downsample is not None and not (0 < self.downsample <= 1):
             raise ValueError("Downsample value should be in the range (0, 1]")
         if downsample is not None and downsample_max_samples is not None:
             raise ValueError('Please either specify `downsample` or `downsample_max_samples`, '
