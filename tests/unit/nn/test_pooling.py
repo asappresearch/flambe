@@ -1,7 +1,9 @@
 import torch
 
-from flambe.nn import AvgPooling, SumPooling
+from flambe.nn import AvgPooling, SumPooling, StructuredSelfAttentivePooling
 from torch import allclose
+
+from pytest import approx
 
 
 def test_avg_pooling():
@@ -16,6 +18,32 @@ def test_sum_pooling():
     summation = layer.forward(build_tensor())
     assert allclose(summation[0], torch.tensor([10, 14, 18], dtype=torch.float32))
     assert allclose(summation[1], torch.tensor([0, 0, 0], dtype=torch.float32))
+
+
+def test_structured_self_attentive_pooling_shapes():
+    dim = 300
+    layer = StructuredSelfAttentivePooling(input_size=dim)
+    input = torch.randn(100, 50, dim)
+    output = layer(input)
+    assert list(output.shape) == [100, dim]
+
+
+def test_structured_self_attentive_pooling_zeroes():
+    dim = 300
+    layer = StructuredSelfAttentivePooling(input_size=dim)
+    input = torch.zeros(100, 50, dim)
+    output = layer(input)
+    assert list(output.shape) == [100, dim]
+    assert output.min().item() == output.max().item() == approx(0.)
+
+
+def test_structured_self_attentive_pooling_ones():
+    dim = 300
+    layer = StructuredSelfAttentivePooling(input_size=dim)
+    input = torch.ones(100, 50, dim)
+    output = layer(input)
+    assert list(output.shape) == [100, dim]
+    assert output.min().item() == output.max().item() == approx(1.)
 
 
 def build_tensor():

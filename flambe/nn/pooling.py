@@ -115,12 +115,12 @@ class AvgPooling(Module):
         return data / value_count
 
 
-class SelfAttentionPooling(Module):
+class StructuredSelfAttentivePooling(Module):
     """Self attention pooling."""
     def __init__(self,
-                 input_dim: int,
+                 input_size: int,
                  attention_heads: int = 16,
-                 attention_units: Optional[Sequence[int]] = None,
+                 attention_units: Sequence[int] = (300, ),
                  output_activation: Optional[torch.nn.Module] = None,
                  hidden_activation: Optional[torch.nn.Module] = None,
                  input_dropout: float = 0.,
@@ -128,9 +128,23 @@ class SelfAttentionPooling(Module):
                  ):
         """Initialize a self attention pooling layer
 
+        A generalized implementation of:
+        `A Structured Self-attentive Sentence Embedding`
+        https://arxiv.org/pdf/1703.03130.pdf
+
+        cite:
+            @article{lin2017structured,
+                title={A structured self-attentive sentence embedding},
+                author={Lin, Zhouhan and Feng, Minwei and
+                Santos, Cicero Nogueira dos and Yu, Mo and
+                Xiang, Bing and Zhou, Bowen and Bengio, Yoshua},
+            journal={arXiv preprint arXiv:1703.03130},
+            year={2017}
+            }
+
         Parameters
         ----------
-        input_dim : int
+        input_size : int
             The input data dim
         attention_heads: int
             the number of attn heads
@@ -148,7 +162,7 @@ class SelfAttentionPooling(Module):
         self.in_drop = nn.Dropout(input_dropout) if input_dropout > 0. else nn.Identity()
         # creating the MLP
         # creating in, hidden and out dimensions
-        dimensions = [input_dim, *attention_units, attention_heads]
+        dimensions = [input_size, *attention_units, attention_heads]
         layers = []
         # iterating over hidden layers
         for l in range(len(dimensions) - 2):
