@@ -1,6 +1,8 @@
 from __future__ import annotations
 import inspect
+import itertools
 from reprlib import recursive_repr
+from collections import ChainMap
 from typing import MutableMapping, Any, Callable, Optional, Dict, Sequence
 from typing import Tuple, List, Iterator, Union
 
@@ -287,6 +289,143 @@ class CopyLink(Link, tag_override='copy'):
         return copy.deepcopy(obj)
 
 
+VARIABLE_ARG_TYPES = (inspect.Parameter.VAR_POSITIONAL, inspect.Parameter.VAR_KEYWORD)
+
+
+class IndexableBoundArguments:
+
+    def __init__(self, ba):
+        self._ba = ba
+        self.arguments = ba.arguments
+        self.signature = ba.signature
+
+    @property
+    def args(self):
+        return self._ba.args
+
+    @property
+    def kwargs(self):
+        return self._ba.kwargs
+
+    def _get_varkwargs(self):
+        params = self.signature.parameters
+        kwargs = [(k, v) for k, v in self.arguments.items() if params[k].kind == inspect.Parameter.VAR_KEYWORD]
+        if len(kwargs) > 0:
+            assert len(kwargs) == 1
+            return kwargs[0]  # tuple with name of kwargs and the dict
+        return None, None
+
+    def __getitem__(self, key):
+        if isinstance(key, int):
+            return list(itertools.chain(self.args, self.kwargs.values()))[key]
+        else:
+            result = ChainMap(self.kwargs, self.arguments)[key]
+            if result not in self.args and result not in self.kwargs.values():
+                # Then result is actually a variable arguments group
+                raise KeyError(f'Key {key} not in {self}')
+            return result
+
+    def _find_by_key(self, key):
+        params = self.signature.parameters
+        if isinstance(key, int):
+            arg_num = 0
+            for k, v in self.arguments.items():
+                if params[k].kind == inspect.Parameter.VAR_POSITIONAL:
+                    idx = key - arg_num
+                    if idx >= len(v):
+                        arg_num += len(v)
+                        continue
+                    else:
+                        return (self.arguments, k), idx
+                elif params[k].kind == inspect.Parameter.VAR_KEYWORD:
+                    keys = list(v.keys())
+                    idx = key - arg_num
+                    if idx >= len(keys):
+                        arg_num += len(v)
+                        continue
+                    else:
+                        return v, keys[idx]
+                else:
+                    if key == arg_num:
+                        return self.arguments, k
+                    arg_num += 1
+        elif isinstance(key, str):
+            kwargs_name, kwargs = self._get_varkwargs()
+            if key in self.arguments and params[key].kind not in VARIABLE_ARG_TYPES:
+                return self.arguments, key
+            elif kwargs is not None:
+                return self.arguments[kwargs_name], key
+        else:
+            raise TypeError(f'Key type {type(key)} not supported')
+        raise KeyError(f'{key}')
+
+    def __contains__(self, key):
+        try:
+            _find_by_key(key)
+            return True
+        except KeyError:
+            return False
+
+    def __setitem__(self, key, new_value):
+        container, idx = self._find_by_key(key)
+        if isinstance(container, tuple):
+            a, b = container[0], list(container[0][container[1]])
+            b[idx] = new_value
+            a[container[1]] = tuple(b)
+        else:
+            container[idx] = new_value
+
+    def __delitem__(self, key):
+        container, idx = self._find_by_key(key)
+        if isinstance(container, tuple):
+            a, b = container[0], list(container[0][container[1]])
+            del b[idx]
+            a[container[1]] = tuple(b)
+        else:
+            del container[idx]
+
+    def _iter_items(self):
+        params = self.signature.parameters
+        arg_num = 0
+        for k, v in self.arguments.items():
+            if params[k].kind == inspect.Parameter.VAR_POSITIONAL:
+                for e in v:
+                    yield arg_num, None, e
+                    arg_num += 1
+            elif params[k].kind == inspect.Parameter.VAR_KEYWORD:
+                for nk, nv in v.items():
+                    yield arg_num, nk, nv
+                    arg_num += 1
+            else:
+                yield arg_num, k, v
+                arg_num += 1
+
+    def __iter__(self):
+        for arg_num, name, value in self._iter_items():
+            if name is None:
+                yield arg_num
+            else:
+                yield name
+
+    def __len__(self):
+        return len(list(self))
+
+    def named_items(self):
+        params = self.signature.parameters
+        var_pos = [k for k in self.arguments if params[k].kind == inspect.Parameter.VAR_POSITIONAL]
+        if len(var_pos) > 0 and len(self.arguments[var_pos[0]]) > 0:
+            # There are at least some variable positional arguments so use indexing by number for
+            #  ALL positional args
+            yield from enumerate(self.args)
+            yield from self.kwargs.items()
+        else:
+            for arg_num, name, value in self._iter_items():
+                if name is None:
+                    yield arg_num, value
+                else:
+                    yield name, value
+
+
 class Schema(MutableMapping[str, Any]):
 
     def __init__(self,
@@ -309,15 +448,10 @@ class Schema(MutableMapping[str, Any]):
         args = args if args is not None else []
         kwargs = kwargs if kwargs is not None else {}
         s = inspect.signature(self.factory_method)
-        self.bound_arguments = s.bind(*args, **kwargs)
+        bound_arguments = s.bind(*args, **kwargs)
         if self.apply_defaults:
-            self.bound_arguments.apply_defaults()
-        for k, v in self.bound_arguments.arguments.items():
-            if s.parameters[k].kind not in [inspect.Parameter.POSITIONAL_OR_KEYWORD,
-                                            inspect.Parameter.KEYWORD_ONLY,
-                                            inspect.Parameter.VAR_KEYWORD]:
-                raise TypeError(f'Argument {k} for {callable_} is of '  # type: ignore
-                                f'unsupported type {s.parameters[k].kind.name}')  # type: ignore
+            bound_arguments.apply_defaults()
+        self.bound_arguments = IndexableBoundArguments(bound_arguments)
         if tag is None:
             if isinstance(self.callable_, type):
                 tag = type(self.callable_).__name__
@@ -331,59 +465,24 @@ class Schema(MutableMapping[str, Any]):
     def yaml_load_type(cls) -> YAMLLoadType:
         return YAMLLoadType.SCHEMATIC
 
-    @staticmethod
-    def _iter_bound_args(bound_arguments):
-        params = bound_arguments.signature.parameters
-        for k, v in bound_arguments.arguments.items():
-            assert k != 'args'
-            if k == 'kwargs':
-                for nk, nv in v.items():
-                    yield nk, nv, inspect.Parameter.VAR_KEYWORD
-            else:
-                yield k, v, params[k].kind
-
     @property
     def arguments(self):
-        return {k: v for k, v, _ in Schema._iter_bound_args(self.bound_arguments)}
+        return {k: v for k, v in self.bound_arguments.named_items()}
 
-    def __setitem__(self, key: str, value: Any) -> None:
-        args = self.bound_arguments.arguments
-        if key in args:
-            args[key] = value
-        elif 'kwargs' in args and key in args['kwargs']:
-            args['kwargs'][key] = value
-        elif self.allow_new_args:
-            existing_kwargs = self.bound_arguments.kwargs
-            existing_kwargs[key] = value
-            self.bound_arguments = self.bound_arguments.signature.bind(
-                *self.bound_arguments.args,
-                **existing_kwargs
-            )
-        else:
-            raise KeyError(f'{key} not found in schema {self} and `allow_new_args` is False')
+    def __setitem__(self, key: KeyType, value: Any) -> None:
+        self.bound_arguments[key] = value
 
-    def __getitem__(self, key: str) -> Any:
-        args = self.bound_arguments.arguments
-        if key in args:
-            return args[key]
-        elif 'kwargs' in args and key in args['kwargs']:
-            return args['kwargs'][key]
-        raise KeyError(f'{key} not found in schema {self}')
+    def __getitem__(self, key: KeyType) -> Any:
+        return self.bound_arguments[key]
 
-    def __delitem__(self, key: str) -> None:
-        args = self.bound_arguments.arguments
-        if key in args:
-            del args[key]
-        elif 'kwargs' in args and key in args['kwargs']:
-            del args['kwargs'][key]
-        else:
-            raise KeyError(f'{key} not found in schema {self}')
+    def __delitem__(self, key: KeyType) -> None:
+        del self.bound_arguments[key]
 
     def __iter__(self) -> Iterator[str]:
-        yield from self.arguments
+        yield from self.bound_arguments
 
     def __len__(self) -> int:
-        return len(self.arguments)
+        return len(self.bound_arguments)
 
     def __call__(self,
                  path: Optional[PathType] = None,
@@ -445,14 +544,10 @@ class Schema(MutableMapping[str, Any]):
             for i, e in enumerate(obj):
                 next_path = current_path[:] + (i,)
                 yield from Schema.traverse(e, next_path, yield_schema)
-        elif isinstance(obj, inspect.BoundArguments):
-            for k, v, kind in Schema._iter_bound_args(obj):
-                if kind in [inspect.Parameter.POSITIONAL_OR_KEYWORD,
-                            inspect.Parameter.KEYWORD_ONLY, inspect.Parameter.VAR_KEYWORD]:
-                    next_path = current_path + (k,)
-                    yield from Schema.traverse(v, next_path, yield_schema)
-                else:
-                    raise Exception(f'Invalid state for Schema. Invalid argument types at {obj}')
+        elif isinstance(obj, IndexableBoundArguments):
+            for k, v in obj.named_items():
+                next_path = current_path + (k,)
+                yield from Schema.traverse(v, next_path, yield_schema)
         else:
             yield (current_path, obj)
 
@@ -487,14 +582,10 @@ class Schema(MutableMapping[str, Any]):
             for item in path[:-1]:
                 if isinstance(current_obj, (list, tuple)) and not isinstance(item, int):
                     raise KeyError()
-                elif isinstance(current_obj, Schema) and isinstance(item, int):
-                    raise KeyError()
                 current_obj = current_obj[item]
 
             last_item = path[-1]
             if isinstance(current_obj, (list, tuple)) and not isinstance(last_item, int):
-                raise KeyError()
-            elif isinstance(current_obj, Schema) and isinstance(last_item, int):
                 raise KeyError()
             current_obj[last_item] = value
 
@@ -510,14 +601,8 @@ class Schema(MutableMapping[str, Any]):
         try:
             for item in path[:-1]:
                 last_item = item
-                if isinstance(item, int) and isinstance(current_obj, Schema):
-                    raise ValueError(f"Path element {item} is an int, but current object is a "
-                                     "schema and cannot be indexed via integer")
                 current_obj = current_obj[item]
             last_item = path[-1]
-            if isinstance(last_item, int) and isinstance(current_obj, Schema):
-                raise ValueError(f"Path element {item} is an int, but current object is a "
-                                 "schema and cannot be indexed via integer")
             return current_obj[last_item]
         except KeyError:
             raise KeyError(f'{self} has no path {path}. Failed at {last_item}')
@@ -600,7 +685,7 @@ class Schema(MutableMapping[str, Any]):
 
     @recursive_repr()
     def __repr__(self) -> str:
-        args = ", ".join("{}={!r}".format(k, v) for k, v in sorted(self.arguments.items()))
+        args = ", ".join("{}={!r}".format(k, v) for k, v in self.arguments.items())
         format_string = "{module}.{cls}({callable_}, {args})"
         return format_string.format(module=self.__class__.__module__,
                                     cls=self.__class__.__qualname__,
