@@ -277,7 +277,7 @@ class BaseSampler(Sampler):
         if self.downsample is not None or self.downsample_max_samples is not None:
             if self.downsample is not None and not (0 < self.downsample <= 1):
                 raise ValueError("Downsample value should be in the range (0, 1]")
-            if self.downsample_max_samples >= len(data):
+            if self.downsample_max_samples is not None and self.downsample_max_samples >= len(data):
                 warnings.warn('`downsample_max_samples` was specified, but '
                               'the number of specified samples exceeds the '
                               'number available in the dataset.')
