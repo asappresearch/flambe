@@ -3,7 +3,7 @@ import torch
 import sklearn.metrics
 import numpy as np
 
-from flambe.metric import Accuracy, AUC, Perplexity, BPC, F1
+from flambe.metric import Accuracy, AUC, MultiClassAUC, Perplexity, BPC, F1
 from flambe.metric import BinaryRecall, BinaryPrecision, BinaryAccuracy
 from flambe.metric import Recall
 from pytest import approx
@@ -50,6 +50,37 @@ def test_auc_empty():
     y_true = torch.tensor([])
 
     auc = AUC()
+    assert auc(y_pred, y_true).item() == approx(0.5, NUMERIC_PRECISION)
+
+
+def test_multiclass_auc_full_one_hot():
+    """simple base case with one-hot labels"""
+    n_classes = 100
+    y_pred = np.random.uniform(0, 1, (100, n_classes))
+    y_true = np.zeros((100, n_classes))
+    y_true[np.arange(100), np.random.randint(n_classes)] = 1
+    sklearn_score = sklearn.metrics.roc_auc_score(y_true.flatten(), y_pred.flatten())
+    metric_test_case(torch.tensor(y_pred), torch.tensor(y_true), MultiClassAUC(), sklearn_score)
+
+
+def test_multiclass_auc_full_indexed():
+    """simple base case with index labels"""
+    n_classes = 100
+    y_pred = np.random.uniform(0, 1, (100, n_classes))
+    y_true = np.random.randint(0, n_classes, 100)
+    # one hot conversion
+    y_onehot = np.zeros((100, n_classes))
+    y_onehot[np.arange(y_true.size), y_true] = 1
+    sklearn_score = sklearn.metrics.roc_auc_score(y_onehot.flatten(), y_pred.flatten())
+    metric_test_case(torch.tensor(y_pred), torch.tensor(y_true), MultiClassAUC(), sklearn_score)
+
+
+def test_multiclass_auc_empty():
+    """Should be completely random on an empty list"""
+    y_pred = torch.tensor([])
+    y_true = torch.tensor([])
+
+    auc = MultiClassAUC()
     assert auc(y_pred, y_true).item() == approx(0.5, NUMERIC_PRECISION)
 
 
@@ -315,6 +346,7 @@ def test_f1(true_classes, metric, result):
 def test_global_aggregate():
     metric_data = {
         AUC: (torch.randint(0, 10000, (100, )), torch.randint(0, 2, (100, ))),
+        MultiClassAUC: (torch.rand(size=(100, 30)), torch.randint(0, 30, size=(100, ))),
         Accuracy: (torch.randn((100, 30)), torch.randn((100, 30))),
         BPC: (torch.randn((100, 30)), torch.randint(0, 30, (100, ))),
         BinaryAccuracy: (torch.rand(size=(100, )), torch.randint(0, 2, size=(100, ))),
