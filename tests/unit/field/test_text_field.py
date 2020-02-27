@@ -4,6 +4,7 @@ from gensim.models import KeyedVectors
 import numpy as np
 
 import pytest
+import tempfile
 import torch
 from flambe.field import TextField, BoWField
 from flambe.tokenizer import WordTokenizer, CharTokenizer, NGramsTokenizer, NLTKWordTokenizer
@@ -189,7 +190,7 @@ def test_build_vocab_empty():
     assert field.vocab == vocab
 
 
-def test_build_vocab_setup_all_embeddings():
+def test_build_vocab_build_vocab_from_embeddings():
     """
     This test shows that all fields in the embeddings will be included.
 
@@ -221,14 +222,18 @@ def test_build_vocab_setup_all_embeddings():
     model.add('<pad>', np.random.rand(10))
     model.add('yellow', np.random.rand(10))
 
-    field = TextField(
-        model=model,
-        setup_all_embeddings=True,
-    )
+    with tempfile.NamedTemporaryFile() as tmpfile:
+        model.save(tmpfile.name)
 
-    dummy = ["blue green", "yellow", 'white']
+        field = TextField.from_embeddings(
+            embeddings=tmpfile.name,
+            embeddings_format='gensim',
+            build_vocab_from_embeddings=True,
+        )
 
-    field.setup(dummy)
+        dummy = ["blue green", "yellow", 'white']
+
+        field.setup(dummy)
 
     # assert vocab setup in expected order
     assert field.vocab == odict([

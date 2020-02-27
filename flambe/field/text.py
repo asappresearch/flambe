@@ -1,4 +1,5 @@
-from typing import Dict, Iterable, List, Optional, Set, Tuple, Union, Any
+from typing import Dict, Iterable, List, Optional, Set, Tuple, \
+    NamedTuple, Union, Any
 from collections import OrderedDict as odict
 from itertools import chain
 
@@ -65,6 +66,46 @@ def get_embeddings(
     return model
 
 
+class EmbeddingsInformation(NamedTuple):
+    """
+    Information about an embedding model.
+
+    Parameters
+    ----------
+    embeddings : str
+        Path to pretrained embeddings or the embedding name
+        in case format is gensim.
+    embeddings_format : str, optional
+        The format of the input embeddings, should be one of:
+        'glove', 'word2vec', 'fasttext' or 'gensim'. The latter can
+        be used to download embeddings hosted on gensim on the fly.
+        See https://github.com/RaRe-Technologies/gensim-data
+        for the list of available embedding aliases.
+    embeddings_binary : bool, optional
+        Whether the input embeddings are provided in binary format,
+        by default False
+    build_vocab_from_embeddings: bool
+        Controls if all words from the optional provided
+        embeddings will be added to the vocabulary and to the
+        embedding matrix. Defaults to False.
+    unk_init_all : bool, optional
+        If True, every token not provided in the input embeddings is
+        given a random embedding from a normal distribution.
+        Otherwise, all of them map to the '<unk>' token.
+    drop_unknown: bool
+        Whether to drop tokens that don't have embeddings
+        associated. Defaults to True.
+        Important: this flag will only work when using embeddings.
+
+    """
+    embeddings: str
+    embeddings_format: str = 'gensim'
+    embeddings_binary: bool = False
+    build_vocab_from_embeddings: bool = False
+    unk_init_all: bool = False
+    drop_unknown: bool = False
+
+
 class TextField(Field):
     """Featurize raw text inputs
 
@@ -90,10 +131,10 @@ class TextField(Field):
                  unk_token: str = '<unk>',
                  sos_token: Optional[str] = None,
                  eos_token: Optional[str] = None,
+                 embeddings_info: Optional[EmbeddingsInformation] = None,
                  embeddings: Optional[str] = None,
                  embeddings_format: str = 'glove',
                  embeddings_binary: bool = False,
-                 model: Optional[KeyedVectors] = None,
                  unk_init_all: bool = False,
                  drop_unknown: bool = False,
                  max_seq_len: Optional[int] = None,
@@ -120,14 +161,33 @@ class TextField(Field):
         eos : Iterable[str], optional
             List of end of sentence tokens to add to the end of each
             sequence (defaults to an empty list)
-        model : KeyedVectors, optional
-            The embeddings model used for retrieving text embeddings,
-            by default None
+        embeddings_info : EmbeddingsInformation, optional
+            The embeddings information. By default None
+        embeddings : str
+            WIlL BE DEPRECATED SOON. USE 'from_embeddings'
+            FACTORY INSTEAD.
+            Path to pretrained embeddings or the embedding name
+            in case format is gensim.
+        embeddings_format : str, optional
+            WIlL BE DEPRECATED SOON. USE 'from_embeddings'
+            FACTORY INSTEAD.
+            The format of the input embeddings, should be one of:
+            'glove', 'word2vec', 'fasttext' or 'gensim'. The latter can
+            be used to download embeddings hosted on gensim on the fly.
+            See https://github.com/RaRe-Technologies/gensim-data
+            for the list of available embedding aliases.
+        embeddings_binary : bool, optional
+            WIlL BE DEPRECATED SOON. USE 'from_embeddings'
+            FACTORY INSTEAD.
+            Whether the input embeddings are provided in binary format,
+            by default False
         unk_init_all : bool, optional
             If True, every token not provided in the input embeddings is
             given a random embedding from a normal distribution.
             Otherwise, all of them map to the '<unk>' token.
         drop_unknown: bool
+            WIlL BE DEPRECATED SOON. USE 'from_embeddings'
+            FACTORY INSTEAD.
             Whether to drop tokens that don't have embeddings
             associated. Defaults to True.
             Important: this flag will only work when using embeddings.
@@ -145,26 +205,33 @@ class TextField(Field):
             truncate_end=false: output=1 2 3
             truncate_end=true: output=3 4 5
         setup_all_embeddings: bool
+            WIlL BE DEPRECATED SOON. USE 'from_embeddings'
+            FACTORY INSTEAD.
             Controls if all words from the optional provided
             embeddings will be added to the vocabulary and to the
             embedding matrix. Defaults to False.
 
         """
         if embeddings:
-            if model:
-                raise ValueError("Cannot submit a model and use the embeddings parameters" +
-                                 "simultaneously. Use the 'from_embeddings' factory instead.")
+            if embeddings_info:
+                raise ValueError(
+                    "Cannot submit embeddings information and use the embeddings parameters" +
+                    "simultaneously. Use the 'from_embeddings' factory instead.")
 
             warnings.warn("The embeddings-exclusive parameters " +
                           "('embeddings', 'embeddings_format', 'embeddings_binary', " +
-                          "'setup_all_embeddings', 'drop_unknown', 'unk_init_all') will be " +
-                          "deprecated in a future release. " +
+                          "'setup_all_embeddings', 'drop_unknown', 'unk_init_all') " +
+                          "will be deprecated in a future release. " +
                           "Please migrate to use the 'from_embeddings' factory.")
 
-            model = get_embeddings(embeddings, embeddings_format, embeddings_binary)
-
-        if setup_all_embeddings and not model:
-            raise ValueError("'setup_all_embeddings' cannot be enabled without passing embeddings.")
+            embeddings_info = EmbeddingsInformation(
+                embeddings=embeddings,
+                embeddings_format=embeddings_format,
+                embeddings_binary=embeddings_binary,
+                build_vocab_from_embeddings=setup_all_embeddings,
+                unk_init_all=unk_init_all,
+                drop_unknown=drop_unknown
+            )
 
         self.tokenizer = tokenizer or WordTokenizer()
         self.lower = lower
@@ -174,11 +241,10 @@ class TextField(Field):
         self.sos = sos_token
         self.eos = eos_token
 
-        self.model = model
+        self.embeddings_info = embeddings_info
+
         self.embedding_matrix: Optional[torch.Tensor] = None
-        self.unk_init_all = unk_init_all
-        self.drop_unknown = drop_unknown
-        self.setup_all_embeddings = setup_all_embeddings
+
         self.max_seq_len = max_seq_len
         self.truncate_end = truncate_end
 
@@ -258,7 +324,9 @@ class TextField(Field):
                 if token not in self.vocab:
                     self.vocab[token] = index = index + 1
 
-    def _build_embeddings(self, model: KeyedVectors) -> Tuple[odict, torch.Tensor]:
+    def _build_embeddings(self, model: KeyedVectors,
+                          setup_vocab_from_embeddings: bool,
+                          initialize_unknowns: bool) -> Tuple[odict, torch.Tensor]:
         """
         Create the embeddings matrix and the new vocabulary in
         case this objects needs to use an embedding model.
@@ -270,6 +338,14 @@ class TextField(Field):
         ----------
         model: KeyedVectors
             The embeddings
+        setup_vocab_from_embeddings: bool
+            Controls if all words from the optional provided
+            embeddings will be added to the vocabulary and to the
+            embedding matrix. Defaults to False.
+        initialize_unknowns
+            If True, every unknown token will be assigned
+            a random embedding from a normal distribution.
+            Otherwise, all of them map to the '<unk>' token.
 
         Returns
         -------
@@ -283,7 +359,7 @@ class TextField(Field):
 
         tokens: Iterable[str] = self.vocab.keys()
 
-        if self.setup_all_embeddings:
+        if setup_vocab_from_embeddings:
             tokens = chain(tokens, model.vocab.keys())
 
         for token in tokens:
@@ -297,7 +373,7 @@ class TextField(Field):
                 else:
                     self.unk_numericals.add(self.vocab[token])
 
-                    if self.unk_init_all:
+                    if initialize_unknowns:
                         embedding_matrix.append(torch.randn(model.vector_size))
                         new_vocab[token] = new_index = new_index + 1
                     else:
@@ -316,8 +392,15 @@ class TextField(Field):
 
         """
         self._build_vocab(*data)
-        if self.model:
-            self.vocab, self.embedding_matrix = self._build_embeddings(self.model)
+
+        if self.embeddings_info:
+            model = get_embeddings(self.embeddings_info.embeddings,
+                                   self.embeddings_info.embeddings_format,
+                                   self.embeddings_info.embeddings_binary)
+            self.vocab, self.embedding_matrix = self._build_embeddings(
+                model,
+                self.embeddings_info.build_vocab_from_embeddings,
+                self.embeddings_info.unk_init_all)
 
     # TODO update when we add generics
     def process(self, example: Union[str, Tuple[Any], List[Any], Dict[Any, Any]]) \
@@ -364,8 +447,8 @@ class TextField(Field):
 
             numerical = self.vocab[token]  # type: ignore
 
-            if self.drop_unknown and \
-                    self.model is not None and numerical in self.unk_numericals:
+            if self.embeddings_info is not None and self.embeddings_info.drop_unknown and \
+                    numerical in self.unk_numericals:
                 # Don't add unknown tokens in case the flag is activated
                 continue
 
@@ -387,7 +470,7 @@ class TextField(Field):
         embeddings: str,
         embeddings_format: str = 'glove',
         embeddings_binary: bool = False,
-        setup_all_embeddings: bool = False,
+        build_vocab_from_embeddings: bool = False,
         unk_init_all: bool = False,
         drop_unknown: bool = False,
         **kwargs,
@@ -408,7 +491,7 @@ class TextField(Field):
         embeddings_binary : bool, optional
             Whether the input embeddings are provided in binary format,
             by default False
-        setup_all_embeddings: bool
+        build_vocab_from_embeddings: bool
             Controls if all words from the optional provided
             embeddings will be added to the vocabulary and to the
             embedding matrix. Defaults to False.
@@ -426,15 +509,16 @@ class TextField(Field):
         TextField
             The constructed text field with the requested model.
         """
-        model = get_embeddings(
-            embeddings,
-            embeddings_format,
-            embeddings_binary,
-        )
-        return cls(
-            model=model,
-            setup_all_embeddings=setup_all_embeddings,
+        embeddings_info = EmbeddingsInformation(
+            embeddings=embeddings,
+            embeddings_format=embeddings_format,
+            embeddings_binary=embeddings_binary,
+            build_vocab_from_embeddings=build_vocab_from_embeddings,
             unk_init_all=unk_init_all,
-            drop_unknown=drop_unknown,
+            drop_unknown=drop_unknown
+        )
+
+        return cls(
+            embeddings_info=embeddings_info,
             **kwargs,
         )
