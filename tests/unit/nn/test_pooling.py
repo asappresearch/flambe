@@ -1,6 +1,7 @@
 import torch
 
-from flambe.nn import AvgPooling, SumPooling, StructuredSelfAttentivePooling
+from flambe.nn import AvgPooling, SumPooling, StructuredSelfAttentivePooling, \
+    VectorBasedGeneralizedPooling
 from torch import allclose
 
 from pytest import approx
@@ -46,6 +47,14 @@ def test_structured_self_attentive_pooling_ones():
     assert output.min().item() == output.max().item() == approx(1.)
 
 
+def test_vector_based_generalized_pooling_shapes():
+    dim = 300
+    layer = VectorBasedGeneralizedPooling(input_size=dim)
+    input = torch.randn(100, 50, dim)
+    output = layer(input)
+    assert list(output.shape) == [100, dim]
+
+
 def build_tensor():
     batch_size = 2
     items = 4
@@ -56,3 +65,7 @@ def build_tensor():
     data[0][2] = torch.tensor([1, 2, 3])
     data[0][3] = torch.tensor([4, 5, 6])
     return data
+
+
+if __name__ == '__main__':
+    test_vector_based_generalized_pooling_shapes()
