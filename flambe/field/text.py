@@ -139,7 +139,9 @@ class TextField(Field):
                  drop_unknown: bool = False,
                  max_seq_len: Optional[int] = None,
                  truncate_end: bool = False,
-                 setup_all_embeddings: bool = False) -> None:
+                 setup_all_embeddings: bool = False,
+                 additional_tokens: Optional[Union[List[str], Tuple[str]]] = None,
+                 ) -> None:
         """Initialize the TextField.
 
         Parameters
@@ -210,6 +212,9 @@ class TextField(Field):
             Controls if all words from the optional provided
             embeddings will be added to the vocabulary and to the
             embedding matrix. Defaults to False.
+        additional_tokens: Optional[Union[List[str], Tuple[str]]]
+            Additional tokens that should be included in the vocab,
+            and not be embedded as `unknown`
 
         """
         if embeddings:
@@ -251,10 +256,22 @@ class TextField(Field):
         self.unk_numericals: Set[int] = set()
 
         self.vocab: Dict = odict()
-        specials = [pad_token, unk_token, sos_token, eos_token]
-        self.specials = [special for special in specials if special is not None]
+        self.specials = []
+        self.register_specials(
+            pad_token, unk_token, sos_token, eos_token, *additional_tokens)
 
         self.register_attrs('vocab')
+
+    def register_specials(self, *specials: Iterable[str]):
+        """Registers special tokens, e.g., oov
+        Parameters
+        ----------
+        specials : Iterable[str]
+            An iterable of special tokens
+        """
+        specials = [special for special in specials
+                    if special is not None and special not in self.vocab]
+        self.specials += specials
 
     @property
     def vocab_size(self) -> int:
@@ -475,6 +492,7 @@ class TextField(Field):
         build_vocab_from_embeddings: bool = False,
         unk_init_all: bool = False,
         drop_unknown: bool = False,
+        additional_tokens: Optional[Union[List[str], Tuple[str]]] = None,
         **kwargs,
     ):
         """
@@ -505,6 +523,9 @@ class TextField(Field):
             Whether to drop tokens that don't have embeddings
             associated. Defaults to True.
             Important: this flag will only work when using embeddings.
+        additional_tokens: Optional[Union[List[str], Tuple[str]]]
+            Additional tokens that should be included in the vocab,
+            and not be embedded as `unknown`
 
         Returns
         -------
@@ -522,5 +543,6 @@ class TextField(Field):
 
         return cls(
             embeddings_info=embeddings_info,
+            additional_tokens=additional_tokens,
             **kwargs,
         )
