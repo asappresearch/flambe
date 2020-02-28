@@ -66,8 +66,10 @@ class PretrainedTransformerField(Field):
         """
         return len(self._tokenizer)
 
-    def process(self, example: Union[str, Tuple[Any], List[Any], Dict[Any, Any]]) \
-            -> Union[torch.Tensor, List[torch.Tensor], Dict[str, torch.Tensor]]:  # type: ignore
+    def process(self, example:  # type: ignore
+                Union[str, Tuple[Any], List[Any], Dict[Any, Any]]) \
+            -> Union[torch.Tensor, Tuple[torch.Tensor, ...],
+                     List[torch.Tensor], Dict[str, torch.Tensor]]:
         """Process an example, and create a Tensor.
 
         Parameters
@@ -83,9 +85,9 @@ class PretrainedTransformerField(Field):
         """
         # special case of list of examples:
         if isinstance(example, list) or isinstance(example, tuple):
-            return [self.process(e) for e in example]  # mypy: ignore
+            return [self.process(e) for e in example]  # type: ignore
         elif isinstance(example, dict):
-            return dict([(key, self.process(val)) for key, val in example.items()])  # mypy: ignore
+            return dict([(key, self.process(val)) for key, val in example.items()])  # type: ignore
 
         tokens = self._tokenizer.encode(example, add_special_tokens=self.add_special_tokens)
 
