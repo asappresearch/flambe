@@ -256,9 +256,10 @@ class TextField(Field):
         self.unk_numericals: Set[int] = set()
 
         self.vocab: Dict = odict()
-        self.specials = []
-        self.register_specials(
-            pad_token, unk_token, sos_token, eos_token, *additional_tokens)
+        additional_tokens = [] if additional_tokens is None else additional_tokens
+        specials = [pad_token, unk_token, sos_token, eos_token, *additional_tokens]
+        self.specials = [special for special in specials
+                         if special is not None and special not in self.vocab]
 
         self.register_attrs('vocab')
 
@@ -525,7 +526,7 @@ class TextField(Field):
             Important: this flag will only work when using embeddings.
         additional_tokens: Optional[Union[List[str], Tuple[str]]]
             Additional tokens that should be included in the vocab,
-            and not be embedded as `unknown`
+            and not be embedded as `unknown`.
 
         Returns
         -------

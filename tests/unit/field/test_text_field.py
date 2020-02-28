@@ -296,6 +296,21 @@ def test_load_embeddings():
     assert torch.all(torch.eq(field.embedding_matrix[1:3], true_embeddings))
 
 
+def test_load_embeddings_with_extra_tokens():
+    field = TextField.from_embeddings(
+        embeddings="tests/data/dummy_embeddings/test.txt",
+        pad_token=None,
+        unk_init_all=False,
+        additional_tokens=['<a>', '<b>', '<c>']
+    )
+    dummy = "a test ! <a> <b> "
+    field.setup([dummy])
+    assert '<a>' in field.vocab and '<b>' in field.vocab and '<c>' in field.vocab
+    assert field.embedding_matrix[field.vocab['<a>']].size(-1) == 4
+    assert field.embedding_matrix[field.vocab['<b>']].size(-1) == 4
+    assert all(field.embedding_matrix[field.vocab['<b>']] != field.embedding_matrix[field.vocab['<c>']])
+
+
 def test_load_embeddings_legacy():
     field = TextField(
         embeddings="tests/data/dummy_embeddings/test.txt",
@@ -405,6 +420,22 @@ def recursive_tensor_to_list(data):
         return data.tolist()
 
 
+def test_setup_with_extra_tokens():
+    field = TextField.from_embeddings(
+        embeddings="tests/data/dummy_embeddings/test.txt",
+        pad_token=None,
+        unk_init_all=False,
+        additional_tokens=['<a>', '<b>', '<c>']
+    )
+
+    dummy = "this is a test"
+    field.setup([dummy])
+    assert recursive_tensor_to_list(field.process(dummy)) == [4, 5, 6, 7]
+
+    dummy = "this is a test <a> <c>"
+    assert recursive_tensor_to_list(field.process(dummy)) == [4, 5, 6, 7, 1, 3]
+
+
 def test_text_process_list():
     field = TextField(lower=True)
     field.setup()
@@ -475,3 +506,6 @@ def test_text_process_nested_dict_in_list_in_dict():
             'text3': [[2, 3, 4], [4, 3, 5]]
         }]
 
+if __name__ == '__main__':
+    test_setup_with_extra_tokens()
+    test_load_embeddings_with_extra_tokens()
