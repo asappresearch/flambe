@@ -1,7 +1,7 @@
 import torch
 
 from flambe.nn import AvgPooling, SumPooling, StructuredSelfAttentivePooling, \
-    VectorBasedGeneralizedPooling
+    GeneralizedPooling
 from torch import allclose
 
 from pytest import approx
@@ -49,7 +49,7 @@ def test_structured_self_attentive_pooling_ones():
 
 def test_vector_based_generalized_pooling_shapes():
     dim = 300
-    layer = VectorBasedGeneralizedPooling(input_size=dim)
+    layer = GeneralizedPooling(input_size=dim)
     input = torch.randn(100, 50, dim)
     output = layer(input)
     assert list(output.shape) == [100, dim]

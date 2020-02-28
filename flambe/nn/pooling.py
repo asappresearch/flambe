@@ -251,8 +251,9 @@ class StructuredSelfAttentivePooling(Module):
         return attended.mean(dim=1)
 
 
-class VectorBasedGeneralizedPooling(StructuredSelfAttentivePooling):
+class GeneralizedPooling(StructuredSelfAttentivePooling):
     """Self attention pooling."""
+
     def __init__(self,
                  input_size: int,
                  attention_units: Sequence[int] = (300, ),
