@@ -140,7 +140,7 @@ class TextField(Field):
                  max_seq_len: Optional[int] = None,
                  truncate_end: bool = False,
                  setup_all_embeddings: bool = False,
-                 additional_tokens: Optional[Union[List[str], Tuple[str]]] = None,
+                 additional_special_tokens: Optional[List[str]] = None,
                  ) -> None:
         """Initialize the TextField.
 
@@ -212,9 +212,9 @@ class TextField(Field):
             Controls if all words from the optional provided
             embeddings will be added to the vocabulary and to the
             embedding matrix. Defaults to False.
-        additional_tokens: Optional[Union[List[str], Tuple[str]]]
-            Additional tokens that should be included in the vocab,
-            and not be embedded as `unknown`
+        additional_special_tokens: Optional[List[str]]
+            Additional special tokens beyond the pad, unk, eos and sos
+            tokens.
 
         """
         if embeddings:
@@ -256,23 +256,14 @@ class TextField(Field):
         self.unk_numericals: Set[int] = set()
 
         self.vocab: Dict = odict()
-        additional_tokens = [] if additional_tokens is None else additional_tokens
-        specials = [pad_token, unk_token, sos_token, eos_token, *additional_tokens]
+        additional_special_tokens = [] \
+            if additional_special_tokens is None \
+            else additional_special_tokens
+        specials = [pad_token, unk_token, sos_token, eos_token, *additional_special_tokens]
         self.specials = [special for special in specials
                          if special is not None and special not in self.vocab]
 
         self.register_attrs('vocab')
-
-    def register_specials(self, *specials: Iterable[str]):
-        """Registers special tokens, e.g., oov
-        Parameters
-        ----------
-        specials : Iterable[str]
-            An iterable of special tokens
-        """
-        specials = [special for special in specials
-                    if special is not None and special not in self.vocab]
-        self.specials += specials
 
     @property
     def vocab_size(self) -> int:
@@ -493,7 +484,7 @@ class TextField(Field):
         build_vocab_from_embeddings: bool = False,
         unk_init_all: bool = False,
         drop_unknown: bool = False,
-        additional_tokens: Optional[Union[List[str], Tuple[str]]] = None,
+        additional_special_tokens: Optional[List[str]] = None,
         **kwargs,
     ):
         """
@@ -524,9 +515,12 @@ class TextField(Field):
             Whether to drop tokens that don't have embeddings
             associated. Defaults to True.
             Important: this flag will only work when using embeddings.
-        additional_tokens: Optional[Union[List[str], Tuple[str]]]
-            Additional tokens that should be included in the vocab,
-            and not be embedded as `unknown`.
+        additional_special_tokens: Optional[List[str]]
+            Additional tokens that have a reserved interpretation in
+            the context of the current experiment, and that should
+            therefore never be treated as "unknown".
+            Passing them in here will make sure that they will have
+            their own embedding that can be trained.
 
         Returns
         -------
@@ -544,6 +538,6 @@ class TextField(Field):
 
         return cls(
             embeddings_info=embeddings_info,
-            additional_tokens=additional_tokens,
+            additional_special_tokens=additional_special_tokens,
             **kwargs,
         )

@@ -301,7 +301,7 @@ def test_load_embeddings_with_extra_tokens():
         embeddings="tests/data/dummy_embeddings/test.txt",
         pad_token=None,
         unk_init_all=False,
-        additional_tokens=['<a>', '<b>', '<c>']
+        additional_special_tokens=['<a>', '<b>', '<c>']
     )
     dummy = "a test ! <a> <b> "
     field.setup([dummy])
@@ -425,7 +425,7 @@ def test_setup_with_extra_tokens():
         embeddings="tests/data/dummy_embeddings/test.txt",
         pad_token=None,
         unk_init_all=False,
-        additional_tokens=['<a>', '<b>', '<c>']
+        additional_special_tokens=['<a>', '<b>', '<c>']
     )
 
     dummy = "this is a test"
@@ -505,7 +505,3 @@ def test_text_process_nested_dict_in_list_in_dict():
             'text2': [4, 3]}, {
             'text3': [[2, 3, 4], [4, 3, 5]]
         }]
-
-if __name__ == '__main__':
-    test_setup_with_extra_tokens()
-    test_load_embeddings_with_extra_tokens()
