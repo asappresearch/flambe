@@ -30,4 +30,4 @@ class LMField(TextField):
 
         """
         ret = super().process(example)
-        return ret[:-1], ret[1:]
+        return ret[:-1], ret[1:]  # type: ignore
