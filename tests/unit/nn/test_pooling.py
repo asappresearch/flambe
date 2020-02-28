@@ -1,7 +1,10 @@
 import torch
 
-from flambe.nn import AvgPooling, SumPooling
+from flambe.nn import AvgPooling, SumPooling, StructuredSelfAttentivePooling, \
+    GeneralizedPooling
 from torch import allclose
+
+from pytest import approx
 
 
 def test_avg_pooling():
@@ -18,6 +21,40 @@ def test_sum_pooling():
     assert allclose(summation[1], torch.tensor([0, 0, 0], dtype=torch.float32))
 
 
+def test_structured_self_attentive_pooling_shapes():
+    dim = 300
+    layer = StructuredSelfAttentivePooling(input_size=dim)
+    input = torch.randn(100, 50, dim)
+    output = layer(input)
+    assert list(output.shape) == [100, dim]
+
+
+def test_structured_self_attentive_pooling_zeroes():
+    dim = 300
+    layer = StructuredSelfAttentivePooling(input_size=dim)
+    input = torch.zeros(100, 50, dim)
+    output = layer(input)
+    assert list(output.shape) == [100, dim]
+    assert output.min().item() == output.max().item() == approx(0.)
+
+
+def test_structured_self_attentive_pooling_ones():
+    dim = 300
+    layer = StructuredSelfAttentivePooling(input_size=dim)
+    input = torch.ones(100, 50, dim)
+    output = layer(input)
+    assert list(output.shape) == [100, dim]
+    assert output.min().item() == output.max().item() == approx(1.)
+
+
+def test_vector_based_generalized_pooling_shapes():
+    dim = 300
+    layer = GeneralizedPooling(input_size=dim)
+    input = torch.randn(100, 50, dim)
+    output = layer(input)
+    assert list(output.shape) == [100, dim]
+
+
 def build_tensor():
     batch_size = 2
     items = 4
@@ -28,3 +65,7 @@ def build_tensor():
     data[0][2] = torch.tensor([1, 2, 3])
     data[0][3] = torch.tensor([4, 5, 6])
     return data
+
+
+if __name__ == '__main__':
+    test_vector_based_generalized_pooling_shapes()
