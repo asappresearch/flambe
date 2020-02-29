@@ -1,5 +1,4 @@
-from typing import Dict, Iterable, List, Optional, Set, Tuple, \
-    NamedTuple, Union, Any
+from typing import Dict, Iterable, List, Optional, Set, Tuple, NamedTuple, Union, Any
 from collections import OrderedDict as odict
 from itertools import chain
 
@@ -141,7 +140,7 @@ class TextField(Field):
                  truncate_end: bool = False,
                  setup_all_embeddings: bool = False,
                  additional_special_tokens: Optional[List[str]] = None,
-                 ) -> None:
+                 vocabulary: Optional[Union[Iterable[str], str]] = None) -> None:
         """Initialize the TextField.
 
         Parameters
@@ -202,7 +201,6 @@ class TextField(Field):
             input is larger than max_seq_len. If this value is True
             the window starts from the end of the utterance.
             Defaults to False.
-
             example: max_seq_len=3, input_text=1 2 3 4 5
             truncate_end=false: output=1 2 3
             truncate_end=true: output=3 4 5
@@ -215,6 +213,10 @@ class TextField(Field):
         additional_special_tokens: Optional[List[str]]
             Additional special tokens beyond the pad, unk, eos and sos
             tokens.
+        vocabulary: Union[List[str], str], optional
+            Can be either a list of tokens or a file with a token on
+            each line. If given, one can choose to allow expandion of
+            the vocabulary or to freeze it.
 
         """
         if embeddings:
@@ -255,15 +257,31 @@ class TextField(Field):
 
         self.unk_numericals: Set[int] = set()
 
-        self.vocab: Dict = odict()
-        additional_special_tokens = [] \
-            if additional_special_tokens is None \
-            else additional_special_tokens
-        specials = [pad_token, unk_token, sos_token, eos_token, *additional_special_tokens]
-        self.specials = [special for special in specials
-                         if special is not None and special not in self.vocab]
+        # Load vocabulary if given
+        if vocabulary is None:
+            self.vocab: Dict = odict()
+        elif isinstance(vocabulary, str):
+            with open(vocabulary, 'r') as f:
+                self.vocab = odict((tok, i) for i, tok in enumerate(f.read().splitlines()))
+        elif isinstance(vocabulary, Iterable):
+            self.vocab = odict((tok, i) for i, tok in enumerate(vocabulary))
 
+        additional_special_tokens = additional_special_tokens or []
+        specials = [pad_token, unk_token, sos_token, eos_token, *additional_special_tokens]
+        self.specials = [special for special in specials if special is not None]
         self.register_attrs('vocab')
+
+    @property
+    def vocab_list(self) -> List[str]:
+        """Get the list of tokens in the vocabulary.
+
+        Returns
+        -------
+        List[str]
+            The list of tokens in the vocabulary, ordered.
+
+        """
+        return list(self.vocab.keys())
 
     @property
     def vocab_size(self) -> int:
