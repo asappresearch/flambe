@@ -20,7 +20,7 @@ class AWSCluster(Cluster):
                  security_group: str,
                  subnet_id: str,
                  key_name: str,
-                 iam_profile: str,
+                 iam_profile: Optional[str] = None,
                  ssh_user: str = 'ubuntu',
                  availability_zone: Optional[List[str]] = None,
                  tags: Dict[str, str] = None,
@@ -113,9 +113,6 @@ class AWSCluster(Cluster):
                 'ImageId': head_node_ami,
                 'SubnetIds': [subnet_id],
                 'SecurityGroupIds': [security_group],
-                'IamInstanceProfile': {
-                    'Name': iam_profile
-                },
                 'BlockDeviceMappings': [
                     {
                         'DeviceName': '/dev/sda1',
@@ -130,9 +127,6 @@ class AWSCluster(Cluster):
                 'KeyName': key_name,
                 'InstanceType': worker_node_type,
                 'ImageId': worker_node_ami,
-                'IamInstanceProfile': {
-                    'Name': iam_profile
-                },
                 'SubnetIds': [subnet_id],
                 'SecurityGroupIds': [security_group],
                 'BlockDeviceMappings': [
@@ -177,6 +171,10 @@ class AWSCluster(Cluster):
                 spot['InstanceMarketOptions']['SpotOptions'] = spot_options  # type: ignore
 
             config['worker_nodes']['InstanceMarketOptions'] = spot  # type: ignore
+
+        if iam_profile is not None:
+            config['head_node']['IamInstanceProfile'] = {'Name': iam_profile}
+            config['worker_nodes']['IamInstanceProfile'] = {'Name': iam_profile}
 
         # Command to start ray on the head and worker nodes
         head_start_ray_commands = [

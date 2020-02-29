@@ -120,7 +120,7 @@ def up(name, yes, create, template, min_workers, max_workers):
     # Run update
     cluster = load_cluster_config(load_path)
     cluster = cluster.clone(**kwargs)
-    cluster.up(yes=yes)
+    cluster.up(yes=yes, restart=create)
     with open(cluster_path, 'w') as f:
         if env is not None:
             dump_config([env, cluster], f)

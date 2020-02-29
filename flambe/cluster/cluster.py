@@ -167,6 +167,7 @@ class Cluster(Registrable):
                  initial_workers: int = 1,
                  min_workers: int = 1,
                  max_workers: int = 1,
+                 autoscaling_mode: str = 'default',
                  target_utilization_fraction: float = 0.8,
                  idle_timeout_minutes: int = 5,
                  ssh_user: str = 'ubuntu',
@@ -190,6 +191,11 @@ class Cluster(Registrable):
             The minimum number of worker nodes to keep running.
         max_workers : int
             The maximum number of worker nodes to keep running.
+        autoscaling_mode: str
+            One of: ['default', 'aggressive']. Whether or not to
+            autoscale aggressively. If this is enabled, if at any point
+            we would start more workers, we start at least enough
+            to bring us to initial_workers.
         target_utilization_fraction: float
             The target utilization threshold before creating a node.
         idle_timeout_minutes: int
@@ -261,6 +267,7 @@ class Cluster(Registrable):
             'initial_workers': initial_workers,
             'min_workers': min_workers,
             'max_workers': max_workers,
+            'autoscaling_mode': autoscaling_mode,
             'target_utilization_fraction': target_utilization_fraction,
             'idle_timeout_minutes': idle_timeout_minutes,
             'auth': {
