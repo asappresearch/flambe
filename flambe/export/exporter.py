@@ -78,24 +78,6 @@ class Exporter(Registrable):
     def yaml_load_type(cls) -> YAMLLoadType:
         return YAMLLoadType.KWARGS
 
-    def run(self) -> bool:
-        """Run the Exporter."""
-        env = flambe.get_env()
-        # Add information about the extensions. This ensures
-        # the compiled obj has the extensions information
-        # self.obj.add_extensions_metadata(self.extensions)
-        self.compiled_obj = self.obj()  # Compile Schema
-
-        if self.storage == 'local':
-            self.save_local(env.output_path)
-        elif self.storage == 's3':
-            self.save_s3(env.output_path)
-        else:
-            msg = f"Unknown storage {self.storage}, should be one of: [local, s3]"
-            raise ValueError(msg)
-
-        return False
-
     def save_local(self, path) -> None:
         """Save an object locally.
 
@@ -176,3 +158,21 @@ class Exporter(Registrable):
                                  "Check logs for more information")
             else:
                 logger.info(cl.BL(f"Done uploading to {path}"))
+
+    def run(self) -> bool:
+        """Run the Exporter."""
+        env = flambe.get_env()
+        # Add information about the extensions. This ensures
+        # the compiled obj has the extensions information
+        # self.obj.add_extensions_metadata(self.extensions)
+        self.compiled_obj = self.obj()  # Compile Schema
+
+        if self.storage == 'local':
+            self.save_local(env.output_path)
+        elif self.storage == 's3':
+            self.save_s3(env.output_path)
+        else:
+            msg = f"Unknown storage {self.storage}, should be one of: [local, s3]"
+            raise ValueError(msg)
+
+        return False

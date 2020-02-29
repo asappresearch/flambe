@@ -4,27 +4,39 @@ import os
 import sys
 import shutil
 import traceback
+from typing import Optional
 
 import torch
+import ray
 
 import flambe
 from flambe.const import FLAMBE_GLOBAL_FOLDER, ASCII_LOGO, ASCII_LOGO_DEV
 from flambe.const import FLAMBE_CLUSTER_DEFAULT_FOLDER, FLAMBE_CLUSTER_DEFAULT_CONFIG
 from flambe.logging import coloredlogs as cl
 from flambe.utils.path import is_dev_mode, get_flambe_repo_location
-from flambe.compile.yaml import dump_one_config
+from flambe.compile.yaml import dump_config, dump_one_config
 from flambe.compile.downloader import download_manager
 from flambe.compile.extensions import is_package, is_installed_module
 from flambe.runner.environment import load_env_from_config
 from flambe.runner.protocol import load_runnable_from_config
-from flambe.cluster.cluster import load_cluster_config
+from flambe.cluster.cluster import load_cluster_config, Cluster
 
 
 logging.getLogger('tensorflow').disabled = True
 
 
-def load_cluster_config_helper(name=None, return_name=False):
-    """Check if a single cluster exists or if a name is required."""
+def load_cluster_config_helper(name: Optional[str] = None) -> Cluster:
+    """Check if a single cluster exists or if a name is required.
+
+    Parameters
+    ----------
+    name: str
+        The name of the cluster to load
+
+    Returns
+    -------
+
+    """
     if name is None:
         files = os.listdir(FLAMBE_CLUSTER_DEFAULT_FOLDER)
         names = [f.replace('.yaml', '') for f in files if '.yaml' in f]
@@ -37,10 +49,21 @@ def load_cluster_config_helper(name=None, return_name=False):
             print(cl.RE(f"No name was provided, but multiple clusters exist: {names}"))
             sys.exit()
     cluster_path = os.path.join(FLAMBE_CLUSTER_DEFAULT_FOLDER, f"{name}.yaml")
+    # Load env
+    env = load_env_from_config(cluster_path)
+    flambe.set_env(env)
+    # Load cluster
     cluster = load_cluster_config(cluster_path)
-    if return_name:
-        return cluster, name
     return cluster
+
+
+@ray.remote
+def execute_helper(config: str):
+    """Run a task in a ray remote job."""
+    task = load_runnable_from_config(config)
+    _continue = True
+    while _continue:
+        _continue = task.run()
 
 
 @click.group()
@@ -55,13 +78,13 @@ def cli():
               help='Run without confirmation.')
 @click.option('--create', is_flag=True, default=False,
               help='Create a new cluster.')
-@click.option('--config', type=str, default=FLAMBE_CLUSTER_DEFAULT_CONFIG,
+@click.option('--template', type=str, default=FLAMBE_CLUSTER_DEFAULT_CONFIG,
               help="Cluster template config.")
 @click.option('--min-workers', type=int, default=None,
               help="Required name for a new cluster.")
 @click.option('--max-workers', type=int, default=None,
               help="Optional max number of workers.")
-def up(name, yes, create, config, min_workers, max_workers):
+def up(name, yes, create, template, min_workers, max_workers):
     """Launch / update the cluster."""
     if not os.path.exists(FLAMBE_CLUSTER_DEFAULT_FOLDER):
         os.makedirs(FLAMBE_CLUSTER_DEFAULT_FOLDER)
@@ -71,12 +94,16 @@ def up(name, yes, create, config, min_workers, max_workers):
     if create and os.path.exists(cluster_path):
         print(cl.RE(f"Cluster {name} already exists."))
         return
-    elif create and not os.path.exists(config):
-        print(cl.RE(f"Config {config} does not exist."))
+    elif create and not os.path.exists(template):
+        print(cl.RE(f"Config {template} does not exist."))
         return
     elif not create and not os.path.exists(cluster_path):
         print(cl.RE(f"Cluster {name} does not exist. Did you mean to use --create?"))
         return
+    elif create:
+        load_path = template
+    else:
+        load_path = cluster_path
 
     # Update kwargs
     kwargs = dict(name=name)
@@ -85,16 +112,20 @@ def up(name, yes, create, config, min_workers, max_workers):
     if max_workers is not None:
         kwargs['max_workers'] = max_workers
 
-    # Run update
-    if create:
-        cluster = load_cluster_config(config)
-    else:
-        cluster = load_cluster_config(cluster_path)
+    # Load env
+    env = load_env_from_config(load_path)
+    if env is not None:
+        flambe.set_env(env)
 
+    # Run update
+    cluster = load_cluster_config(load_path)
     cluster = cluster.clone(**kwargs)
     cluster.up(yes=yes)
     with open(cluster_path, 'w') as f:
-        dump_one_config(cluster, f)
+        if env is not None:
+            dump_config([env, cluster], f)
+        else:
+            dump_one_config(cluster, f)
 
 
 # ----------------- flambe down ------------------ #
@@ -106,10 +137,10 @@ def up(name, yes, create, config, min_workers, max_workers):
               help='Only teardown the worker nodes.')
 @click.option('--destroy', is_flag=True, default=False,
               help='Destroy this cluster permanently.')
-def down(name, yes, workers_only, terminate, destroy):
+def down(name, yes, workers_only, destroy):
     """Take down the cluster, optionally destroy it permanently."""
     cluster = load_cluster_config_helper(name)
-    cluster.down(yes, workers_only, terminate)
+    cluster.down(yes, workers_only, destroy)
 
     if destroy:
         cluster_path = os.path.join(FLAMBE_CLUSTER_DEFAULT_FOLDER, f"{name}.yaml")
@@ -144,17 +175,12 @@ def rsync_down(source, target, cluster):
 @click.command()
 @click.option('-c', '--cluster', type=str, default=None,
               help="Cluster name.")
-@click.option('-a', '--all-clusters', is_flag=True, default=False,
-              help="List jobs on all clusters.")
-def list_cmd(cluster, all_clusters):
+def list_cmd(cluster):
     """List the jobs (i.e tmux sessions) running on the cluster."""
     logging.disable(logging.INFO)
 
     if cluster is not None:
         cluster_obj = load_cluster_config_helper(cluster)
-        cluster_obj.list()
-    elif not all_clusters:
-        cluster_obj, cluster = load_cluster_config_helper(return_name=True)
         cluster_obj.list()
     else:
         files = os.listdir(FLAMBE_CLUSTER_DEFAULT_FOLDER)
@@ -232,16 +258,20 @@ def clean(name, cluster):
               help="Cluster name.")
 @click.option('-f', '--force', is_flag=True, default=False,
               help='Override existing job with this name. Be careful \
-                    when using this flag as it could have undesired effects.')
+              when using this flag as it could have undesired effects.')
 @click.option('-d', '--debug', is_flag=True, default=False,
               help='Enable debug mode. Each runnable specifies the debug behavior. \
-                    For example for an Pipeline, Ray will run in a single thread \
-                    allowing user breakpoints')
+              For example for an Pipeline, Ray will run in a single thread \
+              allowing user breakpoints')
 @click.option('-v', '--verbose', is_flag=True, default=False,
               help='Verbose console output')
 @click.option('-a', '--attach', is_flag=True, default=False,
               help='Attach after submitting the job.')
-def submit(config, name, cluster, force, debug, verbose, attach):
+@click.option('--num-cpus', type=int, default=1,
+              help='Number of CPUs to allocate to this job.')
+@click.option('--num-gpus', type=int, default=0,
+              help='Number of GPUs to allocate to this job.')
+def submit(config, name, cluster, force, debug, verbose, attach, num_cpus, num_gpus):
     """Submit a job to the cluster, as a YAML config."""
     if debug:
         logging.disable(logging.INFO)
@@ -255,7 +285,7 @@ def submit(config, name, cluster, force, debug, verbose, attach):
         print(cl.BL(f"VERSION: {flambe.__version__}\n"))
 
     cluster = load_cluster_config_helper(cluster)
-    cluster.submit(config, name, force=force, debug=debug)
+    cluster.submit(config, name, force, debug, num_cpus, num_gpus)
     if attach:
         cluster.attach(name)
 
@@ -280,17 +310,29 @@ def site(name, cluster, port):
 # ----------------- flambe run ------------------ #
 @click.command()
 @click.argument('config', type=str, required=True)
-@click.option('-o', '--output', default='./',
+@click.option('-o', '--output', type=str, default='./',
               help='An output directory. A folder named \
               `flambe_output` will be created there.')
 @click.option('-f', '--force', is_flag=True, default=False,
               help='Override existing job with this name. Be careful \
-                    when using this flag as it could have undesired effects.')
+              when using this flag as it could have undesired effects.')
 @click.option('-d', '--debug', is_flag=True,
               help='Enable debug mode. Each runnable specifies the debug behavior. \
-                    For example for an Pipeline, Ray will run in a single thread \
-                    allowing user breakpoints')
-def run(config, output, force, debug):
+              For example for an Pipeline, Ray will run in a single thread \
+              allowing user breakpoints')
+@click.option('--num-cpus', type=int, default=1,
+              help='Number of CPUs to allocate to this job. Note: you usually do \
+              not need to change this value since most taks spawn their own Ray \
+              jobs but in the case where your task consumes resources directly, \
+              you can specify them here.')
+@click.option('--num-gpus', type=int, default=0,
+              help='Number of GPUs to allocate to this job. Note: you usually do \
+              not need to change this value since most taks spawn their own Ray \
+              jobs but in the case where your task consumes resources directly, \
+              you can specify them here.')
+@click.option('--no-save', type=bool, default=False,
+              help='If provided, the output foler will be a temporary dict')
+def run(config, output, force, debug, num_cpus, num_gpus):
     """Execute a runnable config."""
     # Load environment
     env = load_env_from_config(config)
@@ -353,11 +395,13 @@ def run(config, output, force, debug):
             debug=debug,
             local_files=updated_files
         )
-
-        runnable = load_runnable_from_config(config)
-        _continue = True
-        while _continue:
-            _continue = runnable.run()
+        # Launch with Ray so that you can specify resource reqs
+        result = execute_helper.options(
+            num_cpus=num_cpus,
+            num_gpus=num_gpu
+        ).remote(config)
+        # Wait until done executing
+        ray.get(result)
         print(cl.GR("------------------- Done -------------------"))
     except KeyboardInterrupt:
         print(cl.RE("---- Exiting early (Keyboard Interrupt) ----"))

@@ -179,20 +179,27 @@ class AWSCluster(Cluster):
             config['worker_nodes']['InstanceMarketOptions'] = spot  # type: ignore
 
         # Command to start ray on the head and worker nodes
-        config['head_start_ray_commands'] = [
+        head_start_ray_commands = [
             'ray stop',
             'ulimit -n 65536; ray start --head --redis-port=6379 --include-webui 1 \
                 --object-manager-port=8076 --autoscaling-config=~/ray_bootstrap_config.yaml'
         ]
-        config['worker_start_ray_commands'] = [
+        worker_start_ray_commands = [
             'ray stop',
             'ulimit -n 65536; ray start --address=$RAY_HEAD_IP:6379 --object-manager-port=8076'
         ]
 
-        super().__init__(name=name, ssh_user=ssh_user, extra=config, **kwargs)
+        super().__init__(
+            name=name,
+            ssh_user=ssh_user,
+            head_start_ray_commands=head_start_ray_commands,
+            worker_start_ray_commands=worker_start_ray_commands,
+            extra=config,
+            **kwargs
+        )
 
     def down(self, yes: bool = False, workers_only: bool = False, destroy: bool = False):
-        """Teardown the cluster.
+        """Teardown the cluster. Override to enable termination.
 
         Parameters
         ----------

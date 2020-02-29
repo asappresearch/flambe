@@ -1,6 +1,6 @@
 import os
 import copy
-from typing import Optional, Dict, List
+from typing import Optional, Dict, List, Tuple
 from ruamel.yaml import YAML
 import tempfile
 import inspect
@@ -12,6 +12,7 @@ from ruamel.yaml import comments
 from ray.autoscaler.commands import get_head_node_ip, get_worker_node_ips
 from ray.autoscaler.commands import exec_cluster, create_or_update_cluster, rsync, teardown_cluster
 
+import flambe
 from flambe.logging import coloredlogs as cl
 from flambe.const import FLAMBE_GLOBAL_FOLDER, PYTHON_VERSION
 from flambe.compile import Registrable, YAMLLoadType, load_config_from_file
@@ -34,8 +35,111 @@ exec_cluster = partial(
 
 
 def time() -> str:
-    """Get the current time."""
+    """Get the current time.
+
+    Returns
+    -------
+    str
+        The current time, formatted as a string.
+
+    """
     return datetime.now().strftime('%H:%M:%S')
+
+
+def upload_files(folder: Optional[str] = None) -> Tuple[Dict, Dict]:
+    """Upload files to the cluster.
+
+    Parameters
+    ----------
+    folder: str, optional
+        The parent folder to upload the files to.
+
+    Returns
+    -------
+    Dict[str, str]
+        The updated file mount.
+    Dict[str, str]
+        The updated local files mapping.
+
+    """
+    files_dir = os.path.join(FLAMBE_GLOBAL_FOLDER, 'files')
+    file_mounts: Dict[str, str] = dict()
+    updated_files: Dict[str, str] = dict()
+    updated_files.update(env.remote_files)
+    for file_name, file in env.local_files.items():
+        with download_manager(file, os.path.join(files_dir, file_name)) as path:
+            target = os.path.join(folder, f'files/{file_name}')
+            file_mounts[target] = path
+            updated_files[file_name] = target
+    return updated_files, file_mounts
+
+
+def upload_flambe(folder: Optional[str] = None) -> Tuple[str, Dict]:
+    """Set up Flambé on the cluster.
+
+    Returns
+    -------
+    str
+        New command to run.
+    Dict[str, str]
+        New file mounts.
+
+    """
+    file_mounts: Dict[str, str] = dict()
+    if is_dev_mode():
+        flambe_repo = get_flambe_repo_location()
+        target = f'flambe_dev'
+        if folder is not None:
+            target = os.path.join(folder, target)
+        file_mounts[target] = flambe_repo
+        cmd = f'pip install -U -e {target}'
+    else:
+        cmd = f'pip install -U flambe=={flambe.__version__}'
+
+    return cmd, file_mounts
+
+
+def upload_extensions(extensions: Dict, folder: Optional[str] = None) -> Tuple[List, Dict, Dict]:
+    """Set up extensions on the cluster.
+
+    Parameters
+    ----------
+    extensions : Dict[str, str]
+        [description]
+
+    Returns
+    -------
+    Tuple[List[str], Dict[str, str]]
+        [description]
+
+    """
+    folder = folder if folder is not None else ''
+
+    extensions_dir = os.path.join(FLAMBE_GLOBAL_FOLDER, 'extensions')
+    if not os.path.exists(extensions_dir):
+        os.makedirs(extensions_dir)
+
+    extensions = download_extensions(extensions, extensions_dir)
+    updated_extensions: Dict[str, str] = dict()
+    file_mounts: Dict[str, str] = dict()
+    commands = []
+    for module, package in extensions.items():
+        target = package
+        cmd = ''
+        if os.path.exists(package):
+            package = os.path.join(package, '')
+            target = os.path.join(folder, f'extensions/{module}')
+            if not is_pip_installable(package):
+                target = os.path.join(target, '')
+                python_setup = f"from setuptools import setup, find_packages\
+                \n\nsetup(name=flambe__{module}, version='0.0.0')"
+                cmd += f'echo "{python_setup}" > {target}setup.py && '
+            file_mounts[target] = package
+        cmd += f"pip install -U {target}"
+        updated_extensions[module] = target
+        commands.append(cmd)
+
+    return commands, file_mounts, updated_extensions
 
 
 class Cluster(Registrable):
@@ -71,6 +175,8 @@ class Cluster(Registrable):
                  setup_commands: Optional[List[str]] = None,
                  head_setup_commands: Optional[List[str]] = None,
                  worker_setup_commands: Optional[List[str]] = None,
+                 head_start_ray_commands: Optional[List[str]] = None,
+                 worker_start_ray_commands: Optional[List[str]] = None,
                  extra: Optional[Dict] = None) -> None:
         """Initialize a cluster.
 
@@ -106,11 +212,50 @@ class Cluster(Registrable):
             A list of commands to run on the head node only.
         worker_setup_commands : Optional[List[str]], optional
             A list of commands to run on the factory nodes only.
+        head_start_ray_commands : Optional[List[str]], optional
+            A list of commands to start ray on the head node.
+        worker_start_ray_commands : Optional[List[str]], optional
+            A list of commands to start ray on worker nodes.
         extra: Dict, optional
             Extra arguments to the cluster conifg. See all available
             arguments on the Ray Autoscaler documentation.
 
         """
+        # Upload Flambé and extensions from cluster config
+        permanent_cmds, permanent_files = [], dict()
+        permanent_cmds.append(f"conda create -y -q --name flambe python={PYTHON_VERSION}; echo ''")
+
+        setup_commands = setup_commands or []
+        setup_commands.append("pip install aiohttp psutil setproctitle grpcio")
+
+        flambe_cmd, files = upload_flambe()
+        setup_commands.append(flambe_cmd)
+        permanent_files.update(files)
+
+        env = flambe.get_env()
+        if env.extensions:
+            cmds, files, _ = upload_extensions(env.extensions)
+            setup_commands.extend(cmds)
+            permanent_files.update(files)
+
+        # Set envrionment for all subsequent commands
+        command_lists = [
+            setup_commands,
+            head_setup_commands,
+            worker_setup_commands,
+            head_start_ray_commands,
+            worker_start_ray_commands
+        ]
+        for commands in filter(lambda x: x is not None, command_lists):
+            for i, cmd in enumerate(commands):
+                commands[i] = f"source activate flambe && {cmd}"
+
+        permanent_cmds = permanent_cmds + setup_commands
+
+        # Set permanent commands and file mounts
+        file_mounts = file_mounts or dict()
+        permanent_files.update(file_mounts)
+
         self.config = {
             'cluster_name': name,
             'initial_workers': initial_workers,
@@ -122,14 +267,21 @@ class Cluster(Registrable):
                 'ssh_user': ssh_user,
                 'ssh_private_key': ssh_private_key
             },
-            'file_mounts': file_mounts or {},
-            'setup_commands': setup_commands or [],
+            'file_mounts': permanent_files,
+            'setup_commands': permanent_cmds,
             'head_setup_commands': head_setup_commands or [],
             'worker_setup_commands': worker_setup_commands or [],
+            'head_start_ray_commands': head_start_ray_commands or [],
+            'worker_start_ray_commands': worker_start_ray_commands or [],
             'initialization_commands': []
         }
-        if extra:
-            self.config.update(extra)
+
+        # Add extra config
+        for key, value in extra.items():
+            if key in self.config:
+                raise ValueError("Extra should not modify the permanent config.")
+            else:
+                self.config[key] = value
 
     def clone(self, **kwargs) -> 'Cluster':
         """Clone the cluster, updated with the provided arguments.
@@ -153,19 +305,23 @@ class Cluster(Registrable):
     def yaml_load_type(cls) -> YAMLLoadType:
         return YAMLLoadType.KWARGS
 
-    def up(self, yes: bool = False):
+    def up(self, yes: bool = False, restart: bool = False):
         """Update / Create the cluster.
 
         Parameters
         ----------
         yes : bool, optional
             Whether to force confirm a change in the cluster.
+        restart : bool, optional
+            Whether to restart the ray services.
 
         """
         yaml = YAML()
         with tempfile.NamedTemporaryFile() as fp:
             yaml.dump(self.config, fp)
-            create_or_update_cluster(fp.name, None, None, True, False, yes, None)
+            create_or_update_cluster(fp.name, None, None, not restart, False, yes, None)
+
+        print(cl.GR(f"Cluster started successful."))
 
     def down(self, yes: bool = False, workers_only: bool = False, destroy: bool = False):
         """Teardown the cluster.
@@ -184,6 +340,8 @@ class Cluster(Registrable):
         with tempfile.NamedTemporaryFile() as fp:
             yaml.dump(self.config, fp)
             teardown_cluster(fp.name, yes, workers_only, None)
+
+        print(cl.GR(f"Teardown successful."))
 
     def rsync_up(self, source: str, target: str):
         """Rsync the local source to the target on the cluster.
@@ -342,7 +500,9 @@ class Cluster(Registrable):
                runnable: str,
                name: str,
                force: bool = False,
-               debug: bool = False):
+               debug: bool = False,
+               num_cpus: int = 1,
+               num_gpus: int = 0):
         """Submit a job to the cluster.
 
         Parameters
@@ -357,46 +517,42 @@ class Cluster(Registrable):
         debug : bool, optional
             Whether to run in debug mode.
             Default ``False``.
+        num_cpus : int, optional
+            The number of CPU's to use for this job.
+            Default ``1``.
+        num_cpus : int, optional
+            The number of GPU's to use for this job.
+            Default ``0``.
 
         """
+        print(cl.BL(f'[{time()}] Submitting Job: {name}.'))
+
         # Load environment
         env = load_env_from_config(runnable)
         if env is None:
             env = Environment()
 
-        # Turn off output from ray
-        print(cl.BL(f'[{time()}] Submitting Job: {name}.'))
-
+        # Check running jobs for conflict
         yaml = YAML()
         with tempfile.NamedTemporaryFile() as fp:
             yaml.dump(self.config, fp)
-            # Check if a job of the same name exists.
-            try:
-                with capture_ray_output(supress_all=True):
-                    cmd = f"tmux has-session -t {name} &> /dev/null"
-                    exec_cluster(fp.name, cmd)
-                exists = True
-            except:  # noqa: E722
-                exists = False
-            if exists and not force:
-                print(cl.RE(f"Job {name} already exists. Use -f, --force to override."))
-                return
-
             # Check if a job is currently running on the cluster
             try:
                 with capture_ray_output(supress_all=True):
                     cmd = f"ps -C flambe"
                     exec_cluster(fp.name, cmd)
                 running = True
-                restart = False
             except:  # noqa: E722
                 running = False
-                restart = not exists
+            restart = not running
             if running and not force:
                 msg = "Another job is currently running.\n"
                 msg += "The cluster only supports running a single virtual env at a time. "
                 msg += "If you would like to run this job in the current virtual env, "
-                msg += "use -f, --force at your own risks."
+                msg += "use -f, --force at your own risks. Note that if your new job, "
+                msg += "has different extensions or file mounts than the currently running job, "
+                msg += "those will be replaced in the cluster configuration, which will impact "
+                msg += "what gets installed and synced to workers created by autoscaling."
                 print(cl.RE(msg))
                 return
 
@@ -405,8 +561,7 @@ class Cluster(Registrable):
         setup_cmds = []
         head_cmds = []
         worker_cmds = []
-        head_start_cmds = []
-        worker_start_cmds = []
+        job_env_name = "current"
 
         # Create new directory, new tmux session, and virtual env
         cmd = f"tmux kill-session -t {name}; tmux new -d -s {name}"
@@ -414,69 +569,37 @@ class Cluster(Registrable):
 
         cmd = f"mkdir -p jobs/{name}/extensions && "
         if restart:
-            cmd += f"conda remove -y -q --name flambe --all; "
-        cmd += f"conda create -y -q --name flambe python={PYTHON_VERSION}; echo ''"
+            cmd += f"conda remove -y -q --name {current} --all; "
+        cmd += f"conda create --name {job_env_name} --clone flambe; echo ''"
         setup_cmds.append(cmd)
-
-        # Upload and install flambe
-        activate = f'source activate flambe &&'
-        if is_dev_mode():
-            flambe_repo = get_flambe_repo_location()
-            target = f'jobs/{name}/flambe'
-            file_mounts[target] = flambe_repo
-
-            target = f'jobs/{name}/flambe'
-            cmd = f'{activate} pip install -U -e {target}'
-        else:
-            cmd = f'{activate} pip install -U flambe'
-
-        setup_cmds.append(cmd)
-        setup_cmds.append(f"{activate} pip install aiohttp psutil setproctitle grpcio")
 
         # Run the next head node commands through tmux
+        # and in a clean flambe virtual env
         tmux = lambda x: f'tmux send-keys -t {name}.0 "{x}" ENTER'  # noqa: E731
+        activate = lambda x: f"source activate {job_env_name} && {x}"  # noqa: E731
 
-        # Upload and install extensions
-        extensions = env.extensions
-        extensions_dir = os.path.join(FLAMBE_GLOBAL_FOLDER, 'extensions')
-        if not os.path.exists(extensions_dir):
-            os.makedirs(extensions_dir)
+        # Upload Flambé
+        flambe_cmd, flambe_files = upload_flambe(folder=f"jobs/{name}")
+        head_cmds.append(flambe_cmd)
+        worker_cmds.append(flambe_cmd)
+        permanent_files.update(flambe_files)
 
-        extensions = download_extensions(extensions, extensions_dir)
-        updated_extensions: Dict[str, str] = dict()
-        for module, package in extensions.items():
-            target = package
-            cmd = ''
-            if os.path.exists(package):
-                package = os.path.join(package, '')
-                target = f'jobs/{name}/extensions/{module}'
-                if not is_pip_installable(package):
-                    target = os.path.join(target, '')
-                    python_setup = f"from setuptools import setup, find_packages\
-                    \n\nsetup(name=flambe__{module}, version='0.0.0')"
-                    cmd += f'echo "{python_setup}" > {target}setup.py && '
-                file_mounts[target] = package
-            cmd += f"{activate} pip install -U {target}"
-            updated_extensions[module] = target
-            head_cmds.append(tmux(cmd))
-            worker_cmds.append(cmd)
+        # Upload extensions
+        commands, files, updated_exts = upload_extensions(env.extensions, folder=f"jobs/{name}")
+        head_cmds.extend([tmux(activate(cmd)) for cmd in commands])
+        worker_cmds.extend([activate(cmd) for cmd in commands])
+        file_mounts.update(files)
 
         # Upload files
-        files_dir = os.path.join(FLAMBE_GLOBAL_FOLDER, 'files')
-        updated_files: Dict[str, str] = dict()
-        updated_files.update(env.remote_files)
-        for file_name, file in env.local_files.items():
-            with download_manager(file, os.path.join(files_dir, file_name)) as path:
-                target = f'jobs/{name}/files/{file_name}'
-                file_mounts[target] = path
-                updated_files[file_name] = target
+        mounts, updated_files = upload_files(folder=f"jobs/{name}")
+        file_mounts.update(mounts)
 
         # Run Flambe
         env = env.clone(
             output_path=f"jobs/{name}",
             head_node_ip=self.head_node_ip(),
             worker_node_ips=self.worker_node_ips(),
-            extensions=updated_extensions,
+            extensions=updated_exts,
             local_files=updated_files,
             remote_files=[],
             remote=True
@@ -493,16 +616,6 @@ class Cluster(Registrable):
             config['file_mounts'].update(file_mounts)
 
             # Must add source activate to every other command
-            commands: List[Tuple[List, str]] = [
-                (setup_cmds, 'setup_commands'),
-                (head_cmds, 'head_setup_commands'),
-                (worker_cmds, 'worker_setup_commands'),
-                (head_start_cmds, 'head_start_ray_commands'),
-                (worker_start_cmds, 'worker_start_ray_commands')
-            ]
-            for cmd_list, key in commands:
-                config[key] = cmd_list + [f"{activate} {cmd}" for cmd in config[key]]
-
             with tempfile.NamedTemporaryFile() as fp:
                 yaml.dump(config, fp)
                 with capture_ray_output(supress_all=True) as output:  # noqa:
@@ -511,12 +624,13 @@ class Cluster(Registrable):
                     print(output)
 
         # Run Flambe
-        options = ' -d' * int(debug) + ' -f' * int(force)
-        cmd = f"{activate} flambe run {config_target}{options}; "
+        options = f' --num-cpus {num_cpus} --num-gpus {num_gpus}'
+        options += ' -d' * int(debug) + ' -f' * int(force)
+        cmd = f"flambe run {config_target}{options}; "
         with tempfile.NamedTemporaryFile() as fp:
             yaml.dump(self.config, fp)
             with capture_ray_output(supress_all=True):
-                exec_cluster(fp.name, tmux(cmd))
+                exec_cluster(fp.name, tmux(activate(cmd)))
 
         print(cl.GR(f'[{time()}] Job submitted successfully.\n'))
 

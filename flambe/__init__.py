@@ -29,7 +29,7 @@ main_logging.disable(main_logging.WARNING)
 from flambe.compile import Component, Schema, load, save
 from flambe.logging import log
 from flambe.runner import env, get_env, set_env
-from flambe import compile, dataset, pipeline, field, learn, nlp, vision, export, model
+from flambe import compile, dataset, pipeline, field, learn, export
 from flambe import cluster, metric, nn, runner, sampler, tokenizer, optim, search, utils
 from flambe.version import VERSION as __version__
 from flambe.const import ASCII_LOGO
@@ -37,8 +37,8 @@ from flambe.const import ASCII_LOGO
 
 __all__ = ['Component', 'Schema', 'log', 'tokenizer', 'search', 'utils',
            'compile', 'dataset', 'pipeline', 'field', 'learn', 'export',
-           'cluster', 'metric', 'nn', 'model', 'optim', 'runner', 'sampler',
-            'nlp', 'vision', '__version__', 'ASCII_LOGO', 'load', 'save',
+           'cluster', 'metric', 'nn', 'optim', 'runner', 'sampler',
+            '__version__', 'ASCII_LOGO', 'load', 'save',
             'env', 'get_env', 'set_env']
 
 

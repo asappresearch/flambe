@@ -218,16 +218,22 @@ class KubernetesCluster(Cluster):
         }
 
         # Command to start ray on the head and worker nodes
-        config['head_start_ray_commands'] = [
+        head_start_ray_commands = [
             'ray stop',
             'ulimit -n 65536; ray start --head --num-cpus=$MY_CPU_REQUEST --redis-port=6379 \
                 --object-manager-port=8076 --autoscaling-config=~/ray_bootstrap_config.yaml \
                 --include-webui 1'
         ]
-        config['worker_start_ray_commands'] = [
+        worker_start_ray_commands = [
             'ray stop',
             'ulimit -n 65536; ray start --num-cpus=$MY_CPU_REQUEST \
                 --address=$RAY_HEAD_IP:6379 --object-manager-port=8076'
         ]
 
-        super().__init__(name, extra=config, **kwargs)
+        super().__init__(
+            name,
+            head_start_ray_commands=head_start_ray_commands,
+            worker_start_ray_commands=worker_start_ray_commands,
+            extra=config,
+            **kwargs
+        )
