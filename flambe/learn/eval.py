@@ -1,11 +1,11 @@
-from typing import Optional
+from typing import Optional, Dict, Union
 
 import torch
 
 from flambe.compile import Component
 from flambe.dataset import Dataset
 from flambe.learn.utils import select_device
-from flambe.nn import Module
+from flambe.nn import Module  # type: ignore[attr-defined]
 from flambe.metric import Metric
 from flambe.sampler import Sampler, BaseSampler
 from flambe.logging import log
@@ -49,7 +49,6 @@ class Evaluator(Component):
         self.eval_sampler = eval_sampler or BaseSampler(batch_size=16, shuffle=False)
         self.model = model
         self.metric_fn = metric_fn
-        self.eval_metric = None
         self.dataset = dataset
 
         self.device = select_device(device)
@@ -59,6 +58,9 @@ class Evaluator(Component):
 
         # By default, no prefix applied to tb logs
         self.tb_log_prefix = None
+
+        self.eval_metric: Union[float, None] = None
+        self.register_attrs('eval_metric')
 
     def run(self, block_name: str = None) -> bool:
         """Run the evaluation.
@@ -72,20 +74,17 @@ class Evaluator(Component):
         self.model.to(self.device)
         self.model.eval()
         with torch.no_grad():
-            preds, targets = [], []
+            metric_state: Dict = {}
 
             for batch in self._eval_iterator:
                 pred, target = self.model(*[t.to(self.device) for t in batch])
-                preds.append(pred.cpu())
-                targets.append(target.cpu())
+                self.metric_fn.aggregate(metric_state, pred, target)
 
-            preds = torch.cat(preds, dim=0)  # type: ignore
-            targets = torch.cat(targets, dim=0)  # type: ignore
-            self.eval_metric = self.metric_fn(preds, targets).item()
+            self.eval_metric = self.metric_fn.finalize(metric_state)
 
             tb_prefix = f"{self.tb_log_prefix} " if self.tb_log_prefix else ""
 
-            log(f'{tb_prefix}Eval {self.metric_fn}',  # type: ignore
+            log(f'{tb_prefix}Eval/{self.metric_fn}',  # type: ignore
                 self.eval_metric, global_step=0)  # type: ignore
 
         return False

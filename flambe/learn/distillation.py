@@ -9,7 +9,7 @@ from flambe.dataset import Dataset
 from flambe.metric import Metric
 from flambe.sampler import Sampler
 from flambe.learn import Trainer
-from flambe.nn import Module
+from flambe.nn import Module  # type: ignore[attr-defined]
 
 
 class DistillationTrainer(Trainer):
@@ -193,7 +193,7 @@ class DistillationTrainer(Trainer):
 
         return loss
 
-    def _aggregate_preds(self, data_iterator) -> Tuple[torch.Tensor, torch.Tensor]:
+    def _aggregate_preds(self, data_iterator) -> Tuple[torch.Tensor, torch.Tensor, float]:
         """Aggregate the predicitons and targets for the dataset.
 
         Parameters
@@ -213,7 +213,7 @@ class DistillationTrainer(Trainer):
             student_columns = self.student_columns or range(len(batch))
             student_batch = [batch[i] for i in student_columns]
 
-            pred, target = self.model(**[t.to(self.device) for t in student_batch])
+            pred, target = self.model(*[t.to(self.device) for t in student_batch])
             pred = F.log_softmax(pred, dim=-1)
 
             preds.append(pred.cpu())
@@ -221,4 +221,4 @@ class DistillationTrainer(Trainer):
 
         preds = torch.cat(preds, dim=0)
         targets = torch.cat(targets, dim=0)
-        return preds, targets
+        return preds, targets, 0.

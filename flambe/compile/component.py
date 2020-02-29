@@ -368,7 +368,11 @@ class PickledDataLink(Registrable):
 
     def __call__(self, stash: Dict[str, Any]) -> Any:
         if self.obj_value is not None:
-            if self.obj_value != stash[self.obj_id]:
+            diff_obj_stash = self.obj_value != stash[self.obj_id]
+            is_tensor = isinstance(diff_obj_stash, torch.Tensor)
+
+            # == comparison between tensors returns a tensor, not bool
+            if (is_tensor and torch.any(diff_obj_stash)) or (not is_tensor and diff_obj_stash):
                 warn("PickledDataLink called second time with different stash")
             return self.obj_value
         self.obj_value = stash[self.obj_id]
@@ -624,7 +628,10 @@ class Link(Registrable):
         # any chained links; only traverse the schema structure
         current_obj = auto_resolve_link_and_move_to_schema(current_obj)
         for schema in self.schematic_path[1:]:
-            current_obj = current_obj.keywords[schema]
+            try:
+                current_obj = current_obj.keywords[schema]
+            except KeyError:
+                raise KeyError(f'Could not resolve link {schema}. (Check all !@ entries.)')
             current_obj = auto_resolve_link_and_move_to_schema(current_obj)
         self.target_leaf = current_obj
         # At the end of the schematic path, access the compiled object
@@ -957,9 +964,9 @@ class Component(Registrable):
         # modules, parameters or buffers
         # torch.optim.Optimizer does exist so ignore mypy
         for name, attr in self.__dict__.items():
+            current_path = prefix + name
             if isinstance(attr, Component) and not isinstance(attr, (
                     torch.optim.Optimizer, torch.optim.lr_scheduler._LRScheduler)):  # type: ignore
-                current_path = prefix + name
                 # If self is not nn.Module, need to recurse because
                 # that will not happen elsewhere
                 # If self *is* an nn.Module, don't need to recurse on
@@ -973,8 +980,16 @@ class Component(Registrable):
                                                 prefix=current_path + STATE_DICT_DELIMETER,
                                                 keep_vars=state_dict._metadata[KEEP_VARS_KEY])
                 state_dict._metadata[FLAMBE_DIRECTORIES_KEY].add(current_path)
-        # Iterate over modules to make sure Component
-        # nn.Modules are added to flambe directories
+            # Iterate over modules to make sure NON-Component
+            # nn.Modules' state is added. Only needed if self is not
+            # nn.Module, because otherwise this hook is being called
+            # via nn.Module.state_dict, and will already recurse to
+            # all children modules
+            if not isinstance(self, torch.nn.Module) and isinstance(attr, torch.nn.Module) \
+                    and not isinstance(attr, Component):
+                state_dict = attr.state_dict(destination=state_dict,
+                                             prefix=current_path + STATE_DICT_DELIMETER,
+                                             keep_vars=state_dict._metadata[KEEP_VARS_KEY])
         state_dict._metadata[FLAMBE_DIRECTORIES_KEY].add(prefix[:-1])
         state_dict = self._add_registered_attrs(state_dict, prefix)
         state_dict = self._state(state_dict, prefix, local_metadata)

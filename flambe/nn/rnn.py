@@ -1,3 +1,5 @@
+# type: ignore[override]
+
 from typing import Optional, Tuple, cast
 import warnings
 import logging
@@ -19,7 +21,7 @@ class RNNEncoder(Module):
     state by pooling the encoder states either by taking the maximum,
     average, or by taking the last hidden state before padding.
 
-    Padding is delt with by using torch's PackedSequence.
+    Padding is dealt with by using torch's PackedSequence.
 
     Attributes
     ----------
@@ -81,6 +83,8 @@ class RNNEncoder(Module):
         self.input_size = input_size
         self.hidden_size = hidden_size
         self.enforce_sorted = enforce_sorted
+        self.output_size = 2 * hidden_size if bidirectional else hidden_size
+
         if rnn_type in ['lstm', 'gru']:
             if kwargs:
                 logger.warn(f"The following '{kwargs}' will be ignored " +
@@ -123,7 +127,7 @@ class RNNEncoder(Module):
         state: Tensor
             An optional previous state of shape [L x B x H]
         padding_mask: Tensor, optional
-            The padding mask of shape [B x S]
+            The padding mask of shape [B x S], dtype should be bool
 
         Returns
         -------
@@ -142,8 +146,8 @@ class RNNEncoder(Module):
             output, state = self.rnn(data, state)
         elif self.rnn_type == 'sru':
             # SRU takes a mask instead of PackedSequence objects
-            # Write (1 - mask_t) in weird way for type checking to work
-            output, state = self.rnn(data, state, mask_pad=(-padding_mask + 1).byte())
+            # ~ operator negates bool tensor in torch 1.3
+            output, state = self.rnn(data, state, mask_pad=(~padding_mask))
         else:
             # Deal with variable length sequences
             lengths = padding_mask.long().sum(dim=0)
@@ -225,6 +229,7 @@ class PooledRNNEncoder(Module):
                               layer_norm=layer_norm,
                               highway_bias=highway_bias,
                               rescale=rescale)
+        self.output_size = 2 * hidden_size if bidirectional else hidden_size
 
     def forward(self,
                 data: Tensor,

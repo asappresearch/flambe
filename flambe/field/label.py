@@ -1,4 +1,4 @@
-from typing import Optional, Union, List
+from typing import Optional, Union, List, Iterable
 from collections import OrderedDict as odict
 
 import torch
@@ -17,7 +17,7 @@ class LabelField(Field):
     def __init__(self,
                  one_hot: bool = False,
                  multilabel_sep: Optional[str] = None,
-                 labels: Optional[Union[List[str], str]] = None) -> None:
+                 labels: Optional[Union[Iterable[str], str]] = None) -> None:
         """Initializes the LabelFetaurizer.
 
         Parameters
@@ -27,7 +27,7 @@ class LabelField(Field):
         multilabel_sep : str, optional
             If given, splits the input label into multiple labels
             using the given separator, defaults to None.
-        labels: Union[str, List[str]], optional
+        labels: Union[Iterable[str], str], optional
             If given, sets the labels and the ordering is used to map
             the labels to indices. That means the first item in this
             list will have label id 0, the next one id 1, etc..
@@ -45,8 +45,8 @@ class LabelField(Field):
                 # Labels if a file
                 with open(labels, 'r') as f:
                     label_list: List[str] = f.read().splitlines()
-            else:
-                label_list = labels
+            elif isinstance(labels, Iterable):
+                label_list = list(labels)
 
             self.label_given = True
             self.vocab = odict((label, i) for i, label in enumerate(label_list))
