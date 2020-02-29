@@ -160,6 +160,32 @@ class TestSchemaInitialize:
         assert a.x == 1
         assert a.y == 2
 
+    def test_initialize_other_arg_types(self):
+        class A:
+            def __init__(self, a, *args, b, **kwargs):
+                self.a = a
+                self.pos_args = args
+                self.b = b
+                self.kwargs = kwargs
+        s = Schema(A, args=[1, 2, 3], kwargs={'b': 4, 'c': 5, 'd': 6})
+        assert s['a'] == 1
+        assert s[0] == 1
+        assert s[1] == 2
+        assert s[2] == 3
+        assert s['b'] == 4
+        assert s['c'] == 5
+        assert s['d'] == 6
+        expected_args = {0: 1, 'a': 1, 1: 2, 2: 3, 'b': 4, 'c': 5, 'd': 6}
+        for k, v in expected_args.items():
+            assert s[k] == v
+        x = s()
+        assert x.a == 1
+        assert x.pos_args[0] == 2
+        assert x.pos_args[1] == 3
+        assert x.b == 4
+        assert x.kwargs['c'] == 5
+        assert x.kwargs['d'] == 6
+
     def test_initialize_recursive(self):
         """Test initialization will recurse to child schemas"""
         class A:
@@ -245,6 +271,23 @@ class TestSchemaInitialize:
         a.x.y += 1
         assert a.x.y == a2.x.y
 
+    def test_star_args(self):
+        """Test star args"""
+        class A:
+            def __init__(self, x, *args, y=3, **kwargs):
+                self.x = x
+                self.args = args
+                self.y = y
+                self.kwargs = kwargs
+        args = [1, 2]
+        kwargs = {'z': 4}
+        schema = Schema(A, args=args, kwargs=kwargs)
+        assert schema['x'] == 1
+        assert schema[0] == 1
+        assert schema[1] == 2
+        assert schema['y'] == 3
+        assert schema['z'] == 4
+
 
 class TestSchemaArgs:
 
@@ -268,18 +311,6 @@ class TestSchemaArgs:
                 self.y = y
 
         kwargs = {'x': 2}
-        with pytest.raises(TypeError):
-            schema = Schema(A, kwargs=kwargs)
-
-    def test_fails_star_args(self):
-        """Test star args are prohibited"""
-        class A:
-            def __init__(self, *args, y=3, **kwargs):
-                if 'x' in kwargs:
-                    self.x = kwargs['x']
-                self.y = y
-
-        kwargs = {'x': 1}
         with pytest.raises(TypeError):
             schema = Schema(A, kwargs=kwargs)
 

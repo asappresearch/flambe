@@ -1,6 +1,7 @@
 import pytest
 from ruamel.yaml.compat import StringIO
 
+import flambe
 from flambe.compile.yaml import load_config, dump_config, Registrable, YAMLLoadType, TagError
 from flambe.compile.schema import Schema
 
@@ -59,6 +60,24 @@ class D:
     def yaml_load_type(cls) -> str:
         return "kwargs_or_posargs"
 
+
+class E:
+    def __init__(self, x, *args, y=None):
+        self.x = x
+        self.args = args
+        self.y = y
+    @classmethod
+    def yaml_load_type(cls) -> str:
+        return "schematic"
+
+
+class F:
+    def __init__(self, x, *args):
+        self.x = x
+        self.args = args
+    @classmethod
+    def yaml_load_type(cls) -> str:
+        return "schematic"
 
 nothing = None
 const = 3
@@ -200,6 +219,56 @@ class TestSchematic:
         the_sum = load_one_config(config)
         the_sum = the_sum()
         assert the_sum == 7
+
+    def test_nested_dump_two_trip_pos_to_kw(self):
+        config = ("!tests.unit.compile.test_yaml.A\n"
+                  "- !tests.unit.compile.test_yaml.A\n"
+                  "- Null\n")
+        expected_config = ("!tests.unit.compile.test_yaml.A\n"
+                  "x: !tests.unit.compile.test_yaml.A\n"
+                  "  x:\n"
+                  "  y:\n"
+                  "y:\n")
+        a = load_one_config(config)
+        dumped = dump_one_config(a)
+        a = load_one_config(dumped)
+        dumped = dump_one_config(a)
+        assert expected_config == dumped
+
+    def test_nested_dump_two_trip_varpos_to_kw(self):
+        config = ("!tests.unit.compile.test_yaml.E\n"
+                  "- !tests.unit.compile.test_yaml.E\n"
+                  "  - Null\n"
+                  "- Null\n")
+        expected_config = ("!tests.unit.compile.test_yaml.E\n"
+                  "0: !tests.unit.compile.test_yaml.E\n"
+                  "  x:\n"
+                  "  y:\n"
+                  "1:\n"
+                  "y:\n")
+        a = load_one_config(config)
+        dumped = dump_one_config(a)
+        assert expected_config == dumped
+        a = load_one_config(dumped)
+        dumped = dump_one_config(a)
+        assert expected_config == dumped
+
+    def test_nested_dump_two_trip_varpos_to_kw(self):
+        config = ("!tests.unit.compile.test_yaml.F\n"
+                  "- !tests.unit.compile.test_yaml.F\n"
+                  "  - Null\n"
+                  "- Null\n")
+        expected_config = ("!tests.unit.compile.test_yaml.F\n"
+                  "- !tests.unit.compile.test_yaml.F\n"
+                  "  x:\n"
+                  "- \n")
+        a = load_one_config(config)
+        y = flambe.compile.yaml.SchematicLoader.to_yaml(a)
+        dumped = dump_one_config(y)
+        assert expected_config == dumped
+        a = load_one_config(dumped)
+        dumped = dump_one_config(a)
+        assert expected_config == dumped
 
 
 class TestKwargs:
