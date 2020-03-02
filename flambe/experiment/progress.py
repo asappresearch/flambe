@@ -6,8 +6,10 @@ import json
 
 class ProgressState:
 
-    def __init__(self, name, save_path, dependency_dag, factories_num=0):
+    def __init__(self, name, save_path, dependency_dag, config, factories_num=0):
         self.fname = "state.pkl"
+
+        self.config = config
 
         self.name = name
         self.save_path = save_path
@@ -67,7 +69,7 @@ class ProgressState:
                             hparams[k] = v
                         self.variants[b].append(hparams)
 
-    def checkpoint_end(self, block_id, checkpoints, block_success):
+    def checkpoint_end(self, block_id, block_success):
         curr_time = time.time()
 
         if self.prev_time:

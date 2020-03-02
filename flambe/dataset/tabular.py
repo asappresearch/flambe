@@ -60,7 +60,7 @@ class DataView:
         if self.data is None:
             raise IndexError()
 
-        if index in self.cached_data:
+        if self.cache and index in self.cached_data:
             return self.cached_data[index]
 
         ex = self.data[index]
@@ -81,7 +81,9 @@ class DataView:
         else:
             ret = tuple(ex)
 
-        self.cached_data[index] = ret
+        if self.cache:
+            self.cached_data[index] = ret
+
         return ret
 
     def is_empty(self) -> bool:
@@ -416,11 +418,13 @@ class TabularDataset(Dataset):
         The path may be either a single file or a directory. If it is
         a directory, each file is loaded according to the specified
         options and all the data is concatenated into a single list.
+        The files will be processed in order based on file name.
 
         Parameters
         ----------
         path : str
-            Path to data, could be a directory or a file
+            Path to data, could be a directory, a file, or a
+            smart_open link
         sep: str
             Separator to pass to the `read_csv` method
         header: Optional[Union[str, int]]
@@ -442,7 +446,7 @@ class TabularDataset(Dataset):
 
         """
         # Get all paths
-        if os.path.isdir(path):
+        if isinstance(path, str) and os.path.isdir(path):
             file_paths = [os.path.join(path, name) for name in os.listdir(path)]
             file_paths = sorted(file_paths)
         else:

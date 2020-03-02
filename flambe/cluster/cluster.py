@@ -8,6 +8,7 @@ from flambe.compile import yaml
 from flambe.runnable import Runnable
 from flambe.runnable.error import MissingSecretsError
 from flambe.runnable.utils import is_dev_mode
+from flambe.runner.utils import get_size_MB
 from flambe.cluster import const
 from flambe.cluster.instance import errors
 from flambe.cluster import errors as man_errors
@@ -18,7 +19,7 @@ from flambe.logging import coloredlogs as cl
 from flambe.runnable.environment import RemoteEnvironment
 from concurrent.futures import ThreadPoolExecutor
 
-from typing import Optional, Type, List, TypeVar, Union, Dict
+from typing import Optional, Type, List, TypeVar, Union, Dict, Callable
 from types import TracebackType
 
 import logging
@@ -42,6 +43,9 @@ logger = logging.getLogger(__name__)
 GPUFactoryInsT = TypeVar("GPUFactoryInsT", bound=GPUFactoryInstance)
 CPUFactoryInsT = TypeVar("CPUFactoryInsT", bound=CPUFactoryInstance)
 FactoryInsT = Union[GPUFactoryInsT, CPUFactoryInsT]
+
+
+UPLOAD_WARN_LIMIT_MB = 10
 
 
 class Cluster(Runnable):
@@ -113,17 +117,13 @@ class Cluster(Runnable):
         return self
 
     def __exit__(self, exc_type: Optional[Type[BaseException]], exc_value: Optional[BaseException],
-                 tb: Optional[TracebackType]) -> Optional[bool]:
+                 tb: Optional[TracebackType]):
         """Exit method for the context cluster.
 
         This method will catch any exception, log it and return True.
         This means that all exceptions produced in a Cluster
         (used with the context cluster) will not continue to raise.
 
-        Returns
-        -------
-        Optional[bool]
-            True, as an exception should not continue to raise.
         """
         if exc_type is not None:
             self.rollback_env()
@@ -548,7 +548,7 @@ class Cluster(Runnable):
         Parameters
         ----------
         content: Dict[str, str]
-            The dict of key -> name
+            The dict of resources key -> local path
         dest: str
             The orchestator's destination folder
         all_hosts: bool
@@ -571,6 +571,15 @@ class Cluster(Runnable):
             c = os.path.expanduser(c)
             base: str = ""
             if os.path.exists(c):
+
+                size = get_size_MB(c)
+                if size > UPLOAD_WARN_LIMIT_MB:
+                    logger.info(cl.YE(
+                        f"Uploading '{c}' ({int(size)} MB) which may take a while. " +
+                        "Double check you want to be transferring this file " +
+                        "(note we automatically sync extensions, experiment resources " +
+                        "and potentially the flambe repo if installed in dev mode)"))
+
                 if os.path.isdir(c):
                     if not c.endswith(os.sep):
                         c = f"{c}{os.sep}"
@@ -578,7 +587,7 @@ class Cluster(Runnable):
                 elif os.path.isfile(c):
                     base = os.path.basename(c)
 
-                new_c = os.path.join(dest, base)
+                new_c = os.path.join(dest, f"{k}__{base}")
                 self.orchestrator.send_rsync(c, new_c)
                 logger.debug(f"Content {k}: {c} sent to cluster")
 
@@ -897,7 +906,7 @@ class Cluster(Runnable):
         for f in self.factories:
             f.install_extensions(extensions)
 
-    def get_remote_env(self) -> RemoteEnvironment:
+    def get_remote_env(self, user_provider: Callable[[], str]) -> RemoteEnvironment:
         """Get the RemoteEnvironment for this cluster.
 
         The IPs stored will be the private IPs
@@ -917,6 +926,7 @@ class Cluster(Runnable):
             orchestrator_ip=self.orchestrator.private_host,
             factories_ips=[f.private_host for f in self.factories],
             user=self.orchestrator.username,
+            local_user=user_provider(),
             public_orchestrator_ip=self.orchestrator.host,
             public_factories_ips=[f.host for f in self.factories]
         )

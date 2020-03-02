@@ -1,3 +1,5 @@
+# type: ignore[override]
+
 from typing import Optional
 
 import torch
@@ -22,6 +24,7 @@ class MLPEncoder(Module):
                  input_size: int,
                  output_size: int,
                  n_layers: int = 1,
+                 dropout: float = 0.,
                  output_activation: Optional[nn.Module] = None,
                  hidden_size: Optional[int] = None,
                  hidden_activation: Optional[nn.Module] = None) -> None:
@@ -33,8 +36,11 @@ class MLPEncoder(Module):
             Input_dimension
         output_size: int
             Output dimension
-        n_layers: int
+        n_layers: int, optional
             Number of layers in the network, defaults to 1
+        dropout: float, optional
+            Dropout to be used before each MLP layer.
+            Only used if n_layers > 1.
         output_activation: nn.Module, optional
             Any PyTorch activation layer, defaults to None
         hidden_size: int, optional
@@ -59,11 +65,15 @@ class MLPEncoder(Module):
             layers.append(nn.Linear(input_size, hidden_size))
             if hidden_activation is not None:
                 layers.append(hidden_activation)
+            if dropout > 0:
+                layers.append(nn.Dropout(dropout))
 
             for _ in range(1, n_layers - 1):
                 layers.append(nn.Linear(hidden_size, hidden_size))
                 if hidden_activation is not None:
                     layers.append(hidden_activation)
+                if dropout > 0:
+                    layers.append(nn.Dropout(dropout))
 
         layers.append(nn.Linear(hidden_size, output_size))
         if output_activation is not None:

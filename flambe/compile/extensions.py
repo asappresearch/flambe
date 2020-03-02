@@ -12,7 +12,7 @@ import subprocess
 
 import importlib
 import importlib.util
-from typing import Dict, Optional, Iterable
+from typing import Dict, Optional, Iterable, Union
 from flambe.logging import coloredlogs as cl
 from flambe.compile.utils import _is_url
 
@@ -214,6 +214,7 @@ def install_extensions(extensions: Dict[str, str],
 
             curr_cmd.append(resource)
 
+            output: Union[bytes, str]
             output = subprocess.check_output(
                 curr_cmd,
                 stderr=subprocess.DEVNULL
@@ -292,7 +293,8 @@ def setup_default_modules():
     from flambe.optim import LRScheduler
     import torch
     import ray
-    make_component(torch.nn.Module, only_module='torch.nn')
+    exclude = ['torch.nn.quantized', 'torch.nn.qat']
+    make_component(torch.nn.Module, only_module='torch.nn', exclude=exclude)
     make_component(torch.optim.Optimizer, only_module='torch.optim')
     make_component(torch.optim.lr_scheduler._LRScheduler,
                    only_module='torch.optim.lr_scheduler', parent_component_class=LRScheduler)

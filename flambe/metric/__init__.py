@@ -3,13 +3,14 @@ from flambe.metric.loss.cross_entropy import MultiLabelCrossEntropy
 from flambe.metric.loss.nll_loss import MultiLabelNLLLoss
 from flambe.metric.dev.accuracy import Accuracy
 from flambe.metric.dev.perplexity import Perplexity
-from flambe.metric.dev.auc import AUC
-from flambe.metric.dev.binary import BinaryPrecision
-from flambe.metric.dev.binary import BinaryRecall
-from flambe.metric.dev.binary import BinaryAccuracy
+from flambe.metric.dev.bpc import BPC
+from flambe.metric.dev.auc import AUC, MultiClassAUC
+from flambe.metric.dev.binary import BinaryPrecision, BinaryRecall, BinaryAccuracy, F1
+from flambe.metric.dev.recall import Recall
 
 
 __all__ = ['Metric',
-           'Accuracy', 'AUC', 'Perplexity',
+           'Accuracy', 'AUC', 'Perplexity', 'BPC',
            'MultiLabelCrossEntropy', 'MultiLabelNLLLoss',
-           'BinaryPrecision', 'BinaryRecall', 'BinaryAccuracy']
+           'BinaryPrecision', 'BinaryRecall', 'BinaryAccuracy', 'F1',
+           'Recall', 'MultiClassAUC']

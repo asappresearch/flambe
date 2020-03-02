@@ -138,9 +138,6 @@ class TuneAdapter(ray.tune.Trainable):
                           console_prefix=self.block_id,
                           hyper_params=self.hyper_params,
                           capture_warnings=True):
-            if self.debug:
-                import ipdb
-                ipdb.set_trace()
             # Tune uses "done" instead of "continue" flag, so reverse
             # the boolean
             done = not self.block.run()
@@ -155,7 +152,7 @@ class TuneAdapter(ray.tune.Trainable):
     def _save(self, checkpoint_dir: str) -> str:
         """Subclasses should override this to implement save()."""
         path = os.path.join(checkpoint_dir, "checkpoint.flambe")
-        self.block.save(path)
+        self.block.save(path, overwrite=True)
         return path
 
     def _restore(self, checkpoint: str) -> None:

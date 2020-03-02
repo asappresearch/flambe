@@ -3,26 +3,30 @@ import os
 import re
 import logging
 from copy import deepcopy
-from typing import Dict, Optional, Any, Union, Sequence
+from typing import Dict, Optional, Union, Sequence, cast, Callable
 from collections import OrderedDict
 import shutil
+import tempfile
 
 from tqdm import tqdm
+from io import StringIO
 import ray
 from ray.tune.suggest import SearchAlgorithm
 from ray.tune.schedulers import TrialScheduler
-from ray.tune.logger import DEFAULT_LOGGERS, TFLogger
+from ray.tune.logger import DEFAULT_LOGGERS, TFLogger, tf2_compat_logger
 
-from flambe.compile import Schema, Component
-from flambe.compile.utils import _is_url
+from flambe.compile import Schema, Component, yaml
 from flambe.runnable import ClusterRunnable
+from flambe.compile.downloader import download_manager
 from flambe.cluster import errors as man_errors
 from flambe.cluster import const
 from flambe.cluster import Cluster
 from flambe.experiment import utils, wording
+from flambe.experiment.options import ClusterResource
 from flambe.runnable import RemoteEnvironment
 from flambe.runnable import error
 from flambe.runnable import utils as run_utils
+from flambe.runner.utils import get_files
 from flambe.experiment.progress import ProgressState
 from flambe.experiment.tune_adapter import TuneAdapter
 from flambe.logging import coloredlogs as cl
@@ -57,11 +61,6 @@ class Experiment(ClusterRunnable):
     resume: Union[str, List[str]]
         If a string is given, resume all blocks up until the given
         block_id. If a list is given, resume all blocks in that list.
-    debug: bool
-        If debug is True, then a debugger will be available at the
-        beginning of each Component block of the pipeline. Defaults
-        to False.
-        ATTENTION: debug only works when running locally.
     save_path: Optional[str]
         A directory where to save the experiment.
     devices: Dict[str, int]
@@ -86,6 +85,10 @@ class Experiment(ClusterRunnable):
     merge_plot: bool
         Display all tensorboard logs in the same plot (per block type).
         Defaults to True.
+    user_provider: Callable[[], str]
+        The logic for specifying the user triggering this
+        Runnable. If not passed, by default it will pick the computer's
+        user.
 
     """
 
@@ -93,17 +96,18 @@ class Experiment(ClusterRunnable):
                  name: str,
                  pipeline: Dict[str, Schema],
                  resume: Optional[Union[str, Sequence[str]]] = None,
-                 debug: bool = False,
                  devices: Dict[str, int] = None,
                  save_path: Optional[str] = None,
-                 resources: Optional[Dict[str, Dict[str, Any]]] = None,
+                 resources: Optional[Dict[str, Union[str, ClusterResource]]] = None,
                  search: OptionalSearchAlgorithms = None,
                  schedulers: OptionalTrialSchedulers = None,
                  reduce: Optional[Dict[str, int]] = None,
                  env: RemoteEnvironment = None,
                  max_failures: int = 1,
-                 merge_plot: bool = True) -> None:
-        super().__init__(env)
+                 stop_on_failure: bool = True,
+                 merge_plot: bool = True,
+                 user_provider: Callable[[], str] = None) -> None:
+        super().__init__(env=env, user_provider=user_provider)
         self.name = name
 
         self.original_save_path = save_path
@@ -127,8 +131,8 @@ class Experiment(ClusterRunnable):
         )
 
         self.resume = resume
-        self.debug = debug
         self.devices = devices
+        self.resources = resources or dict()
         self.pipeline = pipeline
         # Compile search algorithms if needed
         self.search = search or dict()
@@ -141,26 +145,58 @@ class Experiment(ClusterRunnable):
             if isinstance(scheduler, Schema):
                 self.schedulers[stage_name] = scheduler()
         self.reduce = reduce or dict()
-        self.resources = resources or dict()
         self.max_failures = max_failures
+        self.stop_on_failure = stop_on_failure
         self.merge_plot = merge_plot
         if pipeline is None or not isinstance(pipeline, (Dict, OrderedDict)):
             raise TypeError("Pipeline argument is not of type Dict[str, Schema]. "
                             f"Got {type(pipeline).__name__} instead")
         self.pipeline = pipeline
 
-    def run(self, force: bool = False, verbose: bool = False, **kwargs):
+    def process_resources(
+        self,
+        resources: Dict[str, Union[str, ClusterResource]],
+        folder: str
+    ) -> Dict[str, Union[str, ClusterResource]]:
+        """Download resources that are not tagged with '!cluster'
+        into a given directory.
+
+        Parameters
+        ----------
+        resources: Dict[str, Union[str, ClusterResource]]
+            The resources dict
+        folder: str
+            The directory where the remote resources
+            will be downloaded.
+
+        Returns
+        -------
+        Dict[str, Union[str, ClusterResource]]
+            The resources dict where the remote urls that
+            don't contain '!cluster' point now to the local
+            path where the resource was downloaded.
+
+        """
+        # Keep the resources temporary dict for later cleanup
+        ret = {}
+        for k, v in resources.items():
+            if not isinstance(v, ClusterResource):
+                with download_manager(v, os.path.join(folder, k)) as path:
+                    ret[k] = path
+            else:
+                ret[k] = v
+
+        return ret
+
+    def run(self, force: bool = False, verbose: bool = False, debug: bool = False, **kwargs):
         """Run an Experiment"""
 
         logger.info(cl.BL("Launching local experiment"))
 
         # Check if save_path/name already exists + is not empty
         # + force and resume are False
-        if (
-            os.path.exists(self.full_save_path) and
-            os.listdir(self.full_save_path) and
-            not self.resume and not force
-        ):
+        if not self.resume and not force and os.path.exists(self.full_save_path) \
+                and list(get_files(self.full_save_path)):
             raise error.ParsingRunnableError(
                 f"Results from an experiment with the same name were located in the save path " +
                 f"{self.full_save_path}. To overide this results, please use '--force' " +
@@ -169,6 +205,7 @@ class Experiment(ClusterRunnable):
             )
 
         full_save_path = self.full_save_path
+
         if not self.env:
             wording.print_useful_local_info(full_save_path)
 
@@ -185,14 +222,33 @@ class Experiment(ClusterRunnable):
                 os.makedirs(full_save_path)
                 logger.debug(f"{full_save_path} created to store output")
 
-        local_vars = self.resources.get('local', {}) or {}
-        local_vars = utils.rel_to_abs_paths(local_vars)
-        remote_vars = self.resources.get('remote', {}) or {}
+        self._dump_experiment_file()
 
-        global_vars = dict(local_vars, **remote_vars)
+        if any(map(lambda x: isinstance(x, ClusterResource), self.resources.values())):
+            raise ValueError(
+                f"Local experiments doesn't support resources with '!cluster' tags. " +
+                "The '!cluster' tag is used for those resources that need to be handled " +
+                "in the cluster when running remote experiments.")
+
+        if not self.env:
+            self.tmp_resources_dir = tempfile.TemporaryDirectory()
+            resources_folder = self.tmp_resources_dir.name
+        else:
+            resources_folder = f"{self.full_save_path}/_resources"
+
+        resources = self.process_resources(self.resources, resources_folder)
+
+        # rsync downloaded resources
+        if self.env:
+            run_utils.rsync_hosts(self.env.orchestrator_ip,
+                                  self.env.factories_ips,
+                                  self.env.user,
+                                  self.full_save_path,
+                                  self.env.key,
+                                  exclude=["state.pkl"])
 
         # Check that links are in order (i.e topologically in pipeline)
-        utils.check_links(self.pipeline, global_vars)
+        utils.check_links(self.pipeline, resources)
 
         # Check that only computable blocks are given
         # search algorithms and schedulers
@@ -200,15 +256,7 @@ class Experiment(ClusterRunnable):
 
         # Initialize ray cluster
         kwargs = {"logging_level": logging.ERROR, "include_webui": False}
-        if self.debug:
-            logger.info(
-                cl.BL("Debugger activated"))
-            logger.info(
-                cl.YE("Pipeline will begin executing all variants and all " +
-                      "computables serially. " +
-                      "Press 's' to step into the " +
-                      "run method of the Component once the ipdb console " +
-                      "shows up"))
+        if debug:
             kwargs['local_mode'] = True
 
         if self.env:
@@ -263,7 +311,7 @@ class Experiment(ClusterRunnable):
         schemas_dag: OrderedDict = OrderedDict()
         for block_id, schema_block in self.pipeline.items():
             schemas_dag[block_id] = schema_block
-            relevant_ids = utils.extract_needed_blocks(schemas_dag, block_id, global_vars)
+            relevant_ids = utils.extract_needed_blocks(schemas_dag, block_id, resources)
             dependencies = deepcopy(relevant_ids)
             dependencies.discard(block_id)
 
@@ -271,9 +319,11 @@ class Experiment(ClusterRunnable):
 
         if self.env:
             self.progress_state = ProgressState(
-                self.name, full_save_path, dependency_dag, len(self.env.factories_ips))
+                self.name, full_save_path, dependency_dag,
+                self.content, len(self.env.factories_ips))
         else:
-            self.progress_state = ProgressState(self.name, full_save_path, dependency_dag)
+            self.progress_state = ProgressState(self.name, full_save_path,
+                                                dependency_dag, self.content)
 
         for block_id, schema_block in tqdm(self.pipeline.items()):
             schema_block.add_extensions_metadata(self.extensions)
@@ -284,7 +334,7 @@ class Experiment(ClusterRunnable):
             success[block_id] = True
 
             self.progress_state.checkpoint_start(block_id)
-            relevant_ids = utils.extract_needed_blocks(schemas, block_id, global_vars)
+            relevant_ids = utils.extract_needed_blocks(schemas, block_id, resources)
             relevant_schemas = {k: v for k, v in deepcopy(schemas).items() if k in relevant_ids}
 
             # Set resume
@@ -310,14 +360,14 @@ class Experiment(ClusterRunnable):
                               'schemas': Schema.serialize(schemas_dict),
                               'checkpoints': checkpoints,
                               'to_run': block_id,
-                              'global_vars': global_vars,
+                              'global_vars': resources,
                               'verbose': verbose,
                               'custom_modules': list(self.extensions.keys()),
-                              'debug': self.debug}
+                              'debug': debug}
                     # Filter out the tensorboard logger as we handle
                     # general and tensorboard-specific logging ourselves
-                    tune_loggers = list(filter(lambda l: not issubclass(l, TFLogger),
-                                               DEFAULT_LOGGERS))
+                    tune_loggers = list(filter(lambda l: l != tf2_compat_logger and  # noqa: E741
+                                               not issubclass(l, TFLogger), DEFAULT_LOGGERS))
                     tune_experiment = ray.tune.Experiment(name=block_id,
                                                           run=TuneAdapter,
                                                           trial_name_creator=trial_name_creator,
@@ -340,10 +390,19 @@ class Experiment(ClusterRunnable):
                                                   raise_on_failed_trial=False)
                 logger.debug(f"Finish running all tune.Experiments for {block_id}")
 
+                any_error = False
                 for t in trials:
                     if t.status == t.ERROR:
-                        logger.error(f"{t} ended with ERROR status.")
+                        logger.error(cl.RE(f"Variant {t} of '{block_id}' ended with ERROR status."))
                         success[block_id] = False
+                        any_error = True
+                if any_error and self.stop_on_failure:
+                    self.teardown()
+                    self.progress_state.checkpoint_end(block_id, success[block_id])
+                    raise error.UnsuccessfulRunnableError(
+                        f"Stopping experiment at block '{block_id}' "
+                        "because there was an error and stop_on_failure == True."
+                    )
 
                 # Save checkpoint location
                 # It should point from:
@@ -390,9 +449,19 @@ class Experiment(ClusterRunnable):
                                           self.env.key,
                                           exclude=["state.pkl"])
 
-            self.progress_state.checkpoint_end(block_id, checkpoints, success[block_id])
+            self.progress_state.checkpoint_end(block_id, success[block_id])
             logger.debug(f"Done running {block_id}")
 
+        self.teardown()
+
+        if all(success.values()):
+            logger.info(cl.GR("Experiment ended successfully"))
+        else:
+            raise error.UnsuccessfulRunnableError(
+                "Not all trials were successful. Check the logs for more information"
+            )
+
+    def teardown(self):
         # Disconnect process from ray cluster
         ray.shutdown()
 
@@ -406,12 +475,8 @@ class Experiment(ClusterRunnable):
 
         self.progress_state.finish()
 
-        if all(success.values()):
-            logger.info(cl.GR("Experiment ended successfully"))
-        else:
-            raise error.UnsuccessfulRunnableError(
-                "Not all trials were successful. Check the logs for more information"
-            )
+        if hasattr(self, 'tmp_resources_dir'):
+            self.tmp_resources_dir.cleanup()
 
     def setup(self, cluster: Cluster, extensions: Dict[str, str], force: bool, **kwargs) -> None:
         """Prepare the cluster for the Experiment remote execution.
@@ -436,11 +501,6 @@ class Experiment(ClusterRunnable):
             The force value provided to Flambe
 
         """
-        if self.debug:
-            raise error.ParsingRunnableError(
-                f"Remote experiments don't support debug mode. " +
-                "Remove 'debug: True' for running this experiment in a cluster."
-            )
 
         if cluster.existing_flambe_execution() or cluster.existing_ray_cluster():
             if not force:
@@ -475,8 +535,8 @@ class Experiment(ClusterRunnable):
             raise man_errors.ClusterError("The orchestrator needs to exist at this point")
 
         cluster.create_dirs([self.name,
-                             f"{self.name}/resources",
-                             f"{self.name}/{self.output_folder_name}"])
+                             f"{self.name}/{self.output_folder_name}",
+                             f"{self.name}/{self.output_folder_name}/_resources"])
         logger.info(cl.YE("Created supporting directories"))
 
         cluster.launch_ray_cluster()
@@ -484,15 +544,32 @@ class Experiment(ClusterRunnable):
         if not cluster.check_ray_cluster():
             raise man_errors.ClusterError("Ray cluster not launched correctly.")
 
-        local_resources = self.resources.get("local")
-        new_resources = {"remote": self.resources.get("remote", dict())}
+        local_resources = {k: v for k, v in self.resources.items()
+                           if not isinstance(v, ClusterResource)}
+
+        tmp_resources_dir = tempfile.TemporaryDirectory()
+
+        # This will download remote resources.
+        local_resources = self.process_resources(
+            local_resources, tmp_resources_dir.name)  # type: ignore
+
+        local_resources = cast(Dict[str, str], local_resources)
+
         if local_resources:
-            new_resources['local'] = cluster.send_local_content(
+            new_resources = cluster.send_local_content(
                 local_resources,
-                os.path.join(cluster.orchestrator.get_home_path(), self.name, "resources")
+                os.path.join(cluster.orchestrator.get_home_path(), self.name,
+                             self.output_folder_name, "_resources"),
+                all_hosts=True
             )
         else:
-            new_resources['local'] = dict()
+            new_resources = dict()
+
+        tmp_resources_dir.cleanup()
+
+        # Add the cluster resources without the tag
+        new_resources.update({k: v.location for k, v in self.resources.items()
+                              if isinstance(v, ClusterResource)})
 
         if cluster.orchestrator.is_tensorboard_running():
             if force:
@@ -548,18 +625,26 @@ class Experiment(ClusterRunnable):
                     "(with optional - or _ in between)"
                 )
 
-        # Check if resources contains only local and remote
-        if self.resources:
-            if len(list(filter(lambda x: x not in ['local', 'remote'],
-                               self.resources.keys()))) > 0:
-                raise error.ParsingRunnableError(
-                    f"'resources' section must contain only 'local' section and/or 'remote' keys"
-                )
+    def get_user(self) -> str:
+        """Get the user that triggered this experiment.
 
-        # Check if local resources exists:
-        if self.resources and self.resources.get("local"):
-            for v in self.resources["local"].values():
-                if not _is_url(v) and not os.path.exists(os.path.expanduser(v)):
-                    raise error.ParsingRunnableError(
-                        f"Local resource '{v}' does not exist."
-                    )
+        Returns
+        -------
+        str:
+            The user as a string.
+
+        """
+        return self.env.local_user if self.env else self.user_provider()
+
+    def _dump_experiment_file(self) -> None:
+        """Dump the experiment YAML representation
+        to the output folder.
+
+        """
+        destination = os.path.join(self.full_save_path, "experiment.yaml")
+        with open(destination, 'w') as f:
+            with StringIO() as s:
+                yaml.dump_all([self.extensions, self], s)
+                f.write(s.getvalue())
+            f.flush()
+        logger.debug(f"Saved experiment file in {destination}")

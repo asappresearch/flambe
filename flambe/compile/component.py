@@ -4,7 +4,7 @@ import dill
 import logging
 from reprlib import recursive_repr
 from warnings import warn
-from typing import Type, TypeVar, Any, Mapping, Dict, Optional, List
+from typing import Type, TypeVar, Any, Mapping, Dict, Optional, List, Union
 from typing import Generator, MutableMapping, Callable, Set, Tuple, Sequence
 from functools import WRAPPER_ASSIGNMENTS
 from collections import OrderedDict
@@ -100,6 +100,7 @@ class Schema(MutableMapping[str, Any]):
         self.component_subclass: Type[C] = component_subclass
         self.factory_method: Optional[str] = _flambe_custom_factory_name
         self.keywords: Dict[str, Any] = keywords
+        self.post_init_hooks: Sequence[Callable] = []
         self._compiled: Optional[C] = None
         self._extensions: Dict[str, str] = {}
         # Flag changes getattr functionality (for dot notation access)
@@ -120,6 +121,8 @@ class Schema(MutableMapping[str, Any]):
         self._compiled = compiled
         compiled._schema = self  # type: ignore
         compiled._created_with_tag = self._created_with_tag  # type: ignore
+        for hook in self.post_init_hooks:
+            hook(compiled)
         return compiled
 
     def add_extensions_metadata(self, extensions: Dict[str, str]) -> None:
@@ -359,15 +362,28 @@ class contextualized_linking:
 @alias('$')
 class PickledDataLink(Registrable):
 
-    def __init__(self, obj_id: str):
+    def __init__(self, obj_id: str, value: Any = None):
         self.obj_id = obj_id
+        self.obj_value = value
 
     def __call__(self, stash: Dict[str, Any]) -> Any:
-        return stash[self.obj_id]  # TODO maybe load here for performance reasons
+        if self.obj_value is not None:
+            diff_obj_stash = self.obj_value != stash[self.obj_id]
+            is_tensor = isinstance(diff_obj_stash, torch.Tensor)
+
+            # == comparison between tensors returns a tensor, not bool
+            if (is_tensor and torch.any(diff_obj_stash)) or (not is_tensor and diff_obj_stash):
+                warn("PickledDataLink called second time with different stash")
+            return self.obj_value
+        self.obj_value = stash[self.obj_id]
+        return self.obj_value
 
     @classmethod
     def to_yaml(cls, representer: Any, node: Any, tag: str) -> Any:
-        return representer.represent_scalar(tag, node.obj_id)
+        global _link_obj_stash
+        obj_id = str(len(_link_obj_stash.keys()))
+        _link_obj_stash[obj_id] = node.obj_value
+        return representer.represent_scalar(tag, obj_id)
 
     @classmethod
     def from_yaml(cls, constructor: Any, node: Any, factory_name: str) -> 'PickledDataLink':
@@ -582,6 +598,7 @@ class Link(Registrable):
         self.target_leaf: Optional[Schema] = None
         self.local = local
         self.resolved: Optional[Any] = None
+        self.post_init_hooks: Sequence[Callable] = []
 
     @property
     def root_schema(self) -> str:
@@ -611,7 +628,10 @@ class Link(Registrable):
         # any chained links; only traverse the schema structure
         current_obj = auto_resolve_link_and_move_to_schema(current_obj)
         for schema in self.schematic_path[1:]:
-            current_obj = current_obj.keywords[schema]
+            try:
+                current_obj = current_obj.keywords[schema]
+            except KeyError:
+                raise KeyError(f'Could not resolve link {schema}. (Check all !@ entries.)')
             current_obj = auto_resolve_link_and_move_to_schema(current_obj)
         self.target_leaf = current_obj
         # At the end of the schematic path, access the compiled object
@@ -630,6 +650,8 @@ class Link(Registrable):
             for attr in self.attr_path:
                 current_obj = getattr(current_obj, attr)
         self.resolved = current_obj
+        for hook in self.post_init_hooks:
+            hook(current_obj)
         return current_obj
 
     @classmethod
@@ -666,9 +688,7 @@ class Link(Registrable):
                     try:
                         return representer.represent_data(node.resolved)
                     except RepresenterError:
-                        obj_id = str(len(_link_obj_stash.keys()))
-                        _link_obj_stash[obj_id] = node.resolved
-                        data_link = PickledDataLink(obj_id=obj_id)
+                        data_link = PickledDataLink(obj_id='0', value=node.resolved)
                         return PickledDataLink.to_yaml(representer, data_link, '!$')
         # No contextualization necessary
         link_str = create_link_str(node.schematic_path, node.attr_path)
@@ -700,56 +720,6 @@ class FunctionCallLink(Link):
 
 
 K = TypeVar('K')
-
-
-def activate_links(data: K) -> Any:
-    """Iterate through items in dictionary and activate any `Link`s
-
-    Parameters
-    ----------
-    kwargs : Dict[str, Any]
-        A dictionary of kwargs that may contain instances of `Link`
-
-    Returns
-    -------
-    Dict[str, Any]
-        Copy of the original dictionay with all Links activated
-
-    Examples
-    -------
-    Process a dictionary with Links
-
-    >>> class A(Component):
-    ...     def __init__(self, x=2):
-    ...         self.x = x
-    ...
-    >>> a = A(x=1)
-    >>> kwargs = {'kw1': 0, 'kw2': Link("ref_for_a.x", obj=a)}
-    >>> activate_links(kwargs)
-    {'kw1': 0, 'kw2': 1}
-
-    """
-    if isinstance(data, Link):
-        return data()
-    elif isinstance(data, Mapping) and not isinstance(data, Schema):
-        out_dict = {}
-        for kw, val in data.items():
-            out_dict[kw] = activate_links(val)
-        return out_dict
-    elif isinstance(data, Sequence) and not isinstance(data, str):
-        out_list = []
-        for val in data:
-            out_list.append(activate_links(val))
-        return out_list
-    return data
-
-
-def activate_stash_refs(kwargs: Dict[str, Any], stash: Dict[str, Any]) -> Dict[str, Any]:
-    """Activate the pickled data links using the loaded stash"""
-    return {
-        kw: kwargs[kw](stash) if isinstance(kwargs[kw], PickledDataLink) else kwargs[kw]
-        for kw in kwargs
-    }
 
 
 def fill_defaults(kwargs: Dict[str, Any], function: Callable[..., Any]) -> Dict[str, Any]:
@@ -994,9 +964,9 @@ class Component(Registrable):
         # modules, parameters or buffers
         # torch.optim.Optimizer does exist so ignore mypy
         for name, attr in self.__dict__.items():
+            current_path = prefix + name
             if isinstance(attr, Component) and not isinstance(attr, (
                     torch.optim.Optimizer, torch.optim.lr_scheduler._LRScheduler)):  # type: ignore
-                current_path = prefix + name
                 # If self is not nn.Module, need to recurse because
                 # that will not happen elsewhere
                 # If self *is* an nn.Module, don't need to recurse on
@@ -1010,8 +980,16 @@ class Component(Registrable):
                                                 prefix=current_path + STATE_DICT_DELIMETER,
                                                 keep_vars=state_dict._metadata[KEEP_VARS_KEY])
                 state_dict._metadata[FLAMBE_DIRECTORIES_KEY].add(current_path)
-        # Iterate over modules to make sure Component
-        # nn.Modules are added to flambe directories
+            # Iterate over modules to make sure NON-Component
+            # nn.Modules' state is added. Only needed if self is not
+            # nn.Module, because otherwise this hook is being called
+            # via nn.Module.state_dict, and will already recurse to
+            # all children modules
+            if not isinstance(self, torch.nn.Module) and isinstance(attr, torch.nn.Module) \
+                    and not isinstance(attr, Component):
+                state_dict = attr.state_dict(destination=state_dict,
+                                             prefix=current_path + STATE_DICT_DELIMETER,
+                                             keep_vars=state_dict._metadata[KEEP_VARS_KEY])
         state_dict._metadata[FLAMBE_DIRECTORIES_KEY].add(prefix[:-1])
         state_dict = self._add_registered_attrs(state_dict, prefix)
         state_dict = self._state(state_dict, prefix, local_metadata)
@@ -1288,18 +1266,19 @@ class Component(Registrable):
     @classmethod
     def load_from_path(cls,
                        path: str,
+                       map_location: Union[torch.device, str] = None,
                        use_saved_config_defaults: bool = True,
                        **kwargs: Any):
         if use_saved_config_defaults:
-            instance = flambe_load(path)
+            instance = flambe_load(path, map_location=map_location)
         else:
-            loaded_state = load_state_from_file(path)
+            loaded_state = load_state_from_file(path, map_location=map_location)
             instance = cls(**kwargs)
             instance.load_state(loaded_state)
         return instance
 
     def save(self, path: str, **kwargs: Any):
-        flambe_save(self, path)
+        flambe_save(self, path, **kwargs)
 
     @classmethod
     def to_yaml(cls, representer: Any, node: Any, tag: str) -> Any:
@@ -1326,25 +1305,6 @@ class Component(Registrable):
         # constructed data and then updates it
         kwargs, = list(constructor.construct_yaml_map(node))
         return Schema(cls, _flambe_custom_factory_name=factory_name, **kwargs)
-
-    @classmethod
-    def setup_dependencies(cls: Type[C], kwargs: Dict[str, Any]) -> None:
-        """Add default links to kwargs for cls; hook called in compile
-
-        For example, you may want to connect model parameters to the
-        optimizer by default, without requiring users to specify this
-        link in the config explicitly
-
-        Parameters
-        ----------
-        cls : Type[C]
-            Class on which method is called
-        kwargs : Dict[str, Any]
-            Current kwargs that should be mutated directly to include
-            links
-
-        """
-        return
 
     @classmethod
     def precompile(cls: Type[C], **kwargs: Any) -> None:
@@ -1422,19 +1382,18 @@ class Component(Registrable):
         """
         extensions: Dict[str, str] = _flambe_extensions or {}
         stash: Dict[str, Any] = _flambe_stash or {}
-        # Set additional links / default links
-        cls.setup_dependencies(kwargs)
-        # Activate links all links
-        processed_kwargs = activate_links(kwargs)  # TODO maybe add to helper for collections
-        processed_kwargs = activate_stash_refs(processed_kwargs, stash)
-        # Modify kwargs, optionally compiling and updating any of them
-        cls.precompile(**processed_kwargs)
+        # Allow objects to do custom operations such as adding hooks
+        cls.precompile(**kwargs)
         # Recursively compile any remaining un-compiled kwargs
 
         def helper(obj: Any) -> Any:
             if isinstance(obj, Schema):
                 obj.add_extensions_metadata(extensions)
                 out = obj(stash)  # type: ignore
+            elif isinstance(obj, Link):
+                out = obj()
+            elif isinstance(obj, PickledDataLink):
+                out = obj(stash)
             # string passes as sequence
             elif isinstance(obj, list) or isinstance(obj, tuple):
                 out = []
@@ -1448,7 +1407,7 @@ class Component(Registrable):
                 out = obj
             return out
 
-        newkeywords = helper(processed_kwargs)
+        newkeywords = helper(kwargs)
         # Check for remaining yaml types
         for kw in newkeywords:
             if isinstance(newkeywords[kw], YAML_TYPES):

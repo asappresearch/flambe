@@ -1,11 +1,16 @@
+# type: ignore[override]
+
 from typing import Optional, Tuple, cast
 import warnings
+import logging
 
 import torch
 from torch import nn
 from torch import Tensor
 
 from flambe.nn.module import Module
+
+logger = logging.getLogger(__name__)
 
 
 class RNNEncoder(Module):
@@ -16,7 +21,7 @@ class RNNEncoder(Module):
     state by pooling the encoder states either by taking the maximum,
     average, or by taking the last hidden state before padding.
 
-    Padding is delt with by using torch's PackedSequence.
+    Padding is dealt with by using torch's PackedSequence.
 
     Attributes
     ----------
@@ -34,7 +39,8 @@ class RNNEncoder(Module):
                  layer_norm: bool = False,
                  highway_bias: float = 0,
                  rescale: bool = True,
-                 enforce_sorted: bool = False) -> None:
+                 enforce_sorted: bool = False,
+                 **kwargs) -> None:
         """Initializes the RNNEncoder object.
 
         Parameters
@@ -61,6 +67,9 @@ class RNNEncoder(Module):
         enforce_sorted: bool
             Whether rnn should enforce that sequences are ordered by
             length. Requires True for ONNX support. Defaults to False.
+        kwargs
+            Additional parameters to be passed to SRU when building
+            the rnn.
 
         Raises
         ------
@@ -74,7 +83,14 @@ class RNNEncoder(Module):
         self.input_size = input_size
         self.hidden_size = hidden_size
         self.enforce_sorted = enforce_sorted
+        self.output_size = 2 * hidden_size if bidirectional else hidden_size
+
         if rnn_type in ['lstm', 'gru']:
+            if kwargs:
+                logger.warn(f"The following '{kwargs}' will be ignored " +
+                            "as they are only considered when using 'sru' as " +
+                            "'rnn_type'")
+
             rnn_fn = nn.LSTM if rnn_type == 'lstm' else nn.GRU
             self.rnn = rnn_fn(input_size=input_size,
                               hidden_size=hidden_size,
@@ -83,14 +99,18 @@ class RNNEncoder(Module):
                               bidirectional=bidirectional)
         elif rnn_type == 'sru':
             from sru import SRU
-            self.rnn = SRU(input_size,
-                           hidden_size,
-                           num_layers=n_layers,
-                           dropout=dropout,
-                           bidirectional=bidirectional,
-                           layer_norm=layer_norm,
-                           rescale=rescale,
-                           highway_bias=highway_bias)
+            try:
+                self.rnn = SRU(input_size,
+                               hidden_size,
+                               num_layers=n_layers,
+                               dropout=dropout,
+                               bidirectional=bidirectional,
+                               layer_norm=layer_norm,
+                               rescale=rescale,
+                               highway_bias=highway_bias,
+                               **kwargs)
+            except TypeError:
+                raise ValueError(f"Unkown kwargs passed to SRU: {kwargs}")
         else:
             raise ValueError(f"Unkown rnn type: {rnn_type}, use of of: gru, sru, lstm")
 
@@ -107,7 +127,7 @@ class RNNEncoder(Module):
         state: Tensor
             An optional previous state of shape [L x B x H]
         padding_mask: Tensor, optional
-            The padding mask of shape [B x S]
+            The padding mask of shape [B x S], dtype should be bool
 
         Returns
         -------
@@ -126,8 +146,8 @@ class RNNEncoder(Module):
             output, state = self.rnn(data, state)
         elif self.rnn_type == 'sru':
             # SRU takes a mask instead of PackedSequence objects
-            # Write (1 - mask_t) in weird way for type checking to work
-            output, state = self.rnn(data, state, mask_pad=(-padding_mask + 1).byte())
+            # ~ operator negates bool tensor in torch 1.3
+            output, state = self.rnn(data, state, mask_pad=(~padding_mask))
         else:
             # Deal with variable length sequences
             lengths = padding_mask.long().sum(dim=0)
@@ -209,6 +229,7 @@ class PooledRNNEncoder(Module):
                               layer_norm=layer_norm,
                               highway_bias=highway_bias,
                               rescale=rescale)
+        self.output_size = 2 * hidden_size if bidirectional else hidden_size
 
     def forward(self,
                 data: Tensor,

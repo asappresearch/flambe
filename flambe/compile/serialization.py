@@ -3,7 +3,7 @@ import os
 from collections import OrderedDict
 from typing import Dict, Any, Iterable, Tuple, Optional, Sequence, NamedTuple, List, Mapping
 import tarfile
-import shutil
+import tempfile
 
 import dill
 import torch
@@ -49,7 +49,10 @@ class State(OrderedDict):
 # Private Helpers
 
 def _convert_to_tree(metadata: Dict[str, Any]) -> SaveTreeNode:
-    tree = SaveTreeNode(state={}, version=metadata[''][VERSION_KEY],
+    root_state: Dict[str, Any] = OrderedDict()
+    # PyTorch / flambe states need this property
+    root_state._metadata = {}  # type: ignore
+    tree = SaveTreeNode(state=root_state, version=metadata[''][VERSION_KEY],
                         class_name=metadata[''][FLAMBE_CLASS_KEY],
                         source_code=metadata[''][FLAMBE_SOURCE_KEY],
                         config=metadata[''].get(FLAMBE_CONFIG_KEY, ''),
@@ -72,7 +75,9 @@ def _convert_to_tree(metadata: Dict[str, Any]) -> SaveTreeNode:
             if key not in current_dict.children:
                 # nested key not yet created
                 m = metadata[prefix]
-                current_dict.children[key] = SaveTreeNode(state={},
+                new_state: Dict[str, Any] = OrderedDict()
+                new_state._metadata = {}  # type: ignore
+                current_dict.children[key] = SaveTreeNode(state=new_state,
                                                           version=m[VERSION_KEY],
                                                           class_name=m[FLAMBE_CLASS_KEY],
                                                           source_code=m[FLAMBE_SOURCE_KEY],
@@ -92,15 +97,26 @@ def _convert_to_tree(metadata: Dict[str, Any]) -> SaveTreeNode:
     return tree
 
 
-def _update_save_tree(save_tree: SaveTreeNode, key: Sequence[str], value: Any) -> None:
+def _fetch_tree_item(save_tree: SaveTreeNode, key: Sequence[str]) -> Tuple[str, SaveTreeNode]:
     current = save_tree
     last_i = 0
     for i, _ in enumerate(key):
         current_key = STATE_DICT_DELIMETER.join(key[last_i:i + 1])
         if current_key in current.children:
             current = current.children[current_key]  # type: ignore
-            last_i += 1
+            last_i = i + 1
+            current_key = STATE_DICT_DELIMETER.join(key[last_i:i + 1])
+    return current_key, current
+
+
+def _update_save_tree(save_tree: SaveTreeNode, key: Sequence[str], value: Any) -> None:
+    current_key, current = _fetch_tree_item(save_tree, key)
     current.state[current_key] = value
+
+
+def _update_save_tree_metadata(save_tree: SaveTreeNode, key: Sequence[str], value: Any) -> None:
+    current_key, current = _fetch_tree_item(save_tree, key)
+    current.state._metadata[current_key] = value  # type: ignore
 
 
 def _traverse_all_nodes(save_tree: SaveTreeNode,
@@ -176,6 +192,7 @@ def save_state_to_file(state: State,
                        path: str,
                        compress: bool = False,
                        pickle_only: bool = False,
+                       overwrite: bool = False,
                        pickle_module=dill,
                        pickle_protocol=DEFAULT_PROTOCOL) -> None:
     """Save state to given path
@@ -194,12 +211,20 @@ def save_state_to_file(state: State,
         The state_dict as defined by PyTorch; a flat dictionary
         with compound keys separated by '.'
     path : str
-        Location to save the file / save directory to
+        Location to save the file / save directory to; This should be a
+        new non-existent path; if the path is an existing directory
+        and it contains files an exception will be raised. This is
+        because the path includes the final name of the save file (if
+        using pickle or compress) or the final name of the save
+        directory.
     compress : bool
         Whether to compress the save file / directory via tar + gz
     pickle_only : bool
         Use given pickle_module instead of the hiearchical save format
         (the default is False).
+    overwrite : bool
+        If true, overwrites the contents of the given path to create a
+        directory at that location
     pickle_module : type
         Pickle module that has load and dump methods; dump should
         accpet a pickle_protocol parameter (the default is dill).
@@ -207,19 +232,50 @@ def save_state_to_file(state: State,
         Pickle protocol to use; see pickle for more details (the
         default is 2).
 
+    Raises
+    ------
+    ValueError
+        If the given path exists, is a directory, and already contains
+        some files.
+
     """
+    if os.path.exists(path):
+        if os.path.isdir(path):
+            dir_contents = os.listdir(path)
+            if len(dir_contents) != 0 and not overwrite:
+                raise ValueError(f'The given path ({path}) points to an existing directory '
+                                 f'containing files:\n{dir_contents}\n'
+                                 'Please use a new path, or an existing directory without files, '
+                                 'or specify overwrite=True.')
+        else:
+            if not overwrite:
+                raise ValueError(f'The given path ({path}) points to an existing file. Specify '
+                                 'overwrite=True to overwrite the file with a save file / dir.')
+    if compress:
+        original_path = path
+        temp = tempfile.TemporaryDirectory()
+        path = os.path.join(temp.name, os.path.basename(original_path))
     if pickle_only:
         head, tail = os.path.split(path)
         if tail == '':
             path = head + '.pkl'
         else:
             path = path + '.pkl'
+        if compress:
+            orig_head, orig_tail = os.path.split(original_path)
+            if orig_tail == '':
+                original_path = orig_head + '.pkl'
+            else:
+                original_path = original_path + '.pkl'
         with open(path, 'wb') as f_pkl:
             pickle_module.dump(state, f_pkl, protocol=pickle_protocol)
     else:
         save_tree = _convert_to_tree(state._metadata)
         for key in state.keys():
             _update_save_tree(save_tree, key.split(STATE_DICT_DELIMETER), state[key])
+        for key in state._metadata.keys():
+            _update_save_tree_metadata(save_tree, key.split(STATE_DICT_DELIMETER),
+                                       state._metadata[key])
         for node_path, node in _traverse_all_nodes(save_tree):
             current_path = os.path.join(path, *node_path)
             if not os.path.isdir(current_path):
@@ -236,15 +292,12 @@ def save_state_to_file(state: State,
             with open(os.path.join(current_path, PROTOCOL_VERSION_FILE_NAME), 'w') as f_proto:
                 f_proto.write(str(DEFAULT_SERIALIZATION_PROTOCOL_VERSION))
             with open(os.path.join(current_path, STASH_FILE_NAME), 'wb') as f_stash:
-                pickle_module.dump(node.object_stash, f_stash, protocol=pickle_protocol)
+                torch.save(node.object_stash, f_stash, pickle_module, pickle_protocol)
     if compress:
-        compressed_file_name = path + '.tar.gz'
+        compressed_file_name = original_path + '.tar.gz'
         with tarfile.open(name=compressed_file_name, mode='w:gz') as tar_gz:
-            tar_gz.add(path)
-        if os.path.isdir(path):
-            shutil.rmtree(path)
-        else:
-            os.remove(path)
+            tar_gz.add(path, arcname=os.path.basename(path))
+        temp.cleanup()
 
 
 # TODO fix type of object to be Component without circular dependency
@@ -253,6 +306,7 @@ def save(obj: Any,
          path: str,
          compress: bool = False,
          pickle_only: bool = False,
+         overwrite: bool = False,
          pickle_module=dill,
          pickle_protocol=DEFAULT_PROTOCOL) -> None:
     """Save `Component` object to given path
@@ -270,6 +324,9 @@ def save(obj: Any,
     pickle_only : bool
         Use given pickle_module instead of the hiearchical save format
         (the default is False).
+    overwrite : bool
+        If true, overwrites the contents of the given path to create a
+        directory at that location
     pickle_module : type
         Pickle module that has load and dump methods; dump should
         accept a pickle_protocol parameter (the default is dill).
@@ -279,7 +336,7 @@ def save(obj: Any,
 
     """
     state = obj.get_state()
-    save_state_to_file(state, path, compress, pickle_only,
+    save_state_to_file(state, path, compress, pickle_only, overwrite,
                        pickle_module, pickle_protocol)
 
 
@@ -318,14 +375,14 @@ def load_state_from_file(path: str,
     with download_manager(path) as path:
         state = State()
         state._metadata = OrderedDict({FLAMBE_DIRECTORIES_KEY: set()})
-        should_cleanup_file = False
+        temp = None
         try:
             if not os.path.isdir(path) and tarfile.is_tarfile(path):
-                should_cleanup_file = True
+                temp = tempfile.TemporaryDirectory()
                 with tarfile.open(path, 'r:gz') as tar_gz:
-                    tar_gz.extractall()
+                    tar_gz.extractall(path=temp.name)
                     expected_name = tar_gz.getnames()[0]
-                path = expected_name
+                path = os.path.join(temp.name, expected_name)
             if os.path.isdir(path):
                 for current_dir, subdirs, files in os.walk(path):
                     prefix = _extract_prefix(path, current_dir)
@@ -348,7 +405,7 @@ def load_state_from_file(path: str,
                     with open(os.path.join(current_dir, CONFIG_FILE_NAME)) as f_config:
                         config = f_config.read()
                     with open(os.path.join(current_dir, STASH_FILE_NAME), 'rb') as f_stash:
-                        stash = pickle_module.load(f_stash)
+                        stash = torch.load(f_stash, map_location, pickle_module, **pickle_load_args)
                     local_metadata = {VERSION_KEY: version, FLAMBE_CLASS_KEY: class_name,
                                       FLAMBE_SOURCE_KEY: source, FLAMBE_CONFIG_KEY: config}
                     if len(stash) > 0:
@@ -356,6 +413,11 @@ def load_state_from_file(path: str,
                     full_prefix = prefix + STATE_DICT_DELIMETER if prefix != '' else prefix
                     _prefix_keys(component_state, full_prefix)
                     state.update(component_state)
+                    if hasattr(component_state, '_metadata'):
+                        _prefix_keys(component_state._metadata, full_prefix)
+                        # Load torch.nn.Module metadata
+                        state._metadata.update(component_state._metadata)
+                    # Load flambe.nn.Module metadata
                     state._metadata[prefix] = local_metadata
                     state._metadata[FLAMBE_DIRECTORIES_KEY].add(prefix)
             else:
@@ -364,11 +426,8 @@ def load_state_from_file(path: str,
         except Exception as e:
             raise e
         finally:
-            if should_cleanup_file:
-                if os.path.isdir(expected_name):
-                    shutil.rmtree(expected_name)
-                else:
-                    os.remove(expected_name)
+            if temp is not None:
+                temp.cleanup()
         return state
 
 

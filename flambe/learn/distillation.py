@@ -9,7 +9,7 @@ from flambe.dataset import Dataset
 from flambe.metric import Metric
 from flambe.sampler import Sampler
 from flambe.learn import Trainer
-from flambe.nn import Module
+from flambe.nn import Module  # type: ignore[attr-defined]
 
 
 class DistillationTrainer(Trainer):
@@ -32,6 +32,7 @@ class DistillationTrainer(Trainer):
                  metric_fn: Metric,
                  optimizer: Optimizer,
                  scheduler: Optional[_LRScheduler] = None,
+                 iter_scheduler: Optional[_LRScheduler] = None,
                  device: Optional[str] = None,
                  max_steps: int = 10,
                  epoch_per_step: float = 1.0,
@@ -64,6 +65,9 @@ class DistillationTrainer(Trainer):
             The optimizer to use
         scheduler : torch.optim.lr_scheduler._LRScheduler, optional
             An optional learning rate scheduler
+        iter_scheduler : torch.optim.lr_scheduler._LRScheduler, optional
+            An optional learning rate scheduler to run after each batch
+            (i.e iteration)
         device: str, optional
             The device to use in the computation. Only used by compile.
         max_steps : int, optional
@@ -110,6 +114,7 @@ class DistillationTrainer(Trainer):
                          metric_fn,
                          optimizer,
                          scheduler,
+                         iter_scheduler,
                          device,
                          max_steps,
                          epoch_per_step,
@@ -160,11 +165,15 @@ class DistillationTrainer(Trainer):
         teacher_batch = [batch[i].detach() for i in teacher_columns]
 
         student_logits, student_target = self.student_model(*student_batch)
-        teacher_logits, _ = self.teacher_model(*teacher_batch)
 
-        # Compute losses
+        with torch.no_grad():
+            teacher_logits, _ = self.teacher_model(*teacher_batch)
+
+        loss = torch.tensor(0.).to(self.device)
         student_pred = F.log_softmax(student_logits, dim=-1)
-        loss = (1 - self.alpha_kl) * self.loss_fn(student_pred, student_target)
+
+        if self.alpha_kl < 1.0:
+            loss += (1 - self.alpha_kl) * self.loss_fn(student_pred, student_target)
 
         # Add unlabelled batch
         if self.unlabel_sampler is not None:
@@ -184,7 +193,7 @@ class DistillationTrainer(Trainer):
 
         return loss
 
-    def _aggregate_preds(self, data_iterator) -> Tuple[torch.Tensor, torch.Tensor]:
+    def _aggregate_preds(self, data_iterator) -> Tuple[torch.Tensor, torch.Tensor, float]:
         """Aggregate the predicitons and targets for the dataset.
 
         Parameters
@@ -204,7 +213,7 @@ class DistillationTrainer(Trainer):
             student_columns = self.student_columns or range(len(batch))
             student_batch = [batch[i] for i in student_columns]
 
-            pred, target = self.model(**[t.to(self.device) for t in student_batch])
+            pred, target = self.model(*[t.to(self.device) for t in student_batch])
             pred = F.log_softmax(pred, dim=-1)
 
             preds.append(pred.cpu())
@@ -212,4 +221,4 @@ class DistillationTrainer(Trainer):
 
         preds = torch.cat(preds, dim=0)
         targets = torch.cat(targets, dim=0)
-        return preds, targets
+        return preds, targets, 0.

@@ -12,6 +12,27 @@ from flambe.tokenizer import Tokenizer
 class WordTokenizer(Tokenizer):
     """Implement a word level tokenizer using
        nltk.tokenize.word_tokenize """
+
+    def tokenize(self, example: str) -> List[str]:
+        """Tokenize an input example.
+
+        Parameters
+        ----------
+        example : str
+            The input example, as a string
+
+        Returns
+        -------
+        List[str]
+            The output word tokens, as a list of strings
+
+        """
+        return example.split()
+
+
+class NLTKWordTokenizer(Tokenizer):
+    """Implement a word level tokenizer using
+       nltk.tokenize.word_tokenize """
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         nltk.download('punkt', quiet=True)
@@ -72,10 +93,6 @@ class NGramsTokenizer(Tokenizer):
         stop_words: Optional[List]
             [description], by default None
 
-        Returns
-        -------
-        None
-            [description]
         """
         self.ngrams = ngrams
         self.exclude_stopwords = exclude_stopwords

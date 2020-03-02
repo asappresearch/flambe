@@ -1,9 +1,11 @@
+import pytest
 import torch
 import sklearn.metrics
 import numpy as np
 
-from flambe.metric import Accuracy, AUC, Perplexity
+from flambe.metric import Accuracy, AUC, MultiClassAUC, Perplexity, BPC, F1
 from flambe.metric import BinaryRecall, BinaryPrecision, BinaryAccuracy
+from flambe.metric import Recall
 from pytest import approx
 
 NUMERIC_PRECISION = 1e-2
@@ -51,15 +53,159 @@ def test_auc_empty():
     assert auc(y_pred, y_true).item() == approx(0.5, NUMERIC_PRECISION)
 
 
+def test_multiclass_auc_full_one_hot():
+    """simple base case with one-hot labels"""
+    n_classes = 100
+    y_pred = np.random.uniform(0, 1, (100, n_classes))
+    y_true = np.zeros((100, n_classes))
+    y_true[np.arange(100), np.random.randint(n_classes)] = 1
+    sklearn_score = sklearn.metrics.roc_auc_score(y_true.flatten(), y_pred.flatten())
+    metric_test_case(torch.tensor(y_pred), torch.tensor(y_true), MultiClassAUC(), sklearn_score)
+
+
+def test_multiclass_auc_full_indexed():
+    """simple base case with index labels"""
+    n_classes = 100
+    y_pred = np.random.uniform(0, 1, (100, n_classes))
+    y_true = np.random.randint(0, n_classes, 100)
+    # one hot conversion
+    y_onehot = np.zeros((100, n_classes))
+    y_onehot[np.arange(y_true.size), y_true] = 1
+    sklearn_score = sklearn.metrics.roc_auc_score(y_onehot.flatten(), y_pred.flatten())
+    metric_test_case(torch.tensor(y_pred), torch.tensor(y_true), MultiClassAUC(), sklearn_score)
+
+
+def test_multiclass_auc_empty():
+    """Should be completely random on an empty list"""
+    y_pred = torch.tensor([])
+    y_true = torch.tensor([])
+
+    auc = MultiClassAUC()
+    assert auc(y_pred, y_true).item() == approx(0.5, NUMERIC_PRECISION)
+
+
 def test_accuracy():
     """Test random score list."""
     metric_test_case(torch.tensor([[0.1, 0.2], [0.9, 0.1]]), torch.tensor([1, 1]), Accuracy(), 0.5)
     metric_test_case(torch.tensor([[1.0, 0.0], [0.6, 0.4]]), torch.tensor([1, 1]), Accuracy(), 0)
 
 
+def test_recall_at_1_index_preds():
+    """Test random score list."""
+    # recall at 1 is just accuracy
+    # num_class sample dim
+    metric_test_case(torch.tensor([[0.1, 0.2], [0.9, 0.1]]), torch.tensor([1, 1]), Recall(), 0.5)
+    metric_test_case(torch.tensor([[1.0, 0.0], [0.6, 0.4]]), torch.tensor([1, 1]), Recall(), 0)
+
+
+def test_recall_at_1_class_preds():
+    """Test random score list."""
+    # recall at 1 is just accuracy
+    # num_class sample dim
+    metric_test_case(torch.tensor([[0.1, 0.2], [0.9, 0.1]]), torch.tensor([[0.1, 0.5], [0.2, 0.7]]), Recall(), 0.5)
+    metric_test_case(torch.tensor([[1.0, 0.0], [0.6, 0.4]]), torch.tensor([[0.1, 0.5], [0.2, 0.7]]), Recall(), 0)
+
+
+def test_recall_at_k_index_preds():
+    """Test random score list."""
+    # recall at 1 is just accuracy
+    # num_class sample dim
+    metric_test_case(
+        torch.tensor([
+            [0.1, 0.2, 0.3, 0.4],
+            [0.9, 0.8, 0.4, 0.1]]),
+        torch.tensor(
+            [3, 2]),
+        Recall(2), 0.5)
+    metric_test_case(
+        torch.tensor([
+            [0.1, 0.2, 0.3, 0.4],
+            [0.9, 0.8, 0.4, 0.1]]),
+        torch.tensor(
+            [3, 1]),
+        Recall(2), 1)
+    metric_test_case(
+        torch.tensor([
+            [0.1, 0.2, 0.3, 0.4],
+            [0.9, 0.8, 0.4, 0.1]]),
+        torch.tensor(
+            [1, 2]),
+        Recall(2), 0)
+
+
+def test_recall_at_k_class_preds():
+    """Test random score list."""
+    # recall at 1 is just accuracy
+    # num_class sample dim
+    metric_test_case(
+        torch.tensor([
+            [0.1, 0.2, 0.3, 0.4],
+            [0.9, 0.8, 0.4, 0.1]]),
+        torch.tensor([
+            [0.1, 0.2, 0.4, 0.3],
+            [0.1, 0.2, 0.4, 0.5]]),
+        Recall(2), 0.5)
+    metric_test_case(
+        torch.tensor([
+            [0.1, 0.2, 0.3, 0.4],
+            [0.9, 0.8, 0.4, 0.1]]),
+        torch.tensor([
+            [0.01, 0.02, 0.2, 0.2],
+            [0., 0.8, 0., 0.]]),
+        Recall(2), 1)
+    metric_test_case(
+        torch.tensor([
+            [0.1, 0.2, 0.3, 0.4],
+            [0.9, 0.8, 0.4, 0.1]]),
+        torch.tensor([
+            [0.5, 0.2, 0.1, 0.],
+            [0., 0.1, 0.4, 0.3]]),
+        Recall(2), 0)
+
+
+def test_aggregation_accuracy():
+    """ Test the aggregation functionality """
+    metric_state = {}
+    metric = Accuracy()
+    metric.aggregate(metric_state, torch.tensor([[0.1, 0.2], [0.9, 0.1]]), torch.tensor([1, 1]))
+    assert metric_state['accumulated_score'] == 0.5
+    metric.aggregate(metric_state, torch.tensor([[1.0, 0.0], [0.6, 0.4]]), torch.tensor([1, 1]))
+    assert metric_state['accumulated_score'] == 0.25
+    assert metric_state['sample_count'] == 4
+    assert metric.finalize(metric_state) == 0.25
+
+
+def test_aggregation_auc():
+    # for AUC (different aggregation functionality)
+    metric_state = {}
+    metric = AUC()
+    y_pred = torch.randint(0, 10000, [100])
+    y_true = torch.randint(0, 2, [100])
+    for yp, yt in zip(torch.split(y_pred, 10), torch.split(y_true, 10)):
+        metric.aggregate(metric_state, yp, yt)
+    assert metric.finalize(metric_state) == approx(sklearn.metrics.roc_auc_score(y_true, y_pred), NUMERIC_PRECISION)
+
+
+def test_aggregation_perplexity():
+    # for AUC (different aggregation functionality)
+    metric_state = {}
+    metric = Perplexity()
+    y_pred = torch.randn(size=(100, 50))
+    y_true = torch.randint(0, 50, (100, ))
+    for yp, yt in zip(torch.split(y_pred, 10), torch.split(y_true, 10)):
+        metric.aggregate(metric_state, yp, yt)
+    gt_value = torch.exp(torch.nn.CrossEntropyLoss()(y_pred, y_true).mean()).item()
+    assert metric.finalize(metric_state) == approx(gt_value, NUMERIC_PRECISION)
+
+
 def test_perplexity():
     """Test perplexity"""
     metric_test_case(torch.tensor([[0.2, 0.8], [0.9, 0.1]]), torch.tensor([0, 0]), Perplexity(), 2.022418975830078)
+
+
+def test_bpc():
+    """Test BPC"""
+    metric_test_case(torch.tensor([[0.2, 0.8], [0.9, 0.1]]), torch.tensor([0, 0]), BPC(), 1.0161)
 
 
 def test_binary_precision():
@@ -136,34 +282,39 @@ def test_binary_recall():
     metric_test_case(y_pred, torch.tensor([1, 0, 1, 0]), BinaryRecall(0.8), 0)
 
 
-def test_inverted_binary_recall():
+@pytest.mark.parametrize("true_classes, metric, result",
+                         [(torch.tensor([1, 1, 1, 1]), BinaryRecall(positive_label=0), 0),
+                          (torch.tensor([1, 0, 1, 0]), BinaryRecall(positive_label=0), 1),
+                          (torch.tensor([0, 0, 0, 0]), BinaryRecall(positive_label=0), 0.5),
+                          (torch.tensor([0, 1, 0, 1]), BinaryRecall(positive_label=0), 0),
+                          (torch.tensor([0, 0, 0, 1]), BinaryRecall(positive_label=0), 1 / 3),
+                          (torch.tensor([0, 1, 1, 1]), BinaryRecall(positive_label=0), 0),
+                          (torch.tensor([0, 0, 1, 1]), BinaryRecall(0.65, positive_label=0), 0.5),
+                          (torch.tensor([0, 0, 0, 1]), BinaryRecall(0.75, positive_label=0), 2 / 3)]
+                         )
+def test_inverted_binary_recall(true_classes, metric, result):
+    """
+        precision = tp/tp+fn
+    """
+    y_pred = torch.tensor([0.8, 0.1, 0.7, 0.1])
+    metric_test_case(y_pred, true_classes, metric, result)
+
+
+@pytest.mark.parametrize("true_classes, metric, result",
+                         [(torch.tensor([1, 0, 1, 0]), BinaryAccuracy(), 1),
+                          (torch.tensor([1, 1, 1, 0]), BinaryAccuracy(), 3 / 4),
+                          (torch.tensor([1, 1, 1, 1]), BinaryAccuracy(), 0.5),
+                          (torch.tensor([0, 0, 0, 0]), BinaryAccuracy(), 0.5),
+                          (torch.tensor([0, 1, 0, 1]), BinaryAccuracy(), 0),
+                          (torch.tensor([1, 0, 0, 0]), BinaryAccuracy(0.75), 1)
+                          ])
+def test_binary_accuracy(true_classes, metric, result):
     """
         precision = tp/tp+fn
     """
     y_pred = torch.tensor([0.8, 0.1, 0.7, 0.1])
 
-    metric_test_case(y_pred, torch.tensor([1, 1, 1, 1]), BinaryRecall(positive_label=0), 0)
-    metric_test_case(y_pred, torch.tensor([1, 0, 1, 0]), BinaryRecall(positive_label=0), 1)
-    metric_test_case(y_pred, torch.tensor([0, 0, 0, 0]), BinaryRecall(positive_label=0), 0.5)
-    metric_test_case(y_pred, torch.tensor([0, 1, 0, 1]), BinaryRecall(positive_label=0), 0)
-    metric_test_case(y_pred, torch.tensor([0, 0, 0, 1]), BinaryRecall(positive_label=0), 1 / 3)
-    metric_test_case(y_pred, torch.tensor([0, 1, 1, 1]), BinaryRecall(positive_label=0), 0)
-    metric_test_case(y_pred, torch.tensor([0, 0, 1, 1]), BinaryRecall(0.65, positive_label=0), 0.5)
-    metric_test_case(y_pred, torch.tensor([0, 0, 0, 1]), BinaryRecall(0.75, positive_label=0), 2 / 3)
-
-
-def test_binary_accuracy():
-    """
-        precision = tp/tp+fn
-    """
-    y_pred = torch.tensor([0.8, 0.1, 0.7, 0.1])
-
-    metric_test_case(y_pred, torch.tensor([1, 0, 1, 0]), BinaryAccuracy(), 1)
-    metric_test_case(y_pred, torch.tensor([1, 1, 1, 0]), BinaryAccuracy(), 3 / 4)
-    metric_test_case(y_pred, torch.tensor([1, 1, 1, 1]), BinaryAccuracy(), 0.5)
-    metric_test_case(y_pred, torch.tensor([0, 0, 0, 0]), BinaryAccuracy(), 0.5)
-    metric_test_case(y_pred, torch.tensor([0, 1, 0, 1]), BinaryAccuracy(), 0)
-    metric_test_case(y_pred, torch.tensor([1, 0, 0, 0]), BinaryAccuracy(0.75), 1)
+    metric_test_case(y_pred, true_classes, metric, result)
 
 
 def test_multiple_dims():
@@ -178,3 +329,38 @@ def test_multiple_dims():
 
     y_pred = torch.tensor([[[0.8]], [[0.1]], [[0.7]], [[0.1]]])
     metric_test_case(y_pred, torch.tensor([[1], [0], [1], [0]]), BinaryAccuracy(), 1)
+
+
+@pytest.mark.parametrize("true_classes, metric, result",
+                         [(torch.tensor([1, 0, 1, 0]), F1(), 1),
+                          (torch.tensor([1, 1, 1, 1]), F1(), 1 / 1.5),
+                          (torch.tensor([0, 0, 0, 0]), F1(), 0),
+                          (torch.tensor([0, 1, 0, 1]), F1(), 0),
+                          (torch.tensor([1, 0, 1, 1]), F1(), 0.80)
+                          ])
+def test_f1(true_classes, metric, result):
+    y_pred = torch.tensor([0.8, 0.1, 0.7, 0.1])
+    metric_test_case(y_pred, true_classes, metric, result)
+
+
+def test_global_aggregate():
+    metric_data = {
+        AUC: (torch.randint(0, 10000, (100, )), torch.randint(0, 2, (100, ))),
+        MultiClassAUC: (torch.rand(size=(100, 30)), torch.randint(0, 30, size=(100, ))),
+        Accuracy: (torch.randn((100, 30)), torch.randn((100, 30))),
+        BPC: (torch.randn((100, 30)), torch.randint(0, 30, (100, ))),
+        BinaryAccuracy: (torch.rand(size=(100, )), torch.randint(0, 2, size=(100, ))),
+        BinaryPrecision: (torch.rand(size=(100, )), torch.randint(0, 2, size=(100, ))),
+        BinaryRecall: (torch.rand(size=(100, )), torch.randint(0, 2, size=(100, ))),
+        F1: (torch.rand(size=(100, )), torch.randint(0, 2, size=(100, ))),
+        Recall: (torch.randn((100, 30)), torch.randint(0, 30, (100, ))),
+        Perplexity: (torch.randn((100, 30)), torch.randint(0, 30, (100, ))),
+    }
+
+    for metric_class, (y_pred, y_true) in metric_data.items():
+        metric = metric_class()
+        metric_state = {}
+        for yp, yt in zip(torch.split(y_pred, 10), torch.split(y_true, 10)):
+            metric.aggregate(metric_state, yp, yt)
+        assert metric.finalize(metric_state) == approx(metric(y_pred, y_true).item()), \
+            f'Metric {metric} failed aggregation.'

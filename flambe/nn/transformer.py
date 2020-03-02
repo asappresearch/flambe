@@ -1,3 +1,5 @@
+# type: ignore[override]
+
 """
 Code taken from the PyTorch source code. Slightly modified to improve
 the interface to the TransformerEncoder, and TransformerDecoder modules.
@@ -26,7 +28,7 @@ class Transformer(Module):
     """
 
     def __init__(self,
-                 input_size: int = 512,
+                 input_size,
                  d_model: int = 512,
                  nhead: int = 8,
                  num_encoder_layers: int = 6,
@@ -38,7 +40,7 @@ class Transformer(Module):
         Parameters
         ----------
         input_size : int, optional
-            dimension of embeddings (default=512). if different from
+            dimension of embeddings. If different from
             d_model, then a linear layer is added to project from
             input_size to d_model.
         d_model : int, optional
@@ -419,7 +421,7 @@ class TransformerEncoderLayer(Module):
         """
         # Transpose and reverse
         if padding_mask is not None:
-            padding_mask = (-padding_mask + 1)
+            padding_mask = ~padding_mask.bool()
 
         src2 = self.self_attn(src, src, src, attn_mask=src_mask,
                               key_padding_mask=padding_mask)[0]
@@ -514,7 +516,7 @@ class TransformerDecoderLayer(Module):
         """
         # Transpose anr reverse
         if padding_mask is not None:
-            padding_mask = (-padding_mask + 1)
+            padding_mask = ~padding_mask
 
         tgt2 = self.self_attn(tgt, tgt, tgt, attn_mask=tgt_mask,
                               key_padding_mask=padding_mask)[0]
