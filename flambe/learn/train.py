@@ -303,7 +303,7 @@ class Trainer(Component):
                 self.optimizer.step()
 
                 # Update iter scheduler
-                if self.iter_scheduler is not None:
+                if self.iter_scheduler is not None or self.scheduler is not None:
                     lr = self.optimizer.param_groups[0]['lr']  # type: ignore
                     log(f'{log_prefix}/LR', lr, global_step)
                     self.iter_scheduler.step()  # type: ignore
