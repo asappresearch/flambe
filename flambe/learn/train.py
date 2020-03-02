@@ -302,10 +302,13 @@ class Trainer(Component):
                 # Optimize
                 self.optimizer.step()
 
-                # Update iter scheduler
+                # Log the learning rate
                 if self.iter_scheduler is not None or self.scheduler is not None:
                     lr = self.optimizer.param_groups[0]['lr']  # type: ignore
                     log(f'{log_prefix}/LR', lr, global_step)
+
+                # Update iter scheduler
+                if self.iter_scheduler is not None:
                     self.iter_scheduler.step()  # type: ignore
 
                 # Zero the gradients when exiting a train step
