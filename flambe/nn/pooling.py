@@ -8,6 +8,44 @@ from torch import nn
 from flambe.nn import Module
 
 
+def _default_padding_mask(data: torch.Tensor) -> torch.Tensor:
+    """
+    Builds a 1s padding mask taking into account initial 2 dimensions
+    of input data.
+
+    Parameters
+    ----------
+    data : torch.Tensor
+        The input data, as a tensor of shape [B x S x H]
+
+    Returns
+    ----------
+    torch.Tensor
+        A padding mask , as a tensor of shape [B x S]
+    """
+    return torch.ones((data.size(0), data.size(1))).to(data)
+
+
+def _sum_with_padding_mask(data: torch.Tensor,
+                           padding_mask: torch.Tensor) -> torch.Tensor:
+    """
+    Applies padding_mask and performs summation over the data
+
+    Parameters
+    ----------
+    data : torch.Tensor
+        The input data, as a tensor of shape [B x S x H]
+    padding_mask: torch.Tensor
+        The input mask, as a tensor of shape [B X S]
+    Returns
+    ----------
+    torch.Tensor
+        The result of the summation, as a tensor of shape [B x H]
+
+    """
+    return (data * padding_mask.unsqueeze(2)).sum(dim=1)
+
+
 class FirstPooling(Module):
     """Get the last hidden state of a sequence."""
 
@@ -341,41 +379,3 @@ class GeneralizedPooling(StructuredSelfAttentivePooling):
         # average over attention heads and return.
         # dimension is batchsize x dim
         return attended.mean(dim=1)
-
-
-def _default_padding_mask(data: torch.Tensor) -> torch.Tensor:
-    """
-    Builds a 1s padding mask taking into account initial 2 dimensions
-    of input data.
-
-    Parameters
-    ----------
-    data : torch.Tensor
-        The input data, as a tensor of shape [B x S x H]
-
-    Returns
-    ----------
-    torch.Tensor
-        A padding mask , as a tensor of shape [B x S]
-    """
-    return torch.ones((data.size(0), data.size(1))).to(data)
-
-
-def _sum_with_padding_mask(data: torch.Tensor,
-                           padding_mask: torch.Tensor) -> torch.Tensor:
-    """
-    Applies padding_mask and performs summation over the data
-
-    Parameters
-    ----------
-    data : torch.Tensor
-        The input data, as a tensor of shape [B x S x H]
-    padding_mask: torch.Tensor
-        The input mask, as a tensor of shape [B X S]
-    Returns
-    ----------
-    torch.Tensor
-        The result of the summation, as a tensor of shape [B x H]
-
-    """
-    return (data * padding_mask.unsqueeze(2)).sum(dim=1)
