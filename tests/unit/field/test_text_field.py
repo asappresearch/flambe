@@ -98,6 +98,55 @@ def test_build_vocab():
     assert field.vocab == vocab
 
 
+def test_build_vocab_list():
+    field = TextField()
+    dummy = [
+        ["justo Praesent luctus", "luctus praesent"],
+        ["justo Praesent luctus", "luctus praesent est"]]
+    field._build_vocab(dummy)
+
+    vocab = {'<pad>': 0, '<unk>': 1, 'justo': 2, 'Praesent': 3,
+             'luctus': 4, 'praesent': 5, 'est': 6}
+    assert field.vocab == vocab
+
+
+def test_build_vocab_dict():
+    field = TextField()
+    dummy = [{
+        'text1': "justo Praesent luctus luctus praesent",
+        'text2': "justo Praesent luctus luctus praesent est"}]
+    field._build_vocab(dummy)
+
+    vocab = {'<pad>': 0, '<unk>': 1, 'justo': 2, 'Praesent': 3,
+             'luctus': 4, 'praesent': 5, 'est': 6}
+    assert field.vocab == vocab
+
+
+def test_build_vocab_nested_list_in_dict():
+    field = TextField()
+    dummy = [{
+        'text1': ["justo Praesent luctus", "luctus praesent"],
+        'text2': ["justo Praesent luctus", "luctus praesent est"]}]
+    field._build_vocab(dummy)
+
+    vocab = {'<pad>': 0, '<unk>': 1, 'justo': 2, 'Praesent': 3,
+             'luctus': 4, 'praesent': 5, 'est': 6}
+    assert field.vocab == vocab
+
+
+def test_build_vocab_nested_dict_in_list_in_dict():
+    field = TextField()
+    dummy = [
+        {'text1': "justo Praesent luctus", 'text2': "luctus praesent"},
+        {'text3': ["justo Praesent luctus", "luctus praesent est"]}
+    ]
+    field._build_vocab(dummy)
+
+    vocab = {'<pad>': 0, '<unk>': 1, 'justo': 2, 'Praesent': 3,
+             'luctus': 4, 'praesent': 5, 'est': 6}
+    assert field.vocab == vocab
+
+
 def test_bow_build_vocab():
     field = BoWField(min_freq=2, unk_token='<unk>')
     assert field.vocab == {'<unk>': 0}
@@ -247,6 +296,21 @@ def test_load_embeddings():
     assert torch.all(torch.eq(field.embedding_matrix[1:3], true_embeddings))
 
 
+def test_load_embeddings_with_extra_tokens():
+    field = TextField.from_embeddings(
+        embeddings="tests/data/dummy_embeddings/test.txt",
+        pad_token=None,
+        unk_init_all=False,
+        additional_special_tokens=['<a>', '<b>', '<c>']
+    )
+    dummy = "a test ! <a> <b> "
+    field.setup([dummy])
+    assert '<a>' in field.vocab and '<b>' in field.vocab and '<c>' in field.vocab
+    assert field.embedding_matrix[field.vocab['<a>']].size(-1) == 4
+    assert field.embedding_matrix[field.vocab['<b>']].size(-1) == 4
+    assert all(field.embedding_matrix[field.vocab['<b>']] != field.embedding_matrix[field.vocab['<c>']])
+
+
 def test_load_embeddings_legacy():
     field = TextField(
         embeddings="tests/data/dummy_embeddings/test.txt",
@@ -345,3 +409,99 @@ def test_text_process_unk():
     dummy = "justo Praesent luctus justo praesent"
     with pytest.raises(Exception):
         field.process(dummy)
+
+
+def recursive_tensor_to_list(data):
+    if isinstance(data, list):
+        return [recursive_tensor_to_list(d) for d in data]
+    elif isinstance(data, dict):
+        return dict((k, recursive_tensor_to_list(v)) for k, v in data.items())
+    elif isinstance(data, torch.Tensor):
+        return data.tolist()
+
+
+def test_setup_with_extra_tokens():
+    field = TextField.from_embeddings(
+        embeddings="tests/data/dummy_embeddings/test.txt",
+        pad_token=None,
+        unk_init_all=False,
+        additional_special_tokens=['<a>', '<b>', '<c>']
+    )
+
+    dummy = "this is a test"
+    field.setup([dummy])
+    assert recursive_tensor_to_list(field.process(dummy)) == [4, 5, 6, 7]
+
+    dummy = "this is a test <a> <c>"
+    assert recursive_tensor_to_list(field.process(dummy)) == [4, 5, 6, 7, 1, 3]
+
+
+def test_text_process_list():
+    field = TextField(lower=True)
+    field.setup()
+    dummy = [
+        ["justo Praesent luctus", "luctus praesent"],
+        ["justo Praesent luctus", "luctus praesent est"]]
+    assert recursive_tensor_to_list(field.process(dummy)) == [
+        [[1, 1, 1], [1, 1]],
+        [[1, 1, 1], [1, 1, 1]]]
+
+    field.setup(dummy)
+    assert recursive_tensor_to_list(field.process(dummy)) == [
+        [[2, 3, 4], [4, 3]],
+        [[2, 3, 4], [4, 3, 5]]]
+
+
+def test_text_process_dict():
+    field = TextField(lower=True)
+    field.setup()
+    dummy = {
+        'text1': "justo Praesent luctus luctus praesent",
+        'text2': "justo Praesent luctus luctus praesent est"}
+    assert recursive_tensor_to_list(field.process(dummy)) == {
+        'text1': [1, 1, 1, 1, 1],
+        'text2': [1, 1, 1, 1, 1, 1]
+    }
+    field.setup([dummy])
+    assert recursive_tensor_to_list(field.process(dummy)) == {
+        'text1': [2, 3, 4, 4, 3],
+        'text2': [2, 3, 4, 4, 3, 5]
+    }
+
+
+def test_text_process_nested_list_in_dict():
+    field = TextField(lower=True)
+    field.setup()
+    dummy = [{
+        'text1': ["justo Praesent luctus", "luctus praesent"],
+        'text2': ["justo Praesent luctus", "luctus praesent est"]}]
+    assert recursive_tensor_to_list(field.process(dummy)) == [{
+            'text1': [[1, 1, 1], [1, 1]],
+            'text2': [[1, 1, 1], [1, 1, 1]]
+        }]
+    field.setup(dummy)
+    assert recursive_tensor_to_list(field.process(dummy)) == [{
+            'text1': [[2, 3, 4], [4, 3]],
+            'text2': [[2, 3, 4], [4, 3, 5]]
+        }]
+
+
+def test_text_process_nested_dict_in_list_in_dict():
+    field = TextField(lower=True)
+    field.setup()
+    dummy = [
+        {'text1': "justo Praesent luctus", 'text2': "luctus praesent"},
+        {'text3': ["justo Praesent luctus", "luctus praesent est"]}
+    ]
+    assert recursive_tensor_to_list(field.process(dummy)) == [{
+            'text1': [1, 1, 1],
+            'text2': [1, 1]}, {
+            'text3': [[1, 1, 1], [1, 1, 1]]
+        }]
+
+    field.setup(dummy)
+    assert recursive_tensor_to_list(field.process(dummy)) == [{
+            'text1': [2, 3, 4],
+            'text2': [4, 3]}, {
+            'text3': [[2, 3, 4], [4, 3, 5]]
+        }]

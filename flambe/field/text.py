@@ -1,4 +1,4 @@
-from typing import Dict, Iterable, List, Optional, Set, Tuple, NamedTuple
+from typing import Dict, Iterable, List, Optional, Set, Tuple, NamedTuple, Union, Any
 from collections import OrderedDict as odict
 from itertools import chain
 
@@ -138,7 +138,9 @@ class TextField(Field):
                  drop_unknown: bool = False,
                  max_seq_len: Optional[int] = None,
                  truncate_end: bool = False,
-                 setup_all_embeddings: bool = False) -> None:
+                 setup_all_embeddings: bool = False,
+                 additional_special_tokens: Optional[List[str]] = None,
+                 vocabulary: Optional[Union[Iterable[str], str]] = None) -> None:
         """Initialize the TextField.
 
         Parameters
@@ -199,7 +201,6 @@ class TextField(Field):
             input is larger than max_seq_len. If this value is True
             the window starts from the end of the utterance.
             Defaults to False.
-
             example: max_seq_len=3, input_text=1 2 3 4 5
             truncate_end=false: output=1 2 3
             truncate_end=true: output=3 4 5
@@ -209,6 +210,13 @@ class TextField(Field):
             Controls if all words from the optional provided
             embeddings will be added to the vocabulary and to the
             embedding matrix. Defaults to False.
+        additional_special_tokens: Optional[List[str]]
+            Additional special tokens beyond the pad, unk, eos and sos
+            tokens.
+        vocabulary: Union[List[str], str], optional
+            Can be either a list of tokens or a file with a token on
+            each line. If given, one can choose to allow expandion of
+            the vocabulary or to freeze it.
 
         """
         if embeddings:
@@ -249,11 +257,31 @@ class TextField(Field):
 
         self.unk_numericals: Set[int] = set()
 
-        self.vocab: Dict = odict()
-        specials = [pad_token, unk_token, sos_token, eos_token]
-        self.specials = [special for special in specials if special is not None]
+        # Load vocabulary if given
+        if vocabulary is None:
+            self.vocab: Dict = odict()
+        elif isinstance(vocabulary, str):
+            with open(vocabulary, 'r') as f:
+                self.vocab = odict((tok, i) for i, tok in enumerate(f.read().splitlines()))
+        elif isinstance(vocabulary, Iterable):
+            self.vocab = odict((tok, i) for i, tok in enumerate(vocabulary))
 
+        additional_special_tokens = additional_special_tokens or []
+        specials = [pad_token, unk_token, sos_token, eos_token, *additional_special_tokens]
+        self.specials = [special for special in specials if special is not None]
         self.register_attrs('vocab')
+
+    @property
+    def vocab_list(self) -> List[str]:
+        """Get the list of tokens in the vocabulary.
+
+        Returns
+        -------
+        List[str]
+            The list of tokens in the vocabulary, ordered.
+
+        """
+        return list(self.vocab.keys())
 
     @property
     def vocab_size(self) -> int:
@@ -267,6 +295,30 @@ class TextField(Field):
         """
         unique_ids = set(v for k, v in self.vocab.items())
         return len(unique_ids)
+
+    def _flatten_to_str(self, data_sample: Union[List, Tuple, Dict]) -> str:
+        """Converts any nested data sample to a str
+
+        Used to build vocabs from complex file structures
+
+        Parameters
+        ----------
+        data_sample: Union[List, Tuple, Dict]
+
+        Returns
+        -------
+        str
+            the flattened version, for vocab building
+
+        """
+        if isinstance(data_sample, list) or isinstance(data_sample, tuple):
+            return ' '.join(self._flatten_to_str(s) for s in data_sample)
+        elif isinstance(data_sample, dict):
+            return ' '.join(self._flatten_to_str(s) for s in data_sample.values())
+        elif isinstance(data_sample, str):
+            return data_sample
+        else:
+            raise ValueError(f'Cannot process type {type(data_sample)} for vocab building.')
 
     def _build_vocab(self, *data: np.ndarray) -> None:
         """
@@ -291,6 +343,7 @@ class TextField(Field):
                 self.vocab[token] = index = index + 1
 
         for example in examples:
+            example = self._flatten_to_str(example)
             # Lowercase if requested
             example = example.lower() if self.lower else example
             # Tokenize and add to vocabulary
@@ -377,7 +430,10 @@ class TextField(Field):
                 self.embeddings_info.unk_init_all)
 
     # TODO update when we add generics
-    def process(self, example: str) -> torch.Tensor:  # type: ignore
+    def process(self, example:  # type: ignore
+                Union[str, Tuple[Any], List[Any], Dict[Any, Any]]) \
+            -> Union[torch.Tensor, Tuple[torch.Tensor, ...],
+                     List[torch.Tensor], Dict[str, torch.Tensor]]:
         """Process an example, and create a Tensor.
 
         Parameters
@@ -391,6 +447,12 @@ class TextField(Field):
             The processed example, tokenized and numericalized
 
         """
+        # special case of list of examples:
+        if isinstance(example, list) or isinstance(example, tuple):
+            return [self.process(e) for e in example]  # type: ignore
+        elif isinstance(example, dict):
+            return dict([(key, self.process(val)) for key, val in example.items()])  # type: ignore
+
         # Lowercase and tokenize
         example = example.lower() if self.lower else example
         tokens = self.tokenizer(example)
@@ -440,6 +502,7 @@ class TextField(Field):
         build_vocab_from_embeddings: bool = False,
         unk_init_all: bool = False,
         drop_unknown: bool = False,
+        additional_special_tokens: Optional[List[str]] = None,
         **kwargs,
     ):
         """
@@ -470,6 +533,12 @@ class TextField(Field):
             Whether to drop tokens that don't have embeddings
             associated. Defaults to True.
             Important: this flag will only work when using embeddings.
+        additional_special_tokens: Optional[List[str]]
+            Additional tokens that have a reserved interpretation in
+            the context of the current experiment, and that should
+            therefore never be treated as "unknown".
+            Passing them in here will make sure that they will have
+            their own embedding that can be trained.
 
         Returns
         -------
@@ -487,5 +556,6 @@ class TextField(Field):
 
         return cls(
             embeddings_info=embeddings_info,
+            additional_special_tokens=additional_special_tokens,
             **kwargs,
         )
