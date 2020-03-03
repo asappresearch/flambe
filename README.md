@@ -11,11 +11,15 @@
 
 Flambé is a Python framework built to **accelerate the machine learning research lifecycle**.
 
+- [Installation](#installation)
+- [Getting Started](#getting-started)
+- [Contributing](#contributing)
+- [Cite](#cite)
+- [Contact](#contact)
+
 The full documentation can be found here: [flambe.ai](https://flambe.ai).
 
 ## Installation
-
-> Note: Flambé currently only supports Python 3.7.x
 
 **From** ``PIP``:
 
@@ -29,6 +33,8 @@ pip install flambe
 git clone git@github.com:asappresearch/flambe.git
 pip install ./flambe
 ```
+
+> Note: Flambé currently only supports Python 3.7.x
 
 ## Getting started
 
@@ -68,6 +74,8 @@ or start from one of the provided templates:
 | [Script](http://flambe.ai/) |  Wrapper over any python script that accepts command line arguments. An entry-point for users who wish to keep their code unchanged, but leverage Flambé's cluster management and distributed hyperparameter search.|
 | [Lightning](http://flambe.ai/) |  Train / Evaluate a model using Pytorch Lightning. Automates the boilerplate code usually found in PyTorch code, such as multi-gpu handling, fp16 training, and training loops. |
 | [RaySGD](http://flambe.ai/) | Train / Evaluate a model using RaySGD. Automate the boilerplate code usually found in PyTorch or Tensorflow code, such as multi-gpu handling, fp16 training, and training loops. |
+
+Flambé also offers a set of modules to help construct a task including datasets, featurizers, metrics and neural network modules.
 
 ### 2. Execute a task
 
@@ -219,11 +227,6 @@ will save artifacts of your experiment. You can then construct your final infere
 </pre>
 </td>
 </table>
-
-
-## Next steps
-
-Full documentation, tutorials and more at [flambe.ai](http://flambe.ai/).
 
 ## Contributing
 
