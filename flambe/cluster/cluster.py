@@ -46,7 +46,7 @@ def time() -> str:
     return datetime.now().strftime('%H:%M:%S')
 
 
-def upload_files(folder: Optional[str] = None) -> Tuple[Dict, Dict]:
+def upload_files(remote_files: Dict, folder: Optional[str] = None) -> Tuple[Dict, Dict]:
     """Upload files to the cluster.
 
     Parameters
@@ -65,7 +65,7 @@ def upload_files(folder: Optional[str] = None) -> Tuple[Dict, Dict]:
     files_dir = os.path.join(FLAMBE_GLOBAL_FOLDER, 'files')
     file_mounts: Dict[str, str] = dict()
     updated_files: Dict[str, str] = dict()
-    updated_files.update(env.remote_files)
+    updated_files.update(remote_files)
     for file_name, file in env.local_files.items():
         with download_manager(file, os.path.join(files_dir, file_name)) as path:
             target = os.path.join(folder, f'files/{file_name}')
@@ -589,7 +589,7 @@ class Cluster(Registrable):
         flambe_cmd, flambe_files = upload_flambe(folder=f"jobs/{name}")
         head_cmds.append(flambe_cmd)
         worker_cmds.append(flambe_cmd)
-        permanent_files.update(flambe_files)
+        file_mounts.update(flambe_files)
 
         # Upload extensions
         commands, files, updated_exts = upload_extensions(env.extensions, folder=f"jobs/{name}")
@@ -598,7 +598,7 @@ class Cluster(Registrable):
         file_mounts.update(files)
 
         # Upload files
-        mounts, updated_files = upload_files(folder=f"jobs/{name}")
+        mounts, updated_files = upload_files(env.remote_files, folder=f"jobs/{name}")
         file_mounts.update(mounts)
 
         # Run Flambe
