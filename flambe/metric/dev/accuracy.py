@@ -1,9 +1,9 @@
 import torch
 
-from flambe.metric.metric import Metric
+from flambe.metric.metric import AverageableMetric
 
 
-class Accuracy(Metric):
+class Accuracy(AverageableMetric):
 
     def compute(self, pred: torch.Tensor, target: torch.Tensor) \
             -> torch.Tensor:

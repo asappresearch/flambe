@@ -1,9 +1,9 @@
 import torch
 
-from flambe.metric.metric import Metric
+from flambe.metric.metric import AverageableMetric
 
 
-class Recall(Metric):
+class Recall(AverageableMetric):
 
     def __init__(self, top_k: int = 1) -> None:
         """Initialize the Recall metric.
