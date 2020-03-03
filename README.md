@@ -11,14 +11,6 @@
 
 Flambé is a Python framework built to **accelerate the machine learning research lifecycle**.
 
-Running a machine learning experiment generally involves the following steps:
-
-1. Write data processing, model training and evaluation code for the task
-2. Execute the task on a remote machine or cluster
-3. Improve performance by searching across models and hyperparameters
-4. Export a final model for inference
-
-Flambé eliminates the boilerplate involved in the first step, and fully automates the others.  
 The full documentation can be found here: [flambe.ai](https://flambe.ai).
 
 ## Installation
@@ -39,6 +31,15 @@ pip install ./flambe
 ```
 
 ## Getting started
+
+Running a machine learning experiment generally involves the following steps:
+
+1. Write data processing, model training and evaluation code for the task
+2. Execute the task on a remote machine or cluster
+3. Improve performance by searching across models and hyperparameters
+4. Export a final model for inference
+
+Flambé eliminates the boilerplate involved in the first step, and fully automates the others.  
 
 ### 1. Create a task
 
