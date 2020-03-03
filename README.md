@@ -18,18 +18,7 @@ Running a machine learning experiment generally involves the following steps:
 3. Improve performance by searching across models and hyperparameters
 4. Export a final model for inference
 
-By connecting the dots between a curated set of frameworks, Flambé eliminates the
-boilerplate involved in the first step, and fully automates the others.
-
-In particular, with Flambé you can:
-
-* Eliminate the **boilerplate code** in training machine learning models in Python.
-* **Run hyperparameter searches** over any Python code or script.
-* **Constuct task pipelines**, searching over hyperparameters and reducing to the
-best variants at any step.
-* Distribute tasks **remotely** and **in parallel** over a cluster, including AWS,
-GCP, and Kubernetes integrations.
-* Easily **share** reproducible experiment configurations and results with others.
+Flambé eliminates the boilerplate involved in the first step, and fully automates the others.
 
 The full documentation can be found here: [flambe.ai](https://flambe.ai).
 
@@ -131,9 +120,11 @@ For more information on remote execution, and how to create a cluster see: [here
 
 ### 3. Search over models and hyperparameters
 
-**Use the built-in ``Search`` to run distributed hyperparameter searches over other Flambé tasks.**
+#### ``Search``
 
-For instance, you can run a hyperparameter search over **any python script** with a few lines:
+Use the built-in  to run distributed hyperparameter searches over other Flambé tasks.
+
+For instance, you can run a hyperparameter search over any python script with a few lines:
 
 <table>
 <tr style="font-weight:bold;">
@@ -157,9 +148,12 @@ For instance, you can run a hyperparameter search over **any python script** wit
 </td>
 </table>
 
-**Use the built-in ``Pipeline`` to run multiple searches, and reduce to the best variants at any stage.**.
+#### ``Pipeline``
 
-``Pipelines`` are useful when your experiment involves multiple tasks that may depend on each other.
+Use the built-in ``Pipeline`` to run multiple searches, and reduce to the best variants at any stage.
+
+``Pipelines`` are useful when your experiment involves multiple tasks that may depend on each other,
+each of which can be searched over.
 
 A Flambé pipeline may contain any of the following:
 
