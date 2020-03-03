@@ -576,7 +576,7 @@ class Cluster(Registrable):
 
         cmd = f"mkdir -p jobs/{name}/extensions && "
         if restart:
-            cmd += f"conda remove -y -q --name {current} --all; "
+            cmd += f"conda remove -y -q --name {job_env_name} --all; "
         cmd += f"conda create --name {job_env_name} --clone flambe; echo ''"
         setup_cmds.append(cmd)
 
