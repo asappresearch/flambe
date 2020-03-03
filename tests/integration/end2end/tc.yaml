@@ -2,7 +2,7 @@
 
 name: text_classification
 
-pipeline:
+stages:
   b1: !Trainer
     dataset: !TabularDataset.from_path
       train_path: {top_level}/tests/data/dummy_tabular/train.csv

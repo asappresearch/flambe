@@ -40,7 +40,7 @@ class Pipeline(Registrable):
 
     def __init__(self,
                  name: Optional[str] = None,
-                 pipeline: Optional[Dict[str, Schema]] = None,
+                 stages: Optional[Dict[str, Schema]] = None,
                  algorithm: Optional[Dict[str, Algorithm]] = None,
                  reduce: Optional[Dict[str, int]] = None,
                  cpus_per_trial: Dict[str, int] = None,
@@ -51,7 +51,7 @@ class Pipeline(Registrable):
         ----------
         name : str
             The name of the pipeline to run.
-        pipeline : Optional[Dict[str, Schema]], optional
+        stages : Optional[Dict[str, Schema]], optional
             A set of Comparable schemas, possibly including links.
         algorithm : Optional[Dict[str, Algorithm]], optional
             A set of hyperparameter search algorithms, one for each
@@ -70,7 +70,7 @@ class Pipeline(Registrable):
 
         """
         self.name = name
-        self.pipeline = pipeline if pipeline is not None else dict()
+        self.stages = stages if stages is not None else dict()
         self.algorithm = algorithm if algorithm is not None else dict()
         self.reduce = reduce if reduce is not None else dict()
         self.cpus_per_trial: Dict[str, int] = cpus_per_trial if cpus_per_trial is not None \
@@ -97,7 +97,7 @@ class Pipeline(Registrable):
         flambe.utils.ray.initialize(env)
 
         stages: Dict[str, int] = {}
-        pipeline = MultiSchema(self.pipeline)
+        pipeline = MultiSchema(self.stages)
         # Construct and execute stages as a DAG
         for name, schema in pipeline.arguments.items():
             if isinstance(schema.callable_, type) and not issubclass(schema.callable_, Runnable):
