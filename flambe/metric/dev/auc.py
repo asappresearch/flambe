@@ -7,6 +7,25 @@ import numpy as np
 from flambe.metric.metric import Metric
 
 
+def one_hot(indices: torch.Tensor, width: int) -> torch.Tensor:
+    """Converts a list of ints into 1-hot format.
+
+    Parameters
+    ----------
+    indices: torch.Tensor
+        the indices to be converted
+    width: int
+        the width of the 1-hot encoding (= the maximal index value)
+
+    Returns
+    -------
+    torch.Tensor
+        A one-hot representation of the input indices.
+    """
+    indices = indices.squeeze()
+    return torch.zeros(indices.size(0), width).scatter_(1, indices.unsqueeze(1), 1.)
+
+
 class AUC(Metric):
 
     def __init__(self, max_fpr=1.0):
@@ -21,7 +40,7 @@ class AUC(Metric):
 
     def __str__(self) -> str:
         """Return the name of the Metric (for use in logging)."""
-        return f'AUC@{self.max_fpr}'
+        return f'{self.__class__.__name__}@{self.max_fpr}'
 
     @staticmethod
     def aggregate(state: dict, *args, **kwargs) -> Dict:
@@ -64,7 +83,7 @@ class AUC(Metric):
             return np.NaN
         pred = torch.cat(state['pred'], dim=0)
         target = torch.cat(state['target'], dim=0)
-        state['accumulated_score'] = self.compute(pred, target)
+        state['accumulated_score'] = self.compute(pred, target).item()
         return state['accumulated_score']
 
     def compute(self, pred: torch.Tensor, target: torch.Tensor) -> torch.Tensor:
@@ -73,9 +92,9 @@ class AUC(Metric):
         Parameters
         ----------
         pred : torch.Tensor
-            The model predictions
+            The model predictions of shape numsamples
         target : torch.Tensor
-            The binary targets
+            The binary targets of shape numsamples
 
         Returns
         -------
@@ -104,3 +123,48 @@ class AUC(Metric):
         area = np.trapz(tpr, fpr)
 
         return torch.tensor(area / self.max_fpr).float()
+
+
+class MultiClassAUC(AUC):
+    """N-Ary (Multiclass) AUC for k-way classification"""
+
+    def compute(self, pred: torch.Tensor, target: torch.Tensor) -> torch.Tensor:
+        """Compute multiclass AUC at the given max false positive rate.
+
+        Parameters
+        ----------
+        pred : torch.Tensor
+            The model predictions of shape numsamples x numclasses
+        target : torch.Tensor
+            The binary targets of shape:
+             - numsamples. In this case the elements index into the
+               different classes
+             - numsamples x numclasses. This implementation only
+               considers the indices of the max values as positive
+               labels
+
+        Returns
+        -------
+        torch.Tensor
+            The computed AUC
+        """
+        if pred.numel() == target.numel() == 0:
+            return 0.5 * pred.new_ones(size=(1, 1)).squeeze()
+        num_samples, num_classes = pred.shape
+        pred_reshaped = pred.reshape(-1)
+        if target.numel() == num_samples:
+            # target consists of indices
+            target = one_hot(target, num_classes)
+        else:
+            # reconstructing targets to make sure that only
+            # one target is provided by taking the argmax along an axis
+            target = torch.argmax(target, dim=1)
+            target = one_hot(target, num_classes)
+        target_reshaped = target.reshape(-1)
+        if pred_reshaped.size() != target_reshaped.size():
+            raise RuntimeError(
+                'Predictions could not be flattened for AUC computation. '
+                'Ensure all batches are the same size '
+                '(hint: try setting `drop_last = True` in Sampler).')
+
+        return super().compute(pred_reshaped, target_reshaped)
