@@ -11,31 +11,15 @@
 
 Flambé is a Python framework built to **accelerate the machine learning research lifecycle**.
 
-Running a machine learning experiment generally involves the following steps:
-
-1. Write data processing, model training and evaluation code for the task
-2. Execute the task on a remote machine or cluster
-3. Improve performance by searching across models and hyperparameters
-4. Export a final model for inference
-
-By connecting the dots between a curated set of frameworks, Flambé eliminates the
-boilerplate involved in the first step, and fully automates the others.
-
-In particular, with Flambé you can:
-
-* Eliminate the **boilerplate code** in training machine learning models in Python.
-* **Run hyperparameter searches** over any Python code or script.
-* **Constuct task pipelines**, searching over hyperparameters and reducing to the
-best variants at any step.
-* Distribute tasks **remotely** and **in parallel** over a cluster, including AWS,
-GCP, and Kubernetes integrations.
-* Easily **share** reproducible experiment configurations and results with others.
+- [Installation](#installation)
+- [Getting Started](#getting-started)
+- [Contributing](#contributing)
+- [Cite](#cite)
+- [Contact](#contact)
 
 The full documentation can be found here: [flambe.ai](https://flambe.ai).
 
 ## Installation
-
-> Note: Flambé currently only supports Python 3.7.x
 
 **From** ``PIP``:
 
@@ -50,7 +34,18 @@ git clone git@github.com:asappresearch/flambe.git
 pip install ./flambe
 ```
 
+> Note: Flambé currently only supports Python 3.7.x
+
 ## Getting started
+
+Running a machine learning experiment generally involves the following steps:
+
+1. Write data processing, model training and evaluation code for the task
+2. Execute the task on a remote machine or cluster
+3. Improve performance by searching across models and hyperparameters
+4. Export a final model for inference
+
+Flambé eliminates the boilerplate involved in the first step, and fully automates the others.  
 
 ### 1. Create a task
 
@@ -80,6 +75,8 @@ or start from one of the provided templates:
 | [Lightning](http://flambe.ai/) |  Train / Evaluate a model using Pytorch Lightning. Automates the boilerplate code usually found in PyTorch code, such as multi-gpu handling, fp16 training, and training loops. |
 | [RaySGD](http://flambe.ai/) | Train / Evaluate a model using RaySGD. Automate the boilerplate code usually found in PyTorch or Tensorflow code, such as multi-gpu handling, fp16 training, and training loops. |
 
+Flambé also offers a set of modules to help construct a task including datasets, featurizers, metrics and neural network modules.
+
 ### 2. Execute a task
 
 Define your task as a YAML configuration:
@@ -99,8 +96,11 @@ Define your task as a YAML configuration:
        dropout=0.5,
        num_layers=2
     )
-
-    task.run()
+    
+    _continue = True
+    while continue:
+      _continue = task.train()
+      task.validate()
 </pre>
 </td>
 <td valign="top">
@@ -131,9 +131,11 @@ For more information on remote execution, and how to create a cluster see: [here
 
 ### 3. Search over models and hyperparameters
 
-**Use the built-in ``Search`` to run distributed hyperparameter searches over other Flambé tasks.**
+#### ``Search``
 
-For instance, you can run a hyperparameter search over **any python script** with a few lines:
+Use the built-in ``Search`` to run distributed hyperparameter searches over other Flambé tasks.
+
+For instance, you can run a hyperparameter search over any python script with a few lines:
 
 <table>
 <tr style="font-weight:bold;">
@@ -157,9 +159,9 @@ For instance, you can run a hyperparameter search over **any python script** wit
 </td>
 </table>
 
-**Use the built-in ``Pipeline`` to run multiple searches, and reduce to the best variants at any stage.**.
+#### ``Pipeline``
 
-``Pipelines`` are useful when your experiment involves multiple tasks that may depend on each other.
+Use the built-in ``Pipeline`` to run multiple searches, and reduce to the best variants at any stage. This is useful when your experiment involves multiple tasks that may depend on each other.
 
 A Flambé pipeline may contain any of the following:
 
@@ -228,11 +230,6 @@ will save artifacts of your experiment. You can then construct your final infere
 </pre>
 </td>
 </table>
-
-
-## Next steps
-
-Full documentation, tutorials and more at [flambe.ai](http://flambe.ai/).
 
 ## Contributing
 
