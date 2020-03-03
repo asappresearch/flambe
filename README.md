@@ -9,17 +9,27 @@
 [![Documentation Status](https://readthedocs.org/projects/flambe/badge/?version=latest)](https://flambe.ai/en/latest/?badge=latest)
 [![PyPI Version](https://badge.fury.io/py/flambe.svg)](https://badge.fury.io/py/flambe)
 
-Flambé is a Python framework built to accelerate the development of machine learning research.
+Flambé is a Python framework built to **accelerate the machine learning research lifecycle**.
 
-With Flambé you can:
+Running a machine learning experiment generally involves the following steps:
 
-* **Run hyperparameter searches** over any Python code.
-* **Constuct pipelines**, searching over hyperparameters and reducing to the
+1. Write data processing, model training and evaluation code for the task
+2. Execute the task on a remote machine or cluster
+3. Improve performance by searching across models and hyperparameters
+4. Export a final model for inference
+
+By connecting the dots between a curated set of frameworks, Flambé eliminates the
+boilerplate involved in the first step, and fully automates the others.
+
+In particular, with Flambé you can:
+
+* Eliminate the **boilerplate code** in training machine learning models in Python.
+* **Run hyperparameter searches** over any Python code or script.
+* **Constuct task pipelines**, searching over hyperparameters and reducing to the
 best variants at any step.
-* Automate the **boilerplate code** in training models with [PyTorch](https://pytorch.org).
-* Distribute jobs **remotely** and **in parallel** over a cluster, with full AWS,
+* Distribute tasks **remotely** and **in parallel** over a cluster, including AWS,
 GCP, and Kubernetes integrations.
-* Easily **share** experiment configurations, results, and checkpoints with others.
+* Easily **share** reproducible experiment configurations and results with others.
 
 The full documentation can be found here: [flambe.ai](https://flambe.ai).
 
@@ -42,27 +52,37 @@ pip install ./flambe
 
 ## Getting started
 
-### Create a task
+### 1. Create a task
 
-Create a Flambé ``Task``, by writting two simple methods:
+Write a task from scratch by implementing two simple methods:
 
 ```python
 
-class Task:
+class MyTask:
 
   # REQUIRED
-  def run(self) -> bool:
-    """Execute a computational step, keeps returning True until complete."""
+  def train(self) -> bool:
+    """Train for an epoch, keeps returning True until complete."""
     ...
 
   # OPTIONAL
-  def metric(self) -> float:
+  def validate(self) -> float:
     """Get the current performance on the task to compare with other runs."""
     ...
 
 ```
 
-Define your ``Task`` as a YAML configuration:
+or start from one of the provided templates:
+
+| Task | Description |
+| -------|------------|
+| [Script](http://flambe.ai/) |  Wrapper over any python script that accepts command line arguments. An entry-point for users who wish to keep their code unchanged, but leverage Flambé's cluster management and distributed hyperparameter search.|
+| [Lightning](http://flambe.ai/) |  Train / Evaluate a model using Pytorch Lightning. Automates the boilerplate code usually found in PyTorch code, such as multi-gpu handling, fp16 training, and training loops. |
+| [RaySGD](http://flambe.ai/) | Train / Evaluate a model using RaySGD. Automate the boilerplate code usually found in PyTorch or Tensorflow code, such as multi-gpu handling, fp16 training, and training loops. |
+
+### 2. Execute a task
+
+Define your task as a YAML configuration:
 
 <table>
 <tr style="font-weight:bold;">
@@ -95,7 +115,7 @@ Define your ``Task`` as a YAML configuration:
 </tr>
 </table>
 
-Execute a task locally with:
+Execute the task locally with:
 
 ```bash
 flambe run [CONFIG]
@@ -103,18 +123,17 @@ flambe run [CONFIG]
 
 or remotely with:
 
-```
+```bash
 flambe submit [CONFIG] -c [CLUSTER]
 ```
 
 For more information on remote execution, and how to create a cluster see: [here](http://flambe.ai/).
 
+### 3. Search over models and hyperparameters
 
-### Create a hyperparameter search
+**Use the built-in ``Search`` to run distributed hyperparameter searches over other Flambé tasks.**
 
-Use the built-in ``Search`` to run distributed hyperparameter searches over other Flambé tasks.
-
-For instance, you can run a hyperparameter search over any python script with a few lines:
+For instance, you can run a hyperparameter search over **any python script** with a few lines:
 
 <table>
 <tr style="font-weight:bold;">
@@ -138,17 +157,15 @@ For instance, you can run a hyperparameter search over any python script with a 
 </td>
 </table>
 
-> The ``Script`` task can be used over any python script that accepts command line arguments.
+**Use the built-in ``Pipeline`` to run multiple searches, and reduce to the best variants at any stage.**.
 
-### Create a pipeline.
+``Pipelines`` are useful when your experiment involves multiple tasks that may depend on each other.
 
 A Flambé pipeline may contain any of the following:
 
-1. Other Flambé tasks to execute
-2. Other Flambé tasks containing search options to search over
+1. Flambé tasks to execute
+2. Flambé tasks containing search options to search over (in this case a ``Search`` is automatically created.)
 3. Other Python objects that will not be executed but help define the pipeline
-
-``Pipelines`` are useful when you have dependencies between tasks, for example in a pretrain then finetune setting:
 
 <table>
 <tr style="font-weight:bold;">
@@ -160,7 +177,7 @@ A Flambé pipeline may contain any of the following:
 
     !Pipeline
 
-    pipeline:
+    stages:
       pretrain: !Script
         path: flambe/examples/pretrain.py
         args:
@@ -184,19 +201,38 @@ A Flambé pipeline may contain any of the following:
 </td>
 </table>
 
-## Next Steps
+### 4. Export a model for inference
 
-For more information on the built-in Flambé tasks:
+Wether you executed your task on its own, in a ``Search`` or in a ``Pipeline``, Flambé
+will save artifacts of your experiment. You can then construct your final inference object:
 
-| Task | Description |
-| -------|------------|
-| [Script](http://flambe.ai/) | An entry-point for users who wish to keep their code unchanged, but leverage Flambé's cluster management and distributed hyperparameter search.|
-| [PytorchTask](http://flambe.ai/) | Train / Evaluate a single model on a given task. Offers an interface to automate the boilerplate code usually found in PyTorch code, such as multi-gpu handling, fp16 training, and training loops. |
-| [Export](http://flambe.ai/) | Construct python objects and export them either locally or to a remote storage |
-| [Search](http://flambe.ai/) | Run a hyperparameter search over another task by replacing any arguments by a distribution. |
-| [Pipeline](http://flambe.ai/) | Build a pipeline of tasks, run a hyperparameter search and reduce to the best variants and any step.
+<table>
+<tr style="font-weight:bold;">
+  <td>YAML Config <img height=0 width=800/></td>
+</tr>
+<tr>
+<td valign="top">
+<pre lang="yaml">
 
-Full documentation, tutorials and much more at [flambe.ai](http://flambe.ai/).
+    !Export
+
+    object: !MyInferenceModel
+      vocabulary: path/to/vocabulary
+      model: path/to/model
+
+    format: pickle # onnx, torchscript
+    compress: true
+    
+    dest_type: local # s3, ...
+    dest_path: path/to/output
+</pre>
+</td>
+</table>
+
+
+## Next steps
+
+Full documentation, tutorials and more at [flambe.ai](http://flambe.ai/).
 
 ## Contributing
 
