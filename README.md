@@ -96,8 +96,11 @@ Define your task as a YAML configuration:
        dropout=0.5,
        num_layers=2
     )
-
-    task.run()
+    
+    _continue = True
+    while continue:
+      _continue = task.train()
+      task.validate()
 </pre>
 </td>
 <td valign="top">
