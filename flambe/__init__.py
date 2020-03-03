@@ -30,14 +30,14 @@ from flambe.compile import Component, Schema, load, save
 from flambe.logging import log
 from flambe.runner import env, get_env, set_env
 from flambe import compile, dataset, pipeline, field, learn, export
-from flambe import cluster, metric, nn, runner, sampler, tokenizer, optim, search, utils
+from flambe import cluster, metric, nn, runner, sampler, tokenizer, optim, search, utils, hub
 from flambe.version import VERSION as __version__
 from flambe.const import ASCII_LOGO
 
 
 __all__ = ['Component', 'Schema', 'log', 'tokenizer', 'search', 'utils',
            'compile', 'dataset', 'pipeline', 'field', 'learn', 'export',
-           'cluster', 'metric', 'nn', 'optim', 'runner', 'sampler',
+           'cluster', 'metric', 'nn', 'optim', 'runner', 'sampler', 'hub',
             '__version__', 'ASCII_LOGO', 'load', 'save',
             'env', 'get_env', 'set_env']
 
