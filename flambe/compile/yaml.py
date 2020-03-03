@@ -420,7 +420,9 @@ def convert_objects_to_tagged(obj: Any) -> Any:
         for i, e in enumerate(y):
             y_out[i] = convert_objects_to_tagged(e)
         new_y = type(y)(y_out)
-        y.copy_attributes(new_y)
+        if hasattr(y, 'copy_attributes'):
+            # If has yaml attributes copy them over
+            y.copy_attributes(new_y)
         y = new_y
     return y
 
