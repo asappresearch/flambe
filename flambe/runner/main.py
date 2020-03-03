@@ -394,6 +394,7 @@ def run(config, output, force, debug, num_cpus, num_gpus):
             local_files=updated_files
         )
         # Launch with Ray so that you can specify resource reqs
+        flambe.utils.ray.initialize(flambe.get_env())
         result = execute_helper.options(
             num_cpus=num_cpus,
             num_gpus=num_gpu
