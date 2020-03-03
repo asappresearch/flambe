@@ -330,8 +330,6 @@ def site(name, cluster, port):
               not need to change this value since most taks spawn their own Ray \
               jobs but in the case where your task consumes resources directly, \
               you can specify them here.')
-@click.option('--no-save', type=bool, default=False,
-              help='If provided, the output foler will be a temporary dict')
 def run(config, output, force, debug, num_cpus, num_gpus):
     """Execute a runnable config."""
     # Load environment
