@@ -18,8 +18,7 @@ Running a machine learning experiment generally involves the following steps:
 3. Improve performance by searching across models and hyperparameters
 4. Export a final model for inference
 
-Flambé eliminates the boilerplate involved in the first step, and fully automates the others.
-
+Flambé eliminates the boilerplate involved in the first step, and fully automates the others.  
 The full documentation can be found here: [flambe.ai](https://flambe.ai).
 
 ## Installation
