@@ -588,9 +588,9 @@ class Cluster(Registrable):
         activate = lambda x: f"source activate {job_env_name} && {x}"  # noqa: E731
 
         # Upload Flambé
-        flambe_cmd, flambe_files = upload_flambe(folder=f"jobs/{name}")
-        head_cmds.append(flambe_cmd)
-        worker_cmds.append(flambe_cmd)
+        cmd, flambe_files = upload_flambe(folder=f"jobs/{name}")
+        head_cmds.append(tmux(activate(cmd)))
+        worker_cmds.append(activate(cmd))
         file_mounts.update(flambe_files)
 
         # Upload extensions
