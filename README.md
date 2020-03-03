@@ -122,7 +122,7 @@ For more information on remote execution, and how to create a cluster see: [here
 
 #### ``Search``
 
-Use the built-in  to run distributed hyperparameter searches over other Flambé tasks.
+Use the built-in ``Search`` to run distributed hyperparameter searches over other Flambé tasks.
 
 For instance, you can run a hyperparameter search over any python script with a few lines:
 
@@ -150,10 +150,7 @@ For instance, you can run a hyperparameter search over any python script with a 
 
 #### ``Pipeline``
 
-Use the built-in ``Pipeline`` to run multiple searches, and reduce to the best variants at any stage.
-
-``Pipelines`` are useful when your experiment involves multiple tasks that may depend on each other,
-each of which can be searched over.
+Use the built-in ``Pipeline`` to run multiple searches, and reduce to the best variants at any stage. This is useful when your experiment involves multiple tasks that may depend on each other.
 
 A Flambé pipeline may contain any of the following:
 
