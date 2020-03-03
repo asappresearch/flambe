@@ -397,7 +397,7 @@ def run(config, output, force, debug, num_cpus, num_gpus):
         flambe.utils.ray.initialize(flambe.get_env())
         result = execute_helper.options(
             num_cpus=num_cpus,
-            num_gpus=num_gpu
+            num_gpus=num_gpus
         ).remote(config)
         # Wait until done executing
         ray.get(result)
