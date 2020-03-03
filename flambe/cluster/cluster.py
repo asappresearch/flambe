@@ -627,6 +627,9 @@ class Cluster(Registrable):
 
             config: Dict = copy.deepcopy(self.config)
             config['file_mounts'].update(file_mounts)
+            config['setup_commands'].extend(setup_cmds)
+            config['head_setup_commands'].extend(head_cmds)
+            config['worker_setup_commands'].extend(worker_cmds)
 
             # Must add source activate to every other command
             with tempfile.NamedTemporaryFile() as fp:
