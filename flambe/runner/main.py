@@ -90,7 +90,7 @@ def up(name, yes, create, template, min_workers, max_workers):
         os.makedirs(FLAMBE_CLUSTER_DEFAULT_FOLDER)
     cluster_path = os.path.join(FLAMBE_CLUSTER_DEFAULT_FOLDER, f"{name}.yaml")
 
-    # Check update or install
+    # Check whether to update or create cluster
     if create and os.path.exists(cluster_path):
         print(cl.RE(f"Cluster {name} already exists."))
         return
@@ -117,15 +117,19 @@ def up(name, yes, create, template, min_workers, max_workers):
     if env is not None:
         flambe.set_env(env)
 
-    # Run update
+    # Load cluster
     cluster = load_cluster_config(load_path)
     cluster = cluster.clone(**kwargs)
-    cluster.up(yes=yes, restart=create)
+
+    # Dump cluster
     with open(cluster_path, 'w') as f:
         if env is not None:
             dump_config([env, cluster], f)
         else:
             dump_one_config(cluster, f)
+
+    # Run update
+    cluster.up(yes=yes, restart=create)
 
 
 # ----------------- flambe down ------------------ #
