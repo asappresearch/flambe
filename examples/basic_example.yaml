@@ -2,7 +2,7 @@
 
 name: sst-text-classification
 
-pipeline:
+stages:
 
   # stage 0 - Load the Stanford Sentiment Treebank dataset and run preprocessing
   dataset: !SSTDataset # this is a simple Python object, and the arguments to build it

@@ -2,7 +2,7 @@
 
 name: image_classification
 
-pipeline:
+stages:
   model: !ImageClassifier
     encoder: !CNNEncoder
       input_channels: 1

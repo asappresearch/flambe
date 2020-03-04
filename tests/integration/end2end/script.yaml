@@ -1,6 +1,6 @@
 !Pipeline
 
-pipeline:
+stages:
   stage_0: !Script
     script: /Users/jeremy/Documents/asapp/flambe/tests/data/dummy_extensions/script/flambe_script/train.py
     pos_args: ['arg1', 'arg2']

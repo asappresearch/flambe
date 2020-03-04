@@ -2,8 +2,7 @@
 
 name: transformer
 
-pipeline:
-
+stages:
   train: !Trainer
     dataset: !TabularDataset.from_path
       train_path: {top_level}/tests/data/dummy_tabular/train.csv

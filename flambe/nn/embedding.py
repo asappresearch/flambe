@@ -249,7 +249,8 @@ class Embedder(Module):
                  encoder: Module,
                  pooling: Optional[Module] = None,
                  embedding_dropout: float = 0,
-                 padding_idx: Optional[int] = 0) -> None:
+                 padding_idx: Optional[int] = 0,
+                 return_mask: bool = False) -> None:
         """Initializes the TextEncoder module.
 
         Extra arguments are passed to the nn.Embedding module.
@@ -267,6 +268,9 @@ class Embedder(Module):
             Amount of dropout between the embeddings and the encoder
         padding_idx: int, optional
             Passed the nn.Embedding object. See pytorch documentation.
+        return_mask: bool
+            If enabled, the forward call returns a tuple of
+            (encoding, mask)
 
         """
         super().__init__()
@@ -276,8 +280,12 @@ class Embedder(Module):
         self.encoder = encoder
         self.pooling = pooling
         self.padding_idx = padding_idx
+        self.return_mask = return_mask
 
-    def forward(self, data: Tensor) -> Union[Tensor, Tuple[Tensor, Tensor]]:
+    def forward(self, data: Tensor) \
+            -> Union[Tensor,
+                     Tuple[Tensor, Tensor],
+                     Tuple[Tuple[Tensor, Tensor], Tensor]]:
         """Performs a forward pass through the network.
 
         Parameters
@@ -287,9 +295,12 @@ class Embedder(Module):
 
         Returns
         -------
-        Union[Tensor, Tuple[Tensor, Tensor]]
+        Union[Tensor, Tuple[Tensor, Tensor],
+                Tuple[Tuple[Tensor, Tensor], Tensor]
             The encoded output, as a float tensor. May return a state
             if the encoder is an RNN and no pooling is provided.
+            May also return a tuple if `return_mask` was passed in as
+            a constructor argument.
 
         """
         embedded = self.embedding(data)
@@ -308,4 +319,7 @@ class Embedder(Module):
             encoding = encoding[0] if isinstance(encoding, tuple) else encoding
             encoding = self.pooling(encoding, padding_mask)
 
-        return encoding
+        if self.return_mask:
+            return encoding, padding_mask
+        else:
+            return encoding

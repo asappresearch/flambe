@@ -1,4 +1,4 @@
-from typing import Optional
+from typing import Optional, Union, List, Dict, Any, Tuple
 
 import torch
 from transformers import AutoTokenizer
@@ -19,7 +19,7 @@ class PretrainedTransformerField(Field):
     def __init__(self,
                  alias: str,
                  cache_dir: Optional[str] = None,
-                 max_len_truncate: Optional[int] = None,
+                 max_len_truncate: int = 500,
                  add_special_tokens: bool = True, **kwargs) -> None:
         """Initialize a pretrained tokenizer.
 
@@ -29,8 +29,10 @@ class PretrainedTransformerField(Field):
             Alias of a pretrained tokenizer.
         cache_dir: str, optional
             A directory where to cache the downloaded vocabularies.
-        max_len_truncate: int, optional
-            If given, truncates the length of the tokenized sequence.
+        max_len_truncate: int, default = 500
+            Truncates the length of the tokenized sequence.
+            Because several pretrained models crash when this is
+            > 500, it defaults to 500
         add_special_tokens: bool, optional
             Add the special tokens to the inputs. Default ``True``.
 
@@ -64,7 +66,10 @@ class PretrainedTransformerField(Field):
         """
         return len(self._tokenizer)
 
-    def process(self, example: str) -> torch.Tensor:  # type: ignore
+    def process(self, example:  # type: ignore
+                Union[str, Tuple[Any], List[Any], Dict[Any, Any]]) \
+            -> Union[torch.Tensor, Tuple[torch.Tensor, ...],
+                     List[torch.Tensor], Dict[str, torch.Tensor]]:
         """Process an example, and create a Tensor.
 
         Parameters
@@ -78,6 +83,12 @@ class PretrainedTransformerField(Field):
             The processed example, tokenized and numericalized
 
         """
+        # special case of list of examples:
+        if isinstance(example, list) or isinstance(example, tuple):
+            return [self.process(e) for e in example]  # type: ignore
+        elif isinstance(example, dict):
+            return dict([(key, self.process(val)) for key, val in example.items()])  # type: ignore
+
         tokens = self._tokenizer.encode(example, add_special_tokens=self.add_special_tokens)
 
         if self.max_len_truncate is not None:

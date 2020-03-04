@@ -1,5 +1,5 @@
 from abc import abstractmethod
-from typing import Any, Union, Tuple
+from typing import Any, Union, Tuple, List, Dict
 
 import torch
 import numpy as np
@@ -35,7 +35,11 @@ class Field(Component):
         pass
 
     @abstractmethod
-    def process(self, *example: Any) -> Union[torch.Tensor, Tuple[torch.Tensor, ...]]:
+    def process(self, *example: Any) \
+            -> Union[torch.Tensor,
+                     Tuple[torch.Tensor, ...],
+                     List[torch.Tensor],
+                     Dict[str, torch.Tensor]]:
         """Process an example into a Tensor or tuple of Tensor.
 
         This method allows N to M mappings from example columns (N)

@@ -23,7 +23,7 @@ def test_exporter_builder(top_level):
         exp = """
 !Pipeline
 
-pipeline:
+stages:
   dataset: !TabularDataset.from_path
     train_path: {top_level}/tests/data/dummy_tabular/train.csv
     val_path: {top_level}/tests/data/dummy_tabular/val.csv

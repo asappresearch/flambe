@@ -2,7 +2,7 @@
 
 name: basic-example
 
-pipeline:
+stages:
   encoder: !PooledRNNEncoder
     input_size: 300
     rnn_type: lstm

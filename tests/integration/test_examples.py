@@ -1,11 +1,9 @@
 import pytest
 from flambe.compile import Schema
-from flambe.pipeline import Pipeline
 from tempfile import TemporaryDirectory as tmpdir
 from tempfile import NamedTemporaryFile as tmpfile
 import subprocess
 import os
-from flambe.compile import yaml
 
 
 def _reduce_iterations(d):

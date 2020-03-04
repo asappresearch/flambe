@@ -2,7 +2,7 @@
 
 name: full-example
 
-pipeline: # Define the list of components to execute
+stages: # Define the list of components to execute
   1_train: !Trainer # This is the top level component to execute the run method on
     dataset: !SSTDataset # dataset is an argument to Trainer.__init__
       transform: # Similarly, transform is an argument to the SSTDataset.__init__
