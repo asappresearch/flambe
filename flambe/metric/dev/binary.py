@@ -1,7 +1,4 @@
 from abc import abstractmethod
-from typing import Dict
-
-import numpy as np
 import torch
 
 from flambe.metric.metric import Metric
