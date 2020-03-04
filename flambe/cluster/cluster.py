@@ -609,7 +609,6 @@ class Cluster(Registrable):
 
         # Run Flambe
         env = env.clone(
-            output_path=f"jobs/{name}",
             head_node_ip=self.head_node_ip(),
             worker_node_ips=self.worker_node_ips(),
             extensions=updated_exts,
@@ -640,7 +639,8 @@ class Cluster(Registrable):
                     print(output)
 
         # Run Flambe
-        options = f' --num-cpus {num_cpus} --num-gpus {num_gpus}'
+        options = f' --output jobs/{name}'
+        options += f' --num-cpus {num_cpus} --num-gpus {num_gpus}'
         options += ' -d' * int(debug) + ' -f' * int(force)
         cmd = f"flambe run {config_target}{options}; "
         with tempfile.NamedTemporaryFile() as fp:
