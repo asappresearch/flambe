@@ -1,14 +1,16 @@
+from typing import Dict
+
+import numpy as np
 import torch
 
-from flambe.metric import Metric
+from flambe.metric.dev.perplexity import Perplexity
 
 
-class BPC(Metric):
-    """Bits per character. Computed as log_2(perplexity)"""
+class BPC(Perplexity):
+    """Bits per character. Computed as log_2(perplexity)
 
-    def __init__(self):
-        """Initializes the metric with CE loss."""
-        self.entropy = torch.nn.CrossEntropyLoss()
+    Inherits from Perplexity to share aggregate functionality.
+    """
 
     def compute(self, pred: torch.Tensor, target: torch.Tensor) -> torch.Tensor:
         """Compute the bits per character given the input and target.
@@ -28,3 +30,22 @@ class BPC(Metric):
         """
         entropy = self.entropy(pred, target).mean()
         return torch.log2(torch.exp(entropy))
+
+    def finalize(self, state: Dict) -> float:
+        """Finalizes the metric computation
+
+        Parameters
+        ----------
+        state: dict
+            the metric state
+
+        Returns
+        -------
+        float
+            The final score.
+
+        """
+        if not state or state['sample_count'] == 0:
+            # call on empty state
+            return np.NaN
+        return torch.log2(torch.exp(state['accumulated_score'] / state['sample_count'])).item()

@@ -1,6 +1,7 @@
 from typing import Dict
 from abc import abstractmethod
 
+import numpy as np
 import torch
 
 from flambe.compile import Component
@@ -33,6 +34,67 @@ class Metric(Component):
 
         """
         pass
+
+    def aggregate(self, state: dict, *args, **kwargs) -> Dict:
+        """Aggregates by simply storing preds and targets
+
+        Parameters
+        ----------
+        state: dict
+            the metric state
+        args: the pred, target tuple
+
+        Returns
+        -------
+        dict
+            the state dict
+        """
+        pred, target = args
+        if not state:
+            state['pred'] = []
+            state['target'] = []
+        state['pred'].append(pred.cpu().detach())
+        state['target'].append(target.cpu().detach())
+        return state
+
+    def finalize(self, state: Dict) -> float:
+        """Finalizes the metric computation
+
+        Parameters
+        ----------
+        state: dict
+            the metric state
+
+        Returns
+        -------
+        float
+            The final score.
+        """
+        if not state:
+            # call on empty state
+            return np.NaN
+        pred = torch.cat(state['pred'], dim=0)
+        target = torch.cat(state['target'], dim=0)
+        state['accumulated_score'] = self.compute(pred, target).item()
+        return state['accumulated_score']
+
+    def __call__(self, *args, **kwargs):
+        """Makes Featurizer a callable."""
+        return self.compute(*args, **kwargs)
+
+    def __str__(self) -> str:
+        """Return the name of the Metric (for use in logging)."""
+        return self.__class__.__name__
+
+
+class AverageableMetric(Metric):
+    """Metric interface for averageable metrics
+
+    Some metrics, such as accuracy, are averaged as a final step.
+    This allows for a more efficient metrics computation.
+    These metrics should inherit from this class.
+
+    """
 
     def aggregate(self, state: dict, *args, **kwargs) -> Dict:
         """
@@ -83,11 +145,3 @@ class Metric(Component):
             The final score. Can be anything, depending on metric.
         """
         return state.get('accumulated_score')
-
-    def __call__(self, *args, **kwargs):
-        """Makes Featurizer a callable."""
-        return self.compute(*args, **kwargs)
-
-    def __str__(self) -> str:
-        """Return the name of the Metric (for use in logging)."""
-        return self.__class__.__name__
