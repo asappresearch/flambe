@@ -28,7 +28,7 @@ class Choice(Distribution, tag_override="choice"):
         if isinstance(options, dict):
             names = list(options.keys())
             options = list(options.values())
-        elif all(type(opt) in PRIMITIVES for opt in options):
+        elif all(isinstance(opt, PRIMITIVES) for opt in options):
             names = list(map(str, options))
         else:
             raise ValueError("Choices over non built-in types must be provided with a name.")
