@@ -158,7 +158,8 @@ class RNNEncoder(Module):
             output, _ = nn.utils.rnn.pad_packed_sequence(output)
 
         # TODO investigate why PyTorch returns type Any for output
-        return output.transpose(0, 1).contiguous(), state  # type: ignore
+        return output, state  # type: ignore
+        # return output.transpose(0, 1).contiguous(), state  # type: ignore
 
 
 class PooledRNNEncoder(Module):

@@ -1,5 +1,6 @@
-from typing import Optional, Sequence, Tuple, Iterator
+from typing import Optional, Sequence, Tuple, Iterator, Union
 import math
+import functools
 
 import torch
 from torch import Tensor
@@ -140,3 +141,66 @@ class CorpusSampler(Sampler):
             return ((tensor.size(0) - 1) // self.batch_size) // self.unroll_size
         else:
             return math.ceil(((tensor.size(0) - 1) // self.batch_size) / self.unroll_size)
+
+
+from flambe.sampler.base import collate_fn as base_collate_fn
+
+
+class QuickThoughtSampler(Sampler):
+
+    def __init__(self,
+                 batch_size: int = 64,
+                 shuffle: bool = True,
+                 pad_index: Union[int, Sequence[int]] = 0,
+                 n_workers: int = 0,
+                 pin_memory: bool = False,
+                 drop_last: bool = True) -> None:
+        self.pad = pad_index
+        self.batch_size = batch_size
+        self.shuffle = shuffle
+        self.drop_last = drop_last
+        self.n_workers = n_workers
+        self.pin_memory = pin_memory
+
+    @staticmethod
+    def collate_fn(data: Sequence[Tuple[Tensor, Tensor]], pad) -> Tuple[Tensor, Tensor]:
+        data_and_idx = zip(data, torch.arange(len(data)).long())
+        # TODO if need? in tao's implementation left and right are clipped at 128, 64 respectively
+        d = [(torch.tensor(row[0]), torch.tensor(row[1]), label) for row, label in data_and_idx]
+        return base_collate_fn(d, pad)
+
+    def sample(self,
+               data: Sequence[Sequence[torch.Tensor]],
+               start_iter: int = 0) -> Iterator[Tuple[torch.Tensor, ...]]:
+        if len(data) == 0:
+            raise ValueError("No examples provided")
+
+        def examples_generator():
+            for convo in data:
+                utts = convo[0]  # utterance column
+                for l, r in zip(range(0, len(utts)-1), range(1, len(utts))):
+                    yield utts[l], utts[r]
+        d = list(examples_generator())
+        # import pdb; pdb.set_trace()
+        collate_fn_p = functools.partial(self.collate_fn, pad=self.pad)
+        loader = DataLoader(dataset=d,
+                            collate_fn=collate_fn_p,
+                            shuffle=self.shuffle,
+                            batch_size=self.batch_size,
+                            num_workers=self.n_workers,
+                            pin_memory=self.pin_memory,
+                            drop_last=self.drop_last)
+        it = iter(loader)
+        for i in range(0, start_iter):
+            next(it)
+        yield from it
+
+    def length(self, data: Sequence[Sequence[torch.Tensor]]) -> int:
+        def examples_generator():
+            for convo in data:
+                utts = convo[0]  # utterance column
+                for l, r in zip(range(0, len(utts)-1), range(1, len(utts))):
+                    yield utts[l], utts[r]
+        count = 0
+        for _ in examples_generator(): count += 1
+        return count

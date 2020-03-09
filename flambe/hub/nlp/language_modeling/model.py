@@ -2,6 +2,7 @@
 
 from typing import Tuple, Optional, Union
 
+import torch
 import torch.nn as nn
 from torch import Tensor
 
@@ -98,3 +99,39 @@ class LanguageModel(Module):
         else:
             pred = self.output_layer(self.drop(encoding))
             return pred
+
+
+class QuickThoughtModel(Module):
+
+    def __init__(self,
+                 left_embedder: Embedder,
+                 right_embedder: Embedder,
+                 dropout: float = 0,
+                 pad_index: int = 0) -> None:
+        super().__init__()
+        self.left_embedder = left_embedder
+        self.right_embedder = right_embedder
+        self.drop = nn.Dropout(dropout)
+        self.pad_index = pad_index
+
+    @property
+    def d_model(self):
+        return self.left_embedder.encoder.hidden_size + self.right_embedder.encoder.hidden_size
+
+    def forward_one_side(self, input, left=True):
+        embedder = self.left_embedder if left else \
+            self.right_embedder
+        output, hidden = embedder(input)
+
+        mask = (input == self.pad_index)
+        length = (1 - mask.float()).sum(dim=1).view(-1, 1)  # dim 0 in tao's code
+        output = output.sum(dim=0)/length
+
+        return output
+
+    def forward(self, left, right, target):
+        enc_l = self.forward_one_side(left, left=True)    # (batch, d)
+        enc_r = self.forward_one_side(right, left=False)  # (batch, d)
+
+        encoding = torch.mm(enc_l, enc_r.t())
+        return encoding, target
