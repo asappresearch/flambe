@@ -45,26 +45,24 @@ Running a machine learning experiment generally involves the following steps:
 3. Improve performance by searching across models and hyperparameters
 4. Export a final model for inference
 
-Flambé eliminates the boilerplate involved in the first step, and fully automates the others.  
+Flambé eliminates much of the boilerplate involved in the first step, and fully automates the others.  
 
 ### 1. Create a task
 
 Write a task from scratch by implementing two simple methods:
 
 ```python
-
 class MyTask:
 
   # REQUIRED
-  def train(self) -> bool:
-    """Train for an epoch, keeps returning True until complete."""
+  def train(self, n_epochs: float = 1.0):
+    """Run training for the given number of epochs."""
     ...
 
   # OPTIONAL
   def validate(self) -> float:
-    """Get the current performance on the task to compare with other runs."""
+    """Run validation and return a metric to use to compare with other runs."""
     ...
-
 ```
 
 or start from one of the provided templates:
@@ -72,59 +70,39 @@ or start from one of the provided templates:
 | Task | Description |
 | -------|------------|
 | [Script](http://flambe.ai/) |  Wrapper over any python script that accepts command line arguments. An entry-point for users who wish to keep their code unchanged, but leverage Flambé's cluster management and distributed hyperparameter search.|
-| [Lightning](http://flambe.ai/) |  Train / Evaluate a model using Pytorch Lightning. Automates the boilerplate code usually found in PyTorch code, such as multi-gpu handling, fp16 training, and training loops. |
-| [RaySGD](http://flambe.ai/) | Train / Evaluate a model using RaySGD. Automate the boilerplate code usually found in PyTorch or Tensorflow code, such as multi-gpu handling, fp16 training, and training loops. |
+| [Lightning](http://flambe.ai/) |  Train a model using Pytorch Lightning. Automates the boilerplate code usually found in PyTorch code, such as multi-gpu handling, fp16 training, and training loops. |
+| [RaySGD](http://flambe.ai/) | Train a model using RaySGD. Automate the boilerplate code usually found in PyTorch or Tensorflow code, such as multi-gpu handling, fp16 training, and training loops. |
+| [Torch](http://flambe.ai/) | Flambé wrapper on top of RaySGD. Designed to use the Flambé provided datasets, featurizers, metrics and pytorch neural network components. |
 
-Flambé also offers a set of modules to help construct a task including datasets, featurizers, metrics and neural network modules.
 
 ### 2. Execute a task
 
-Define your task as a YAML configuration:
+Use your task in a script:
 
-<table>
-<tr style="font-weight:bold;">
-  <td>Python Code <img width=310/></td>
-  <td>YAML Config <img width=310/></td>
-  </tr>
-<tr>
-<td valign="top">
-<pre lang="python">
 
-    import my_module
+```python
+import my_module
 
-    task = my_module.MyTask(
-       dropout=0.5,
-       num_layers=2
-    )
-    
-    _continue = True
-    while continue:
-      _continue = task.train()
-      task.validate()
-</pre>
-</td>
-<td valign="top">
-<pre lang="yaml">
+task = my_module.MyTask(
+   dropout=0.5,
+   num_layers=2
+)
 
-    !my_module.MyTask
-
-     dropout: 0.5
-     num_layers: 2
-</pre>
-</td>
-</tr>
-</table>
-
-Execute the task locally with:
-
-```bash
-flambe run [CONFIG]
+for _ in range(10):
+  task.train()
+  task.validate()
 ```
 
-or remotely with:
+Execute the script locally with:
 
 ```bash
-flambe submit [CONFIG] -c [CLUSTER]
+flambe run script.py
+```
+
+or on a remote cluster with:
+
+```bash
+flambe submit script.py -c [CLUSTER-NAME]
 ```
 
 For more information on remote execution, and how to create a cluster see: [here](http://flambe.ai/).
@@ -133,31 +111,48 @@ For more information on remote execution, and how to create a cluster see: [here
 
 #### ``Search``
 
-Use the built-in ``Search`` to run distributed hyperparameter searches over other Flambé tasks.
+Use the built-in ``Search`` to run distributed hyperparameter searches over a task:
 
-For instance, you can run a hyperparameter search over any python script with a few lines:
+```python
+import flambe
+import my_module
 
-<table>
-<tr style="font-weight:bold;">
-  <td>YAML Config <img height=0 width=800/></td>
-</tr>
-<tr>
-<td valign="top">
-<pre lang="yaml">
+# Define your object as a schema, to pass in distributions
+task = flambe.schema(my_module.MyTask)(
+   dropout=flambe.uniform(0, 1),
+   num_layers=flambe.choice(2, 3, 4)
+)
 
-    !Search
+# Choose an algorithm and execute the search
+algorithm = flambe.RandomSearch(trial_budget=5)
+search = Search(task, algorithm)
+search.run()
+```
 
-    task: !Script
-      path: flambe/examples/script.py
-      args:
-        dropout: !uniform [0, 1]
-        num_layers: !choice [1, 2, 3]
+Flambé also provides a ``Script`` task to run a hyperparameter search over any command line script:
 
-    algorithm: !RandomSearch
-      trial_budget: 5
-</pre>
-</td>
-</table>
+```python
+import flambe
+
+# Define your object as a schema, to pass in distributions
+task = flambe.schema(flambe.Script)(
+   path='path/to/script.py',
+   output_arg='--output-path',  # used to set the output path for the different trials
+   kwargs={
+     '--dropout': flambe.random(0, 1),
+     '--n_layers': flambe.choice([2, 3, 4])
+   }  
+)
+
+# Choose an algorithm and execute the search
+algorithm = flambe.RandomSearch(trial_budget=5)
+search = Search(task, algorithm)
+search.run()
+```
+
+For more information on the ``Script`` feature, see: [here](http://flambe.ai/).
+For more information on hyperparameter searches, see: [here](http://flambe.ai/).  
+
 
 #### ``Pipeline``
 
@@ -165,43 +160,41 @@ Use the built-in ``Pipeline`` to run multiple searches, and reduce to the best v
 
 A Flambé pipeline may contain any of the following:
 
-1. Flambé tasks to execute
-2. Flambé tasks containing search options to search over (in this case a ``Search`` is automatically created.)
+1. Tasks to execute
+2. Tasks containing search options to search over (in this case a ``Search`` is automatically created.)
 3. Other Python objects that will not be executed but help define the pipeline
 
-<table>
-<tr style="font-weight:bold;">
-  <td>YAML Config <img height=0 width=800/></td>
-</tr>
-<tr>
-<td valign="top">
-<pre lang="yaml">
+Note that all objects must be passed as schemas when using ``Pipeline``.
 
-    !Pipeline
+```python
+import flambe
+import my_module
 
-    stages:
-      pretrain: !Script
-        path: flambe/examples/pretrain.py
-        args:
-          dropout: !uniform [0, 1]
-          num_layers: !choice [1, 2, 3]
-      finetune: !Script
-        path: flambe/examples/finetune.py
-        args:
-          checkpoint: !copy pretrain[path]
-          learning_rate: !choice [.001, .0001]
+task1 = flambe.schema(my_module.FirstTask)(
+   dropout=flambe.uniform(0, 1),
+   num_layers=flambe.choice(2, 3, 4)
+)
 
-    algorithm:
-      pretrain: !RandomSearch
-        trial_budget: 5
-      finetune: !RandomSearch
-        trial_budget: 2
+task2 = flambe.schema(my_module.SecondTask)(
+   pretrained=task1.copy('model.state_dict()'),  # Link to attributes of the previous task
+   learning_rate=flambe.uniform(0, 1)
+)
 
-    reduce:
-      pretrain: 2
-</pre>
-</td>
-</table>
+alg1 = flambe.RandomSearch(trial_budget=5)
+alg2 = flambe.Hyperband(step_budget=100)
+
+pipeline = Pipeline(
+  stages = {
+    'pretrain': task1,
+    'finetune': task2
+  },
+  reduce = {
+    'pretrain': 2,  # Only run finetuning for the best 2
+  }
+)
+
+pipeline.run()
+```
 
 ### 4. Export a model for inference
 
