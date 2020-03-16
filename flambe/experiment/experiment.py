@@ -2,11 +2,14 @@
 import os
 import re
 import logging
+import random
 from copy import deepcopy
 from typing import Dict, Optional, Union, Sequence, cast, Callable
 from collections import OrderedDict
 import shutil
 import tempfile
+import numpy as np
+import torch
 
 from tqdm import tqdm
 from io import StringIO
@@ -89,6 +92,9 @@ class Experiment(ClusterRunnable):
         The logic for specifying the user triggering this
         Runnable. If not passed, by default it will pick the computer's
         user.
+    global_random_seed: Optional[int]
+        A global random seed that is set before any object gets
+        initialized.
 
     """
 
@@ -106,7 +112,14 @@ class Experiment(ClusterRunnable):
                  max_failures: int = 1,
                  stop_on_failure: bool = True,
                  merge_plot: bool = True,
-                 user_provider: Callable[[], str] = None) -> None:
+                 user_provider: Callable[[], str] = None,
+                 global_random_seed: Optional[int] = None) -> None:
+        if global_random_seed is not None:
+            random.seed(global_random_seed)
+            np.random.seed(global_random_seed)
+            torch.manual_seed(global_random_seed)
+            # does not require cuda to be available
+            torch.cuda.manual_seed_all(global_random_seed)
         super().__init__(env=env, user_provider=user_provider)
         self.name = name
 
