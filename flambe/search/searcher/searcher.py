@@ -26,23 +26,38 @@ def generate_name(parameters: Any, prefix: str = '', delimiter='|') -> str:
         A string name to represent the variant when dumping results.
 
     """
-    def helper(params):
+    from flambe.search.search import string_to_path
+    def helper(params, idx=0):
         if isinstance(params, (list, tuple, set)):
-            name = ",".join([helper(param) for param in params])
-            name = f"[{name}]"
+            subnames = []
+            for param in params:
+                idx, temp = helper(param, idx)
+                subnames.append(temp)
+            name = ",".join(subnames)
+            name = f"({name})"
         elif isinstance(params, dict):
             name = delimiter
             for param, value in params.items():
+                param = str(idx) + "-" + str(string_to_path(param)[-1])
+                idx += 1
                 if isinstance(value, dict):
-                    name += helper({f'{param}.{k}': v for k, v in value.items()})[1:]
+                    idx, name_temp = helper({f'{param}.{k}': v for k, v in value.items()}, idx)
+                    name += name_temp[1:]
                 else:
-                    name += f'{param}={helper(value)}{delimiter}'
+                    idx, name_temp = helper(value, idx)
+                    name += f'{param}={name_temp}{delimiter}'
         else:
             name = str(params)
 
-        return name
-
-    return prefix + helper(parameters).strip(delimiter)
+        return idx, name
+    _, name = helper(parameters)
+    name = name.strip(delimiter)
+    extra_chars = 150 - len(prefix) - len(name)
+    if extra_chars >= 0:
+        return prefix + name
+    else:
+        end = extra_chars - 6
+        return prefix + name[:end] + '_trunc'
 
 
 class Space(object):

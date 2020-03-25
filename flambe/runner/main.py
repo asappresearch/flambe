@@ -338,8 +338,10 @@ def run(config, output, force, debug, num_cpus, num_gpus):
     """Execute a runnable config."""
     # Load environment
     env = load_env_from_config(config)
-    if not env:
+    if env is None:
         env = flambe.get_env()
+    else:
+        flambe.set_env(env)
 
     # Check if previous job exists
     output = os.path.join(os.path.expanduser(output), 'flambe_output')
