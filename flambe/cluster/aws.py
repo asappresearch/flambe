@@ -1045,7 +1045,7 @@ class AWSCluster(Cluster):
 
         """
         if role not in ['Orchestrator', 'Factory']:
-            raise ValueError(f"Incorrect instasnce role {role}")
+            raise ValueError(f"Incorrect instance role {role}")
 
         return self.get_orchestrator_name() if role == 'Orchestrator' \
             else self.get_factory_basename()
