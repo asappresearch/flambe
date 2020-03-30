@@ -560,7 +560,9 @@ def get_default_devices(debug: bool = False,
     Parameters
     ----------
     debug: bool, optional
-        If we are running in debug mode (where Ray is not available)
+        If we are running in debug mode (where Ray is not available).
+        If debug is False, this method should be called after running
+        ``ray.init()``.
     default_cpus: int, optional
         The default number of CPU's to use. Default ``1``.
     default_gpus: int, optional
