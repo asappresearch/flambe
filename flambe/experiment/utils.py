@@ -549,3 +549,39 @@ def shutdown_remote_ray_node(host: str,
     """
     cmd = f"ssh -i {key} -o StrictHostKeyChecking=no {user}@{host} \"bash -lc 'ray stop'\""
     return os.system(cmd)
+
+
+def get_default_devices(debug: bool = False,
+                        default_cpus: int = 1,
+                        default_gpus: int = 1) -> Dict[str, int]:
+    """Get the default devices to use if not provided.
+
+    Parameters
+    ----------
+    debug: bool, optional
+        If we are running in debug mode (where Ray is not available)
+    default_cpus: int, optional
+        The default number of CPU's to use. Default ``1``.
+    default_gpus: int, optional
+        The default number of GPU's to use. Default ``1``.
+
+    Returns
+    -------
+    devices: Dict[str, int]
+        Default set of devices to use. Should have at most two keys:
+        'cpu', and 'gpu' if cuda is available.
+
+    """
+    if debug:
+        if torch.cuda.is_available():
+            devices = {"cpu": default_cpus, "gpu": default_gpus}
+        else:
+            devices = {"cpu": default_cpus}
+    else:
+        cluster_devices = ray.cluster_resources()
+        if 'GPU' in cluster_devices or 'gpu' in cluster_devices:
+            devices = {"cpu": default_cpus, "gpu": default_gpus}
+        else:
+            devices = {"cpu": default_cpus}
+
+    return devices

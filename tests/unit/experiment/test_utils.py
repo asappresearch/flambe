@@ -1,7 +1,8 @@
 import pytest
+import ray
 
 from flambe.compile import Component, yaml
-from flambe.experiment.utils import divide_nested_grid_search_options
+from flambe.experiment.utils import divide_nested_grid_search_options, get_default_devices
 
 
 @pytest.fixture
@@ -112,3 +113,26 @@ akw2: !B
     config2 = yaml.load(txt_2)
     divided_configs = list(divide_nested_grid_search_options(config))
     assert repr(divided_configs) == repr([config1, config2])
+
+
+def test_default_devices():
+    ray.init()
+    devices = get_default_devices(debug=False)
+    assert devices == {'cpu': 1}
+
+    devices = get_default_devices(debug, default_cpus=2)
+    assert devices == {'cpu': 2}
+
+    devices = get_default_devices(debug, default_gpus=2)
+    assert devices == {'cpu': 1}
+
+
+def test_default_devices_debug():
+    devices = get_default_devices(debug=True)
+    assert devices == {'cpu': 1}
+
+    devices = get_default_devices(debug, default_cpus=2)
+    assert devices == {'cpu': 2}
+
+    devices = get_default_devices(debug, default_gpus=2)
+    assert devices == {'cpu': 1}
