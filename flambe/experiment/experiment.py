@@ -30,7 +30,7 @@ from flambe.runner.utils import get_files
 from flambe.experiment.progress import ProgressState
 from flambe.experiment.tune_adapter import TuneAdapter
 from flambe.logging import coloredlogs as cl
-from flambe.experiment.utils import get_default_devices()
+from flambe.experiment.utils import get_default_devices
 
 logger = logging.getLogger(__name__)
 
