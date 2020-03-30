@@ -3,6 +3,7 @@ import os
 from collections import abc
 from typing import Dict, List, Mapping, Any, Optional, Iterable, Set, Sequence, MutableMapping
 
+import ray
 import torch
 from ruamel.yaml.compat import StringIO
 from ruamel import yaml as original_yaml
@@ -578,8 +579,14 @@ def get_default_devices(debug: bool = False,
         else:
             devices = {"cpu": default_cpus}
     else:
-        cluster_devices = ray.cluster_resources()
-        if 'GPU' in cluster_devices or 'gpu' in cluster_devices:
+        if ray.is_initialized():
+            cluster_devices = ray.cluster_resources()
+            use_gpu = 'GPU' in cluster_devices or 'gpu' in cluster_devices
+        elif torch.cuda.is_available():
+            use_gpu = True
+        else:
+            use_gpu = False
+        if use_gpu:
             devices = {"cpu": default_cpus, "gpu": default_gpus}
         else:
             devices = {"cpu": default_cpus}
