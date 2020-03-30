@@ -117,22 +117,24 @@ akw2: !B
 
 def test_default_devices():
     ray.init()
-    devices = get_default_devices(debug=False)
+    debug = False
+    devices = get_default_devices(debug=debug)
     assert devices['cpu'] == 1
 
-    devices = get_default_devices(debug, default_cpus=2)
+    devices = get_default_devices(debug=debug, default_cpus=2)
     assert devices['cpu'] == 2
 
-    devices = get_default_devices(debug, default_gpus=2)
+    devices = get_default_devices(debug=debug, default_gpus=2)
     assert devices['cpu'] == 1
 
 
 def test_default_devices_debug():
-    devices = get_default_devices(debug=True)
+    debug = True
+    devices = get_default_devices(debug=debug)
     assert devices['cpu'] == 1
 
-    devices = get_default_devices(debug, default_cpus=2)
+    devices = get_default_devices(debug=debug, default_cpus=2)
     assert devices['cpu'] == 2
 
-    devices = get_default_devices(debug, default_gpus=2)
+    devices = get_default_devices(debug=debug, default_gpus=2)
     assert devices['cpu'] == 1
