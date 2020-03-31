@@ -115,92 +115,44 @@ akw2: !B
     assert repr(divided_configs) == repr([config1, config2])
 
 
+@pytest.mark.parametrize("initialized", [True, False])
+@pytest.mark.parametrize("debug", [True, False])
 @mock.patch("flambe.experiment.utils.ray.cluster_resources")
 @mock.patch("flambe.experiment.utils.ray.is_initialized")
 @mock.patch("flambe.experiment.utils.torch.cuda.is_available")
-def test_default_devices_cpu(cuda_available, ray_initialized, ray_resources):
+def test_default_devices_cpu(cuda_available, ray_initialized, ray_resources, debug, initialized):
     cuda_available.return_value = False
+    ray_initialized.return_value = initialized
     ray_resources.return_value = {'cpu': 2}
-    debug = False
 
-    for intialized in [True, False]:
-        ray_initialized.return_value = intialized
+    devices = get_default_devices(debug=debug)
+    assert devices == {'cpu': 1}
 
-        devices = get_default_devices(debug=debug)
-        assert devices == {'cpu': 1}
+    devices = get_default_devices(debug=debug, default_cpus=2)
+    assert devices == {'cpu': 2}
 
-        devices = get_default_devices(debug=debug, default_cpus=2)
-        assert devices == {'cpu': 2}
-
-        devices = get_default_devices(debug=debug, default_gpus=2)
-        assert devices == {'cpu': 1}
+    devices = get_default_devices(debug=debug, default_gpus=2)
+    assert devices == {'cpu': 1}
 
 
+@pytest.mark.parametrize("initialized", [True, False])
+@pytest.mark.parametrize("debug", [True, False])
 @mock.patch("flambe.experiment.utils.ray.cluster_resources")
 @mock.patch("flambe.experiment.utils.ray.is_initialized")
 @mock.patch("flambe.experiment.utils.torch.cuda.is_available")
-def test_default_devices_gpu(cuda_available, ray_initialized, ray_resources):
+def test_default_devices_gpu(cuda_available, ray_initialized, ray_resources, debug, initialized):
     cuda_available.return_value = True
+    ray_initialized.return_value = initialized
     ray_resources.return_value = {'cpu': 2, 'gpu': 2}
-    debug = False
 
-    for intialized in [True, False]:
-        ray_initialized.return_value = intialized
+    devices = get_default_devices(debug=debug)
+    assert devices == {'cpu': 1, 'gpu': 1}
 
-        devices = get_default_devices(debug=debug)
-        assert devices == {'cpu': 1, 'gpu': 1}
+    devices = get_default_devices(debug=debug, default_cpus=2)
+    assert devices == {'cpu': 2, 'gpu': 1}
 
-        devices = get_default_devices(debug=debug, default_cpus=2)
-        assert devices == {'cpu': 2, 'gpu': 1}
+    devices = get_default_devices(debug=debug, default_gpus=2)
+    assert devices == {'cpu': 1, 'gpu': 2}
 
-        devices = get_default_devices(debug=debug, default_gpus=2)
-        assert devices == {'cpu': 1, 'gpu': 2}
-
-        devices = get_default_devices(debug=debug, default_cpus=2, default_gpus=2)
-        assert devices == {'cpu': 2, 'gpu': 2}
-
-
-@mock.patch("flambe.experiment.utils.ray.cluster_resources")
-@mock.patch("flambe.experiment.utils.ray.is_initialized")
-@mock.patch("flambe.experiment.utils.torch.cuda.is_available")
-def test_default_devices_debug_cpu(cuda_available, ray_initialized, ray_resources):
-    cuda_available.return_value = False
-    ray_initialized.return_value = False
-    ray_resources.return_value = dict()
-    debug = True
-
-    for intialized in [True, False]:
-        ray_initialized.return_value = intialized
-
-        devices = get_default_devices(debug=debug)
-        assert devices == {'cpu': 1}
-
-        devices = get_default_devices(debug=debug, default_cpus=2)
-        assert devices == {'cpu': 2}
-
-        devices = get_default_devices(debug=debug, default_gpus=2)
-        assert devices == {'cpu': 1}
-
-
-@mock.patch("flambe.experiment.utils.ray.cluster_resources")
-@mock.patch("flambe.experiment.utils.ray.is_initialized")
-@mock.patch("flambe.experiment.utils.torch.cuda.is_available")
-def test_default_devices_debug_gpu(cuda_available, ray_initialized, ray_resources):
-    cuda_available.return_value = True
-    ray_resources.return_value = {'cpu': 2, 'gpu': 2}
-    debug = True
-
-    for intialized in [True, False]:
-        ray_initialized.return_value = intialized
-
-        devices = get_default_devices(debug=debug)
-        assert devices == {'cpu': 1, 'gpu': 1}
-
-        devices = get_default_devices(debug=debug, default_cpus=2)
-        assert devices == {'cpu': 2, 'gpu': 1}
-
-        devices = get_default_devices(debug=debug, default_gpus=2)
-        assert devices == {'cpu': 1, 'gpu': 2}
-
-        devices = get_default_devices(debug=debug, default_cpus=2, default_gpus=2)
-        assert devices == {'cpu': 2, 'gpu': 2}
+    devices = get_default_devices(debug=debug, default_cpus=2, default_gpus=2)
+    assert devices == {'cpu': 2, 'gpu': 2}
