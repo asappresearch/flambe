@@ -30,6 +30,7 @@ from flambe.runner.utils import get_files
 from flambe.experiment.progress import ProgressState
 from flambe.experiment.tune_adapter import TuneAdapter
 from flambe.logging import coloredlogs as cl
+from flambe.experiment.utils import get_default_devices
 
 logger = logging.getLogger(__name__)
 
@@ -275,11 +276,7 @@ class Experiment(ClusterRunnable):
         # By default use all CPUs if no GPU is present
         devices = self.devices if self.devices else None
         if devices is None:
-            cluster_devices = ray.cluster_resources()
-            if 'GPU' in cluster_devices or 'gpu' in cluster_devices:
-                devices = {"cpu": 4, "gpu": 1}
-            else:
-                devices = {"cpu": 1}
+            devices = get_default_devices()
 
         to_resume = None
         if isinstance(self.resume, str):

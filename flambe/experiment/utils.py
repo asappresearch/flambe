@@ -3,6 +3,7 @@ import os
 from collections import abc
 from typing import Dict, List, Mapping, Any, Optional, Iterable, Set, Sequence, MutableMapping
 
+import ray
 import torch
 from ruamel.yaml.compat import StringIO
 from ruamel import yaml as original_yaml
@@ -549,3 +550,60 @@ def shutdown_remote_ray_node(host: str,
     """
     cmd = f"ssh -i {key} -o StrictHostKeyChecking=no {user}@{host} \"bash -lc 'ray stop'\""
     return os.system(cmd)
+
+
+def get_default_devices(debug: bool = False,
+                        default_cpus: int = 1,
+                        default_gpus: int = 1) -> Dict[str, int]:
+    """Get the default devices to use if not provided.
+
+    Parameters
+    ----------
+    debug: bool, optional
+        If we are running in debug mode (where Ray is not available).
+        If debug is False, this method should be called after running
+        ``ray.init()``.
+    default_cpus: int, optional
+        The default number of CPU's to use. Default ``1``.
+    default_gpus: int, optional
+        The default number of GPU's to use. Default ``1``.
+
+    Returns
+    -------
+    devices: Dict[str, int]
+        Default set of devices to use. Should have at most two keys:
+        'cpu', and 'gpu' if cuda is available.
+
+    Raises
+    ------
+    ValueError
+        If the total number of GPUs is larger than the number available.
+
+    """
+    # Get available resources
+    if not debug and ray.is_initialized():
+        cluster_devices = ray.cluster_resources()
+        num_cpus = max(cluster_devices.get('CPU', 0), cluster_devices.get('cpu', 0))
+        num_gpus = max(cluster_devices.get('GPU', 0), cluster_devices.get('gpu', 0))
+    elif torch.cuda.is_available():
+        num_cpus = os.cpu_count()
+        num_gpus = torch.cuda.device_count()
+    else:
+        num_cpus = os.cpu_count()
+        num_gpus = 0
+
+    # Check that requested is not larger than available
+    if default_cpus > num_cpus:
+        raise ValueError(f"Number of CPUs requested ({default_cpus}) is larger \
+            than the total number available ({num_cpus}).")
+    if num_gpus > 0 and default_gpus > num_gpus:
+        raise ValueError(f"Number of GPUs requested ({default_gpus}) is larger \
+            than the total number available ({num_gpus}).")
+
+    # Set provided defaults
+    if num_gpus > 0:
+        devices = {"cpu": default_cpus, "gpu": default_gpus}
+    else:
+        devices = {"cpu": default_cpus}
+
+    return devices
