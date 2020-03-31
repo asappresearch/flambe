@@ -583,7 +583,7 @@ def get_default_devices(debug: bool = False,
     else:
         if ray.is_initialized():
             cluster_devices = ray.cluster_resources()
-            use_gpu = 'GPU' in cluster_devices or 'gpu' in cluster_devices
+            use_gpu = ('GPU' in cluster_devices) or ('gpu' in cluster_devices)
         elif torch.cuda.is_available():
             use_gpu = True
         else:
