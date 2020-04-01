@@ -276,7 +276,7 @@ class Experiment(ClusterRunnable):
         # By default use all CPUs if no GPU is present
         devices = self.devices if self.devices else None
         if devices is None:
-            devices = get_default_devices()
+            devices = get_default_devices(debug=debug)
 
         to_resume = None
         if isinstance(self.resume, str):
