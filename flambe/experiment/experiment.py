@@ -388,6 +388,7 @@ class Experiment(ClusterRunnable):
                                                   queue_trials=True,
                                                   verbose=False,
                                                   resume=resume,
+                                                  reuse_actors=True,
                                                   raise_on_failed_trial=False)
                 logger.debug(f"Finish running all tune.Experiments for {block_id}")
 
