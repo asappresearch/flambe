@@ -115,7 +115,7 @@ class Schema(MutableMapping[str, Any]):
         newkeywords.update(keywords)
         compiled = self.component_subclass.compile(
             _flambe_custom_factory_name=self.factory_method,
-            _flambe_extensions=self._extensions,
+            _flambe_extensions=self.aggregate_extensions_metadata(),
             _flambe_stash=stash,
             **newkeywords)
         self._compiled = compiled
@@ -682,8 +682,12 @@ class Link(Registrable):
                 return representer.represent_scalar(tag, link_str)
             else:
                 if isinstance(node.resolved, Registrable):
-                    return node.resolved.to_yaml(representer, node.resolved,
-                                                 node.resolved._created_with_tag)  # type: ignore  # noqa: E501
+                    try:
+                        return node.resolved.to_yaml(representer, node.resolved,
+                                                     node.resolved._created_with_tag)  # type: ignore  # noqa: E501
+                    except AttributeError:
+                        data_link = PickledDataLink(obj_id='0', value=node.resolved)
+                        return PickledDataLink.to_yaml(representer, data_link, '!$')
                 else:
                     try:
                         return representer.represent_data(node.resolved)
