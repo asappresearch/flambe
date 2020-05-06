@@ -115,7 +115,7 @@ class Schema(MutableMapping[str, Any]):
         newkeywords.update(keywords)
         compiled = self.component_subclass.compile(
             _flambe_custom_factory_name=self.factory_method,
-            _flambe_extensions=self._extensions,
+            _flambe_extensions=self.aggregate_extensions_metadata(),
             _flambe_stash=stash,
             **newkeywords)
         self._compiled = compiled
