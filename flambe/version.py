@@ -1,5 +1,5 @@
 MAJOR = "0"
 MINOR = "4"
-PATCH = "16"
+PATCH = "18"
 
 VERSION = f'{MAJOR}.{MINOR}.{PATCH}'
