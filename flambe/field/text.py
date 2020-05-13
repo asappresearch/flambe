@@ -400,13 +400,15 @@ class TextField(Field):
                     embedding_matrix.append(torch.tensor(model[token]))
                     new_vocab[token] = new_index = new_index + 1
                 elif token in self.specials:
-                    embedding_matrix.append(torch.tensor(np.random.normal(mean, std)))
+                    rand_emb = torch.tensor(np.random.normal(mean, std), dtype=torch.float32)
+                    embedding_matrix.append(rand_emb)
                     new_vocab[token] = new_index = new_index + 1
                 else:
                     self.unk_numericals.add(self.vocab[token])
 
                     if initialize_unknowns:
-                        embedding_matrix.append(torch.tensor(np.random.normal(mean, std)))
+                        rand_emb = torch.tensor(np.random.normal(mean, std), dtype=torch.float32)
+                        embedding_matrix.append(rand_emb)
                         new_vocab[token] = new_index = new_index + 1
                     else:
                         # Collapse all OOV's to the same <unk> token id
